@@ -4,12 +4,32 @@
   <meta charset="utf-8" />
   <title>izakaya-relay</title>
   <script>
-    // 受け取ったURLパラメータをそのまま Thunkable のWeb版URLへ渡す
-    const BASE = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+    // ★あなたのRTDB
+    const DB = "https://izakayaorder-default-rtdb.firebaseio.com";
 
-    const q = location.search; // ?shop=...&table=...&token=...
-    location.replace(BASE + q);
+    // URL例: https://.../izakaya-relay/?shop=daboya&table=1&token=xxxx
+    const params = new URLSearchParams(location.search);
+    const shop  = params.get("shop");
+    const table = params.get("table");   // "1" とか
+    const token = params.get("token");   // "daboya-1-..." とか
+
+    // どれか欠けたら止める（デバッグ用）
+    if (!shop || !table || !token) {
+      document.write("missing params: shop/table/token");
+      throw new Error("missing params");
+    }
+
+    // ★ここが重要：tables/{table}.json に token を保存（=テーブルが作られる）
+    fetch(`${DB}/shops/${shop}/tables/${table}.json`, {
+      method: "PUT",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(token)
+    }).then(() => {
+      document.body.innerHTML = "OK (tables saved)";
+    }).catch((e) => {
+      document.body.innerHTML = "ERROR: " + e;
+    });
   </script>
 </head>
-<body>redirecting...</body>
+<body>writing...</body>
 </html>

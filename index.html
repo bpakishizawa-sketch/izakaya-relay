@@ -1,5 +1,15 @@
 <!doctype html>
 <html>
-  <head><meta charset="utf-8"><title>izakaya-relay</title></head>
-  <body>OK</body>
+<head>
+  <meta charset="utf-8" />
+  <title>izakaya-relay</title>
+  <script>
+    // 受け取ったURLパラメータをそのまま Thunkable のWeb版URLへ渡す
+    const BASE = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+
+    const q = location.search; // ?shop=...&table=...&token=...
+    location.replace(BASE + q);
+  </script>
+</head>
+<body>redirecting...</body>
 </html>

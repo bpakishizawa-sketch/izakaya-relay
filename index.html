@@ -1,51 +1,49 @@
+
+
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>izakaya-relay</title>
-
-  <script>
-    // ===== Firebase Realtime Database =====
-    const DB = "https://izakayaorder-default-rtdb.firebaseio.com";
-
-    // ===== Thunkable Web App URL =====
-    const THUNKABLE_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
-
-    // ===== URL params =====
-    // 例:
-    // https://bpakishizawa-sketch.github.io/izakaya-relay/?shop=daboya&table=1&token=TEST123
-    const params = new URLSearchParams(window.location.search);
-    const shop  = params.get("shop");
-    const table = params.get("table");
-    const token = params.get("token");
-
-    // ===== param check =====
-    if (!shop || !table || !token) {
-      document.body.innerHTML = "missing params: shop / table / token";
-      throw new Error("missing params");
-    }
-
-    // ===== save token to tables =====
-    fetch(`${DB}/shops/${shop}/tables/${table}.json`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(token)
-    })
-    .then(() => {
-      // ===== redirect to Thunkable (params keep) =====
-      window.location.replace(
-        THUNKABLE_URL + window.location.search
-      );
-    })
-    .catch(err => {
-      document.body.innerHTML = "ERROR: " + err;
-    });
-  </script>
 </head>
+<body>writing...</body>
 
-<body>
-  writing...
-</body>
+<script>
+  // ===== Firebase Realtime Database =====
+  const DB = "https://izakayaorder-default-rtdb.firebaseio.com";
+
+  // ===== Thunkable Web App URL =====
+  // ★ここはあなたのURLのまま
+  const THUNKABLE_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+
+  // ===== URL params =====
+  // 例:
+  // https://bpakishizawa-sketch.github.io/izakaya-relay/?shop=daboya&table=1&token=TEST123
+  const params = new URLSearchParams(window.location.search);
+  const shop  = params.get("shop");
+  const table = params.get("table");
+  const token = params.get("token");
+
+  // ===== param check =====
+  if (!shop || !table || !token) {
+    document.body.innerHTML = "missing params: shop / table / token";
+    throw new Error("missing params");
+  }
+
+  // ===== save token to tables =====
+  fetch(`${DB}/shops/${shop}/tables/${table}.json`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(token)
+  })
+  .then(() => {
+    // ===== ★ここが重要：entryQR を直接開く =====
+    window.location.replace(
+      THUNKABLE_URL + "?screen=entryQR&" + params.toString()
+    );
+  })
+  .catch(err => {
+    document.body.innerHTML = "ERROR: " + err;
+  });
+</script>
 </html>
-
-

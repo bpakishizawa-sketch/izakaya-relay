@@ -3,33 +3,48 @@
 <head>
   <meta charset="utf-8" />
   <title>izakaya-relay</title>
+
   <script>
-    // ★あなたのRTDB
+    // ===== Firebase Realtime Database =====
     const DB = "https://izakayaorder-default-rtdb.firebaseio.com";
 
-    // URL例: https://.../izakaya-relay/?shop=daboya&table=1&token=xxxx
-    const params = new URLSearchParams(location.search);
-    const shop  = params.get("shop");
-    const table = params.get("table");   // "1" とか
-    const token = params.get("token");   // "daboya-1-..." とか
+    // ===== Thunkable Web App URL =====
+    const THUNKABLE_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
 
-    // どれか欠けたら止める（デバッグ用）
+    // ===== URL params =====
+    // 例:
+    // https://bpakishizawa-sketch.github.io/izakaya-relay/?shop=daboya&table=1&token=TEST123
+    const params = new URLSearchParams(window.location.search);
+    const shop  = params.get("shop");
+    const table = params.get("table");
+    const token = params.get("token");
+
+    // ===== param check =====
     if (!shop || !table || !token) {
-      document.write("missing params: shop/table/token");
+      document.body.innerHTML = "missing params: shop / table / token";
       throw new Error("missing params");
     }
 
-    // ★ここが重要：tables/{table}.json に token を保存（=テーブルが作られる）
+    // ===== save token to tables =====
     fetch(`${DB}/shops/${shop}/tables/${table}.json`, {
       method: "PUT",
-      headers: {"Content-Type":"application/json"},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(token)
-    }).then(() => {
-      document.body.innerHTML = "OK (tables saved)";
-    }).catch((e) => {
-      document.body.innerHTML = "ERROR: " + e;
+    })
+    .then(() => {
+      // ===== redirect to Thunkable (params keep) =====
+      window.location.replace(
+        THUNKABLE_URL + window.location.search
+      );
+    })
+    .catch(err => {
+      document.body.innerHTML = "ERROR: " + err;
     });
   </script>
 </head>
-<body>writing...</body>
+
+<body>
+  writing...
+</body>
 </html>
+

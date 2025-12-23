@@ -3,39 +3,47 @@
 <head>
   <meta charset="utf-8" />
   <title>izakaya-relay</title>
-  <script>
-    // ★あなたのRTDB
-    const DB = "https://izakayaorder-default-rtdb.firebaseio.com";
-
-    // ★Thunkable Web App（あなたのURL）
-    const BASE = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
-
-    // URL例: https://.../izakaya-relay/?shop=daboya&table=1&token=TEST123
-    const params = new URLSearchParams(location.search);
-    const shop  = params.get("shop");
-    const table = params.get("table");
-    const token = params.get("token");
-
-    // どれか欠けたら止める（QRミス確認用）
-    if (!shop || !table || !token) {
-      document.body.innerHTML = "missing params: shop/table/token";
-      throw new Error("missing params");
-    }
-
-    // 1) tables/{table}.json に token 保存
-    fetch(`${DB}/shops/${shop}/tables/${table}.json`, {
-      method: "PUT",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(token)
-    })
-    .then(() => {
-      // 2) 保存できたら Thunkable に同じパラメータ付きで飛ばす
-      location.replace(`${BASE}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&token=${encodeURIComponent(token)}`);
-    })
-    .catch((e) => {
-      document.body.innerHTML = "ERROR: " + e;
-    });
-  </script>
 </head>
 <body>writing...</body>
+
+<script>
+  const DB   = "https://izakayaorder-default-rtdb.firebaseio.com";
+  const BASE = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+
+  const params = new URLSearchParams(location.search);
+  const shop  = params.get("shop");
+  const table = params.get("table");
+  const token = params.get("token");
+
+  if (!shop || !table || !token) {
+    document.body.innerHTML = "missing params: shop/table/token";
+    throw new Error("missing params");
+  }
+
+  // ① tables に token（今まで通り）
+  const urlTables = `${DB}/shops/${shop}/tables/${table}.json`;
+
+  // ② sessions に {shop, table}（追加）
+  const urlSession = `${DB}/sessions/${token}.json`;
+
+  Promise.all([
+    fetch(urlTables, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(token)
+    }),
+    fetch(urlSession, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ shop: shop, table: table })
+    })
+  ])
+  .then(() => {
+    // ③ Thunkableへは token だけ渡す（shop/table不要）
+    location.replace(`${BASE}?token=${encodeURIComponent(token)}`);
+  })
+  .catch((e) => {
+    document.body.innerHTML = "ERROR: " + e;
+  });
+</script>
 </html>

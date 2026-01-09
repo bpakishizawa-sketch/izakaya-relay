@@ -2,39 +2,58 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>izakaya-relay</title>
 </head>
 <body style="margin:0">
+  <div id="msg" style="padding:16px;font-family:sans-serif;">読み込み中...</div>
 
 <script>
-  const THUNKABLE_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+  // ====== ここだけ設定 ======
+  const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com"; // ←あなたのDB
+  const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";   // ←あなたのWeb
+  // ==========================
+
+  const msg = (t) => document.getElementById("msg").textContent = t;
 
   const params = new URLSearchParams(location.search);
-  const payload = {
-    shop:  params.get("shop"),
-    table: params.get("table"),
-    token: params.get("token"),
-  };
+  const shop  = params.get("shop");
+  const table = params.get("table");
+  const token = params.get("token");
 
-  if (!payload.shop || !payload.table || !payload.token) {
-    document.body.innerHTML = "missing params: shop/table/token";
+  if (!shop || !table || !token) {
+    msg("missing params: shop/table/token");
     throw new Error("missing params");
   }
 
-  // Thunkableを埋め込み起動
-  const iframe = document.createElement("iframe");
-  iframe.src = THUNKABLE_URL;
-  iframe.style.width = "100vw";
-  iframe.style.height = "100vh";
-  iframe.style.border = "0";
-  document.body.appendChild(iframe);
-
-  // 起動後に Thunkable へ送る
-  iframe.onload = () => {
-    iframe.contentWindow.postMessage(payload, "*");
+  // /sessions/{token} に保存するデータ
+  const payload = {
+    shop,
+    table,
+    token,
+    createdAt: Date.now()
   };
-</script>
 
+  // FirebaseへPUT（セッション登録）
+  const url = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
+
+  msg("セッション登録中...");
+
+  fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+  .then(async (res) => {
+    if (!res.ok) throw new Error(await res.text());
+    msg("OK。注文ページへ移動...");
+    // tokenを渡したいならハッシュに付ける（クエリはThunkableが読めないので）
+    location.replace(`${THUNKABLE_URL}#token=${encodeURIComponent(token)}`);
+  })
+  .catch((e) => {
+    console.error(e);
+    msg("Firebase書き込み失敗。DB URL / ルール / token文字 を確認して。");
+  });
+</script>
 </body>
 </html>

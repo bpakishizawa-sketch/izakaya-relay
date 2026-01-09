@@ -18,40 +18,37 @@ const msg = (t) => document.getElementById("msg").textContent = t;
 const params = new URLSearchParams(location.search);
 const shop  = params.get("shop");
 const table = params.get("table");
-let token   = params.get("token"); // あれば使う
 
 if (!shop || !table) {
-  msg("missing params:\nshop / table\n\nURL例:\n?shop=daboya&table=1");
+  msg("missing params: shop / table\n例: ?shop=daboya&table=1");
   throw new Error("missing params");
 }
 
-// token が無ければ自動生成（shop-table-ランダム）
-if (!token) {
-  const rand = Math.floor(Math.random() * 1000);
-  token = `${shop}-${table}-${rand}`;
-}
+// token自動発行（毎回変わる）
+const token = `${shop}-${table}-${Math.floor(Math.random()*1000)}`;
 
-const payload = { shop, table, token, createdAt: Date.now() };
-const url = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
+const sessionPayload = { shop, table, token, createdAt: Date.now() };
+const activePayload  = { token, updatedAt: Date.now() };
 
-msg("セッション登録中...\n" + url);
+const sessionUrl = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
+const activeUrl  = `${FIREBASE_DB_URL}/activeSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
 
-fetch(url, {
-  method: "PUT",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(payload)
+msg("セッション作成中…");
+
+Promise.all([
+  fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
+  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload)  })
+])
+.then(async (results) => {
+  for (const r of results) if (!r.ok) throw new Error(await r.text());
+  msg("OK。注文ページへ移動…");
+  // Thunkable側は shop/table から activeSessions を読む（token入力なし）
+  location.replace(`${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
 })
-.then(async (res) => {
-  const text = await res.text();
-  if (!res.ok) {
-    msg("Firebase書き込みNG\n\nStatus: " + res.status + "\nBody:\n" + text);
-    throw new Error("write failed");
-  }
-  msg("OK。Thunkableへ移動します…");
-  // token を hash に付けて渡す
-  location.replace(`${THUNKABLE_URL}#token=${encodeURIComponent(token)}`);
-})
-.catch((e) => console.error(e));
+.catch((e) => {
+  console.error(e);
+  msg("Firebase書き込み失敗。Rules/URLを確認。");
+});
 </script>
 </body>
 </html>

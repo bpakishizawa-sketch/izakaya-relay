@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>izakaya-relay</title>
 </head>
-
 <body style="margin:0">
   <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">
     読み込み中…
@@ -14,23 +13,28 @@
 <script>
 const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
 const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
-
 const msg = (t) => document.getElementById("msg").textContent = t;
 
 const params = new URLSearchParams(location.search);
 const shop  = params.get("shop");
 const table = params.get("table");
-const token = params.get("token");
+let token   = params.get("token"); // あれば使う
 
-if (!shop || !table || !token) {
-  msg("missing params:\nshop / table / token\n\nURL例:\n?shop=daboya&table=9&token=TEST999");
+if (!shop || !table) {
+  msg("missing params:\nshop / table\n\nURL例:\n?shop=daboya&table=1");
   throw new Error("missing params");
+}
+
+// token が無ければ自動生成（shop-table-ランダム）
+if (!token) {
+  const rand = Math.floor(Math.random() * 1000);
+  token = `${shop}-${table}-${rand}`;
 }
 
 const payload = { shop, table, token, createdAt: Date.now() };
 const url = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
 
-msg("1) Firebaseへ書き込み中...\n" + url);
+msg("セッション登録中...\n" + url);
 
 fetch(url, {
   method: "PUT",
@@ -43,14 +47,11 @@ fetch(url, {
     msg("Firebase書き込みNG\n\nStatus: " + res.status + "\nBody:\n" + text);
     throw new Error("write failed");
   }
-  msg("2) Firebase書き込みOK\nBody:\n" + text + "\n\n3秒後にThunkableへ移動します…");
-  setTimeout(() => {
-    location.href = THUNKABLE_URL + "#token=" + encodeURIComponent(token);
-  }, 3000);
+  msg("OK。Thunkableへ移動します…");
+  // token を hash に付けて渡す
+  location.replace(`${THUNKABLE_URL}#token=${encodeURIComponent(token)}`);
 })
-.catch((e) => {
-  console.error(e);
-});
+.catch((e) => console.error(e));
 </script>
 </body>
 </html>

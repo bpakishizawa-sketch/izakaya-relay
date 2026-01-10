@@ -11,8 +11,15 @@
   </div>
 
 <script>
+/**
+ * ===== 設定ここだけ =====
+ */
 const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
-const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH"; // あなたのThunkable Web公開URL
+
+/**
+ * ===== ここから下は触らない =====
+ */
 const msg = (t) => document.getElementById("msg").textContent = t;
 
 const params = new URLSearchParams(location.search);
@@ -33,24 +40,34 @@ const activePayload  = { token, updatedAt: Date.now() };
 const sessionUrl = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
 const activeUrl  = `${FIREBASE_DB_URL}/activeSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
 
-msg("セッション作成中…");
+msg(`セッション作成中…\nshop=${shop}\ntable=${table}\ntoken=${token}`);
 
 Promise.all([
-  fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
-  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload) })
+  fetch(sessionUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(sessionPayload)
+  }),
+  fetch(activeUrl, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(activePayload)
+  })
 ])
 .then(async (results) => {
-  for (const r of results) if (!r.ok) throw new Error(await r.text());
+  for (const r of results) {
+    if (!r.ok) throw new Error(await r.text());
+  }
   msg("OK。Thunkableへ移動…");
 
-  // ★ここが楽なポイント： # じゃなくて ? で渡す
-  location.replace(`${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
+  // ✅ Thunkable側は「#shop=...&table=...」を読む前提（あなたの今のブロック）
+  const next = `${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`;
+  location.replace(next);
 })
 .catch((e) => {
   console.error(e);
-  msg("Firebase書き込み失敗。Rules/URLを確認。");
+  msg("Firebase書き込み失敗。Rules/URLを確認。\n\n" + e.message);
 });
 </script>
 </body>
 </html>
-

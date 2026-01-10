@@ -11,17 +11,14 @@
   </div>
 
 <script>
-/**
- * ===== 設定ここだけ =====
- */
+/* ===== 設定（ここだけ確認） ===== */
 const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
-const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH"; // あなたのThunkable Web公開URL
+const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+/* =============================== */
 
-/**
- * ===== ここから下は触らない =====
- */
 const msg = (t) => document.getElementById("msg").textContent = t;
 
+/* --- QRから渡された shop / table を取得 --- */
 const params = new URLSearchParams(location.search);
 const shop  = params.get("shop");
 const table = params.get("table");
@@ -31,16 +28,32 @@ if (!shop || !table) {
   throw new Error("missing params");
 }
 
-// token自動発行（毎回変わる）
-const token = `${shop}-${table}-${Math.floor(Math.random()*1000)}`;
+/* --- token生成（客がQRを読んだ瞬間に1回） --- */
+const token = `${shop}-${table}-${Date.now()}`;
 
-const sessionPayload = { shop, table, token, createdAt: Date.now() };
-const activePayload  = { token, updatedAt: Date.now() };
+/* --- Firebase書き込み --- */
+const sessionPayload = {
+  shop,
+  table,
+  token,
+  createdAt: Date.now()
+};
 
-const sessionUrl = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
-const activeUrl  = `${FIREBASE_DB_URL}/activeSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
+const activePayload = {
+  token,
+  updatedAt: Date.now()
+};
 
-msg(`セッション作成中…\nshop=${shop}\ntable=${table}\ntoken=${token}`);
+const sessionUrl =
+  `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
+
+const activeUrl =
+  `${FIREBASE_DB_URL}/activeSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
+
+msg(`セッション作成中…
+shop=${shop}
+table=${table}
+token=${token}`);
 
 Promise.all([
   fetch(sessionUrl, {
@@ -58,15 +71,17 @@ Promise.all([
   for (const r of results) {
     if (!r.ok) throw new Error(await r.text());
   }
-  msg("OK。Thunkableへ移動…");
 
-  // ✅ Thunkable側は「#shop=...&table=...」を読む前提（あなたの今のブロック）
-  const next = `${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`;
-  location.replace(next);
+  msg("OK。注文画面へ移動…");
+
+  /* ★ 最終確定：?shop=&table= 方式（安全・WebView不要） */
+  location.replace(
+    `${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`
+  );
 })
 .catch((e) => {
   console.error(e);
-  msg("Firebase書き込み失敗。Rules/URLを確認。\n\n" + e.message);
+  msg("Firebase書き込み失敗。\nRules / URL を確認してください。\n\n" + e.message);
 });
 </script>
 </body>

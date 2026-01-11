@@ -24,49 +24,36 @@ if (!shop || !table) {
   throw new Error("missing params");
 }
 
-// token（毎回変わる）: crypto優先
-const rand = (self.crypto && crypto.randomUUID) ? crypto.randomUUID().slice(0,8) : String(Math.floor(Math.random()*100000));
-const token = `${shop}-${table}-${rand}`;
+// ランダム文字列（8byte=16hex）
+function randHex16(){
+  const a = new Uint8Array(8);
+  crypto.getRandomValues(a);
+  return Array.from(a).map(b => b.toString(16).padStart(2,"0")).join("");
+}
+
+const token = `${shop}-${table}-${randHex16()}`;
 
 const sessionPayload = { shop, table, token, createdAt: Date.now() };
 const activePayload  = { token, updatedAt: Date.now() };
 
-// ★ここが重要：web版のパスに統一
 const sessionUrl = `${FIREBASE_DB_URL}/webSessions/${encodeURIComponent(token)}.json`;
 const activeUrl  = `${FIREBASE_DB_URL}/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
 
-msg(
-  "セッション作成中…\n" +
-  "sessionUrl:\n" + sessionUrl + "\n\n" +
-  "activeUrl:\n" + activeUrl + "\n"
-);
+msg("セッション作成中…");
 
 Promise.all([
   fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
   fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload) })
 ])
-.then(async ([r1, r2]) => {
-  const t1 = await r1.text();
-  const t2 = await r2.text();
-
-  if (!r1.ok || !r2.ok) {
-    msg(
-      "Firebase書き込み失敗\n\n" +
-      "session status=" + r1.status + "\n" + t1 + "\n\n" +
-      "active  status=" + r2.status + "\n" + t2 + "\n"
-    );
-    throw new Error("write failed");
-  }
-
-  msg("OK。注文ページへ移動…\n" + "token=" + token);
-
-  // 少し待ってから遷移（書き込み反映を確実にする）
-  setTimeout(() => {
-    location.replace(`${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
-  }, 300);
+.then(async (results) => {
+  for (const r of results) if (!r.ok) throw new Error(await r.text());
+  msg("OK。注文ページへ移動…");
+  // shop/table を Thunkable に渡す（hashでもqueryでもOK。今回はhash）
+  location.replace(`${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
 })
 .catch((e) => {
   console.error(e);
+  msg("Firebase書き込み失敗。Rules/URLを確認。");
 });
 </script>
 </body>

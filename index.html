@@ -3,74 +3,35 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>izakaya-relay</title>
+  <title>readhash</title>
 </head>
-<body style="margin:0">
-  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">
-    読み込み中…
-  </div>
+<body style="margin:0;font-family:sans-serif;">
+  <div id="msg" style="padding:16px;white-space:pre-wrap;">loading…</div>
 
 <script>
-const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
-const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
-const msg = (t) => document.getElementById("msg").textContent = t;
+const out = (t) => document.getElementById("msg").textContent = t;
 
-const params = new URLSearchParams(location.search);
-const shop  = params.get("shop");
-const table = params.get("table");
+function send() {
+  // 親(Thunkableページ)のURLは referrer で取れることが多い
+  const ref = document.referrer || "";
+  let topUrl = "";
+  try { topUrl = window.top.location.href || ""; } catch(e) {}
 
-if (!shop || !table) {
-  msg("missing params: shop / table\n例: ?shop=daboya&table=1");
-  throw new Error("missing params");
+  const payload = (ref.includes("#token=") ? ref : (topUrl.includes("#token=") ? topUrl : ref || topUrl || "NO_URL"));
+  out(payload);
+
+  try {
+    ThunkableWebviewerExtension.postMessage(payload);
+  } catch(e) {
+    // ここで落ちるなら WebViewer message が使えてない
+    out("ERR:" + e.message + "\n\n" + payload);
+  }
 }
 
-const activeUrl = `${FIREBASE_DB_URL}/activeSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
-
-(async () => {
-  msg("既存セッション確認中…");
-
-  // 既存のtokenを取得（あれば後で消す）
-  let oldToken = null;
-  try {
-    const r = await fetch(activeUrl, { method:"GET" });
-    if (r.ok) {
-      const j = await r.json();
-      if (j && j.token) oldToken = j.token;
-    }
-  } catch(e) {}
-
-  // token自動発行（毎回変わる）
-  const token = `${shop}-${table}-${Math.floor(Math.random()*9000 + 1000)}`;
-
-  const sessionPayload = { shop, table, token, createdAt: Date.now() };
-  const activePayload  = { token, updatedAt: Date.now() };
-
-  const sessionUrl = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
-  const oldSessionUrl = oldToken ? `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(oldToken)}.json` : null;
-
-  msg("セッション作成中…");
-
-  // 新規作成
-  const results = await Promise.all([
-    fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
-    fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload) })
-  ]);
-
-  for (const r of results) if (!r.ok) throw new Error(await r.text());
-
-  // 古いsessionを削除（同じテーブルの前回分）
-  if (oldSessionUrl && oldToken !== token) {
-    try { await fetch(oldSessionUrl, { method:"DELETE" }); } catch(e) {}
-  }
-
-  msg("OK。注文ページへ移動…");
-
-  // ★ここが重要：クエリで渡す
-  location.replace(`${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&t=${Date.now()}`);
-})().catch((e) => {
-  console.error(e);
-  msg("Firebase書き込み失敗。Rules/URLを確認。");
-});
+// 1回だけだと間に合わない事があるので数回送る
+setTimeout(send, 200);
+setTimeout(send, 600);
+setTimeout(send, 1200);
 </script>
 </body>
 </html>

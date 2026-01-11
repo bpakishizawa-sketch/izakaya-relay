@@ -3,36 +3,53 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>readhash</title>
+  <title>izakaya-relay</title>
 </head>
-<body style="margin:0;font-family:sans-serif;">
-  <div id="msg" style="padding:16px;white-space:pre-wrap;">loading…</div>
+<body style="margin:0">
+  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">
+    読み込み中…
+  </div>
 
 <script>
-const out = (t) => document.getElementById("msg").textContent = t;
+const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
+const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+const msg = (t) => document.getElementById("msg").textContent = t;
 
-function send() {
-  // 親(Thunkableページ)のURLは referrer で取れることが多い
-  const ref = document.referrer || "";
-  let topUrl = "";
-  try { topUrl = window.top.location.href || ""; } catch(e) {}
+const params = new URLSearchParams(location.search);
+const shop  = params.get("shop");
+const table = params.get("table");
 
-  const payload = (ref.includes("#token=") ? ref : (topUrl.includes("#token=") ? topUrl : ref || topUrl || "NO_URL"));
-  out(payload);
-
-  try {
-    ThunkableWebviewerExtension.postMessage(payload);
-  } catch(e) {
-    // ここで落ちるなら WebViewer message が使えてない
-    out("ERR:" + e.message + "\n\n" + payload);
-  }
+if (!shop || !table) {
+  msg("missing params: shop / table\n例: ?shop=daboya&table=1");
+  throw new Error("missing params");
 }
 
-// 1回だけだと間に合わない事があるので数回送る
-setTimeout(send, 200);
-setTimeout(send, 600);
-setTimeout(send, 1200);
+// token（毎回変わる）
+const token = `${shop}-${table}-${Date.now()}-${Math.floor(Math.random()*100000)}`;
+
+const sessionPayload = { shop, table, token, createdAt: Date.now() };
+const activePayload  = { token, updatedAt: Date.now() };
+
+const sessionUrl = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
+const activeUrl  = `${FIREBASE_DB_URL}/activeSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
+
+msg("セッション作成中…");
+
+Promise.all([
+  fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
+  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload)  })
+])
+.then(async (results) => {
+  for (const r of results) if (!r.ok) throw new Error(await r.text());
+  msg("OK。Thunkableへ移動…");
+
+  // ★重要：#じゃなく ? にする（Thunkable側が location.search を取るため）
+  location.replace(`${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
+})
+.catch((e) => {
+  console.error(e);
+  msg("Firebase書き込み失敗。Rules/URLを確認。\n" + e.message);
+});
 </script>
 </body>
 </html>
-

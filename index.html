@@ -24,7 +24,7 @@ if (!shop || !table) {
   throw new Error("missing params");
 }
 
-// token（毎回変わる）
+// token（毎回変わる・衝突しにくく）
 const token = `${shop}-${table}-${Date.now()}-${Math.floor(Math.random()*100000)}`;
 
 const sessionPayload = { shop, table, token, createdAt: Date.now() };
@@ -37,14 +37,12 @@ msg("セッション作成中…");
 
 Promise.all([
   fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
-  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload)  })
+  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload) })
 ])
 .then(async (results) => {
   for (const r of results) if (!r.ok) throw new Error(await r.text());
-  msg("OK。Thunkableへ移動…");
-
-  // ★重要：#じゃなく ? にする（Thunkable側が location.search を取るため）
-  location.replace(`${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
+  msg("OK。注文ページへ移動…");
+  location.replace(`${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
 })
 .catch((e) => {
   console.error(e);

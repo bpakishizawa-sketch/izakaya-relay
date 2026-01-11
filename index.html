@@ -13,7 +13,6 @@
 <script>
 const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
 const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
-
 const msg = (t) => document.getElementById("msg").textContent = t;
 
 const params = new URLSearchParams(location.search);
@@ -25,15 +24,8 @@ if (!shop || !table) {
   throw new Error("missing params");
 }
 
-// そこそこ安全なランダム（Math.randomよりマシ）
-function rand4() {
-  const a = new Uint32Array(1);
-  crypto.getRandomValues(a);
-  return (a[0] % 10000).toString().padStart(4, "0");
-}
-
-// token（毎回変わる）
-const token = `${shop}-${table}-${rand4()}`;
+// token自動発行（毎回変わる：桁を増やして推測されにくく）
+const token = `${shop}-${table}-${Date.now()}-${Math.floor(Math.random()*1000000)}`;
 
 const sessionPayload = { shop, table, token, createdAt: Date.now() };
 const activePayload  = { token, updatedAt: Date.now() };
@@ -49,13 +41,14 @@ Promise.all([
 ])
 .then(async (results) => {
   for (const r of results) if (!r.ok) throw new Error(await r.text());
-  msg("OK。Thunkableへ移動…");
-  // ★ここを ?shop= &table= にする（超重要）
-  location.replace(`${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
+  msg("OK。注文ページへ移動…");
+
+  // ★ tokenだけThunkableへ渡す（これが一番堅い）
+  location.replace(`${THUNKABLE_URL}#token=${encodeURIComponent(token)}`);
 })
 .catch((e) => {
   console.error(e);
-  msg("Firebase書き込み失敗。Rules/URLを確認。\n" + e.message);
+  msg("Firebase書き込み失敗。Rules/URLを確認。");
 });
 </script>
 </body>

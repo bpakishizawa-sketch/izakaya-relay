@@ -3,53 +3,72 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>izakaya-relay</title>
+  <title>izakaya-relay DEBUG</title>
 </head>
 <body style="margin:0">
-  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">
-    読み込み中…
-  </div>
+  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">読み込み中…</div>
 
 <script>
 const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
 const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
 const msg = (t) => document.getElementById("msg").textContent = t;
 
-const params = new URLSearchParams(location.search);
-const shop  = params.get("shop");
-const table = params.get("table");
+(async () => {
+  msg("DEBUG 起動\nURL=" + location.href);
 
-if (!shop || !table) {
-  msg("missing params: shop / table\n例: ?shop=daboya&table=1");
-  throw new Error("missing params");
-}
+  const params = new URLSearchParams(location.search);
+  const shop  = params.get("shop");
+  const table = params.get("table");
 
-// token自動発行（毎回変わる：桁を増やして推測されにくく）
-const token = `${shop}-${table}-${Date.now()}-${Math.floor(Math.random()*1000000)}`;
+  if (!shop || !table) {
+    msg("missing params: shop / table\n例: ?shop=daboya&table=1\n\nURL=" + location.href);
+    return;
+  }
 
-const sessionPayload = { shop, table, token, createdAt: Date.now() };
-const activePayload  = { token, updatedAt: Date.now() };
+  const token = `${shop}-${table}-${Date.now()}-${Math.floor(Math.random()*1000000)}`;
 
-const sessionUrl = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
-const activeUrl  = `${FIREBASE_DB_URL}/activeSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
+  const sessionPayload = { shop, table, token, createdAt: Date.now() };
+  const activePayload  = { token, updatedAt: Date.now() };
 
-msg("セッション作成中…");
+  const sessionUrl = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
+  const activeUrl  = `${FIREBASE_DB_URL}/activeSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
 
-Promise.all([
-  fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
-  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload)  })
-])
-.then(async (results) => {
-  for (const r of results) if (!r.ok) throw new Error(await r.text());
-  msg("OK。注文ページへ移動…");
+  msg(
+    "セッション作成中…\n" +
+    "sessionUrl=" + sessionUrl + "\n" +
+    "activeUrl=" + activeUrl + "\n" +
+    "token=" + token
+  );
 
-  // ★ tokenだけThunkableへ渡す（これが一番堅い）
-  location.replace(`${THUNKABLE_URL}#token=${encodeURIComponent(token)}`);
-})
-.catch((e) => {
-  console.error(e);
-  msg("Firebase書き込み失敗。Rules/URLを確認。");
-});
+  try {
+    const r1 = await fetch(sessionUrl, {
+      method: "PUT",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify(sessionPayload)
+    });
+    const t1 = await r1.text();
+
+    const r2 = await fetch(activeUrl, {
+      method: "PUT",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify(activePayload)
+    });
+    const t2 = await r2.text();
+
+    msg(
+      "PUT sessions status=" + r1.status + "\n" + t1 + "\n\n" +
+      "PUT activeSessions status=" + r2.status + "\n" + t2
+    );
+
+    if (!r1.ok || !r2.ok) return;
+
+    msg("OK。Thunkableへ移動…\n#token=" + token);
+    location.replace(`${THUNKABLE_URL}#token=${encodeURIComponent(token)}`);
+
+  } catch (e) {
+    msg("fetch例外: " + e.message + "\n\nURL=" + location.href);
+  }
+})();
 </script>
 </body>
 </html>

@@ -1,53 +1,25 @@
-<!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>izakaya-relay</title>
-</head>
-<body style="margin:0">
-  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">
-    読み込み中…
-  </div>
-
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>checkout</title></head>
+<body style="font-family:sans-serif;margin:16px;">
+<h3>会計（token無効化）</h3>
+<pre id="info">loading…</pre>
+<button id="btn" disabled style="font-size:16px;padding:10px 14px;">会計完了（無効化）</button>
 <script>
-const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
-const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
-const msg = (t) => document.getElementById("msg").textContent = t;
-
-const params = new URLSearchParams(location.search);
-const shop  = params.get("shop");
-const table = params.get("table");
-
-if (!shop || !table) {
-  msg("missing params: shop / table\n例: ?shop=daboya&table=1");
-  throw new Error("missing params");
-}
-
-// token（毎回変わる・衝突しにくく）
-const token = `${shop}-${table}-${Date.now()}-${Math.floor(Math.random()*100000)}`;
-
-const sessionPayload = { shop, table, token, createdAt: Date.now() };
-const activePayload  = { token, updatedAt: Date.now() };
-
-const sessionUrl = `${FIREBASE_DB_URL}/sessions/${encodeURIComponent(token)}.json`;
-const activeUrl  = `${FIREBASE_DB_URL}/activeSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
-
-msg("セッション作成中…");
-
-Promise.all([
-  fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
-  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload) })
-])
-.then(async (results) => {
-  for (const r of results) if (!r.ok) throw new Error(await r.text());
-  msg("OK。注文ページへ移動…");
-  location.replace(`${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
-})
-.catch((e) => {
-  console.error(e);
-  msg("Firebase書き込み失敗。Rules/URLを確認。\n" + e.message);
-});
-</script>
-</body>
-</html>
+const DB="https://izakayaorder-default-rtdb.firebaseio.com";
+const enc=encodeURIComponent,$=id=>document.getElementById(id);
+const p=new URLSearchParams(location.search);
+const shop=p.get("shop"), table=p.get("table");
+if(!shop||!table){$("info").textContent="missing shop/table";throw 0;}
+const url=`${DB}/activeSessions/${enc(shop)}/${enc(table)}.json`;
+(async()=>{
+  $("info").textContent=`shop=${shop}\ntable=${table}\nactiveUrl=${url}`;
+  $("btn").disabled=false;
+  $("btn").onclick=async()=>{
+    $("btn").disabled=true;
+    await fetch(url,{method:"DELETE"});
+    $("info").textContent+="\n\nOK: activeSessions削除（無効化完了）";
+    $("btn").disabled=false;
+  };
+})().catch(e=>{$("info").textContent="ERR:"+e.message;});
+</script></body></html>

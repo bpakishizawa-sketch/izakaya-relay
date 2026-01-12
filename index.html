@@ -11,91 +11,45 @@
   </div>
 
 <script>
-(function () {
-  const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
+const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
+const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH"; // ←あなたのURLのまま
+const msg = (t) => document.getElementById("msg").textContent = t;
 
-  // ★あなたの「客側WEBアプリ（Thunkable Web公開URL）」を入れる
-  const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+const params = new URLSearchParams(location.search);
+const shop  = params.get("shop");
+const table = params.get("table");
 
-  const msgEl = document.getElementById("msg");
-  const msg = (t) => { msgEl.textContent = t; };
-  const enc = encodeURIComponent;
+if (!shop || !table) {
+  msg("missing params: shop / table\n例: ?shop=daboya&table=1");
+  throw new Error("missing params");
+}
 
-  const params = new URLSearchParams(location.search);
-  const shop  = params.get("shop");
-  const table = params.get("table");
+// token自動発行（毎回変わる）
+const token = `${shop}-${table}-${Math.random().toString(36).slice(2,10)}`;
 
-  if (!shop || !table) {
-    msg("missing params: shop / table\n例: ?shop=daboya&table=1");
-    return;
-  }
+const sessionPayload = { shop, table, token, createdAt: Date.now() };
+const activePayload  = { token, updatedAt: Date.now() };
 
-  function makeToken() {
-    if (typeof crypto !== "undefined") {
-      if (crypto.randomUUID) return shop + "-" + table + "-" + crypto.randomUUID();
-      if (crypto.getRandomValues) {
-        const a = new Uint32Array(4);
-        crypto.getRandomValues(a);
-        const hex = Array.from(a).map(x => x.toString(16)).join("");
-        return shop + "-" + table + "-" + Date.now().toString(36) + "-" + hex;
-      }
-    }
-    return shop + "-" + table + "-" + Date.now().toString(36) + "-" + Math.floor(Math.random() * 1000000);
-  }
+// ★ ここは今あなたが作れてるパスに合わせて「webSessions / webActiveSessions」に固定
+const sessionUrl = `${FIREBASE_DB_URL}/webSessions/${encodeURIComponent(token)}.json`;
+const activeUrl  = `${FIREBASE_DB_URL}/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
 
-  const token = makeToken();
+msg("セッション作成中…");
 
-  const sessionPayload = {
-    shop: shop,
-    table: table,
-    token: token,
-    createdAt: Date.now()
-  };
-
-  const activePayload = {
-    token: token,
-    updatedAt: Date.now()
-  };
-
-  // ★書き込み先：webSessions / webActiveSessions（あなたの現ツリーに合わせる）
-  const sessionUrl = FIREBASE_DB_URL + "/webSessions/" + enc(token) + ".json";
-  const activeUrl  = FIREBASE_DB_URL + "/webActiveSessions/" + enc(shop) + "/" + enc(table) + ".json";
-
-  msg("セッション作成中…");
-
-  Promise.all([
-    fetch(sessionUrl, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(sessionPayload)
-    }),
-    fetch(activeUrl, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(activePayload)
-    })
-  ])
-  .then(async (results) => {
-    for (const r of results) {
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error("HTTP " + r.status + " " + t);
-      }
-    }
-    msg("OK。注文ページへ移動…");
-
-    // ★ここが重要：Thunkableへは「?shop=...&table=...&token=...」（クエリ）で渡す
-    location.replace(
-      THUNKABLE_URL +
-      "?shop=" + enc(shop) +
-      "&table=" + enc(table) +
-      "&token=" + enc(token)
-    );
-  })
-  .catch((e) => {
-    msg("Firebase書き込み失敗。Rules/URLを確認。\n" + e.message);
-  });
-})();
+Promise.all([
+  fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
+  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload)  })
+])
+.then(async (results) => {
+  for (const r of results) if (!r.ok) throw new Error(await r.text());
+  msg("OK。注文ページへ移動…");
+  // ★ Thunkableへは「#」じゃなく「?」で渡す（ここが重要）
+  location.replace(`${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
+})
+.catch((e) => {
+  console.error(e);
+  msg("Firebase書き込み失敗。Rules/URLを確認。");
+});
 </script>
 </body>
 </html>

@@ -24,36 +24,36 @@ if (!shop || !table) {
   throw new Error("missing params");
 }
 
-// ランダム文字列（8byte=16hex）
-function randHex16(){
-  const a = new Uint8Array(8);
-  crypto.getRandomValues(a);
-  return Array.from(a).map(b => b.toString(16).padStart(2,"0")).join("");
-}
+// 毎回変わるトークン（衝突しにくい）
+const token = `${shop}-${table}-${crypto.randomUUID()}`;
 
-const token = `${shop}-${table}-${randHex16()}`;
+// 期限（例：2時間） ※好きに変更OK
+const expiresAt = Date.now() + (2 * 60 * 60 * 1000);
 
-const sessionPayload = { shop, table, token, createdAt: Date.now() };
-const activePayload  = { token, updatedAt: Date.now() };
+const sessionPayload = { shop, table, token, createdAt: Date.now(), expiresAt };
+
+// ★複数同時OK：table配下に token をぶら下げる（上書きしない）
+const activePayload  = { createdAt: Date.now(), expiresAt };
 
 const sessionUrl = `${FIREBASE_DB_URL}/webSessions/${encodeURIComponent(token)}.json`;
-const activeUrl  = `${FIREBASE_DB_URL}/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
+const activeUrl  = `${FIREBASE_DB_URL}/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}/${encodeURIComponent(token)}.json`;
 
 msg("セッション作成中…");
 
 Promise.all([
   fetch(sessionUrl, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(sessionPayload) }),
-  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload) })
+  fetch(activeUrl,  { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(activePayload)  })
 ])
 .then(async (results) => {
   for (const r of results) if (!r.ok) throw new Error(await r.text());
   msg("OK。注文ページへ移動…");
-  // shop/table を Thunkable に渡す（hashでもqueryでもOK。今回はhash）
-  location.replace(`${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
+
+  // Thunkableへ token も渡す（これが一番ラクで確実）
+  location.replace(`${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&token=${encodeURIComponent(token)}`);
 })
 .catch((e) => {
   console.error(e);
-  msg("Firebase書き込み失敗。Rules/URLを確認。");
+  msg("Firebase書き込み失敗。Rules/URL/CORSを確認。");
 });
 </script>
 </body>

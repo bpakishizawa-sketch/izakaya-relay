@@ -6,85 +6,78 @@
   <title>izakaya-relay</title>
 </head>
 <body style="margin:0">
-  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">
-    読み込み中…
-  </div>
+  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">読み込み中…</div>
 
 <script>
-(function () {
-  const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
-  const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH"; // ←あなたの客側WebアプリURL
+const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
+const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+const msg = (t) => document.getElementById("msg").textContent = t;
 
-  const msgEl = document.getElementById("msg");
-  const msg = (t) => { msgEl.textContent = t; };
-  const enc = encodeURIComponent;
+const params = new URLSearchParams(location.search);
+const shop  = params.get("shop");
+const table = params.get("table");
 
-  const params = new URLSearchParams(location.search);
-  const shop  = params.get("shop");
-  const table = params.get("table");
+if (!shop || !table) {
+  msg("missing params: shop / table\n例: ?shop=daboya&table=1");
+  throw new Error("missing params");
+}
 
-  if (!shop || !table) {
-    msg("missing params: shop / table\n例: ?shop=daboya&table=1");
+const activeUrl = `${FIREBASE_DB_URL}/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
+
+function token4() {
+  return String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+}
+
+async function getJson(url){
+  const r = await fetch(url, { method:"GET" });
+  if (!r.ok) throw new Error(await r.text());
+  return await r.json(); // null or object
+}
+
+async function putJson(url, obj){
+  const r = await fetch(url, {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(obj)
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return true;
+}
+
+(async () => {
+  msg("activeSessions確認中…");
+
+  const active = await getJson(activeUrl);
+
+  // 既に会計中セッションがある → それを使う（更新しない）
+  if (active && active.token && active.token4) {
+    msg(`既存セッション使用: ${active.token}\n注文ページへ移動…`);
+    location.replace(`${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
     return;
   }
 
-  // ★ 4桁トークン（表示用）
-  const token4 = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
-  // ★ DBキー用（衝突しにくい）：shop-table-4桁
-  const token = shop + "-" + table + "-" + token4;
+  // 無い → 初回だけ作成（ここだけ更新）
+  const t4 = token4();
+  const token = `${shop}-${table}-${t4}`;
 
-  const sessionPayload = {
-    shop: shop,
-    table: table,
-    token: token,
-    token4: token4,
-    createdAt: Date.now()
-  };
+  const activePayload = { token, token4: t4, updatedAt: Date.now() };
 
-  const activePayload = {
-    token: token,
-    token4: token4,
-    updatedAt: Date.now()
-  };
+  // webSessions は「ログとして残す」用途。残したくないならこのPUT丸ごと消してOK
+  const sessionUrl = `${FIREBASE_DB_URL}/webSessions/${encodeURIComponent(token)}.json`;
+  const sessionPayload = { shop, table, token, token4: t4, createdAt: Date.now() };
 
-  // ★ 現状のパスに固定（あなたの運用：webSessions / webActiveSessions）
-  const sessionUrl = FIREBASE_DB_URL + "/webSessions/" + enc(token) + ".json";
-  const activeUrl  = FIREBASE_DB_URL + "/webActiveSessions/" + enc(shop) + "/" + enc(table) + ".json";
+  msg("初回セッション作成中…");
+  await Promise.all([
+    putJson(activeUrl, activePayload),
+    putJson(sessionUrl, sessionPayload)
+  ]);
 
-  msg("セッション作成中…");
-
-  Promise.all([
-    fetch(sessionUrl, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(sessionPayload)
-    }),
-    fetch(activeUrl, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(activePayload)
-    })
-  ])
-  .then(async (results) => {
-    for (const r of results) {
-      if (!r.ok) {
-        const t = await r.text();
-        throw new Error("HTTP " + r.status + " " + t);
-      }
-    }
-    msg("OK。注文ページへ移動…");
-    // ★ Thunkableへは shop/table を渡す（tokenはThunkableがwebActiveSessionsから取る）
-    location.replace(
-      THUNKABLE_URL +
-      "?shop=" + enc(shop) +
-      "&table=" + enc(table)
-    );
-  })
-  .catch((e) => {
-    console.error(e);
-    msg("Firebase書き込み失敗。Rules/URLを確認。\n" + e.message);
-  });
-})();
+  msg("OK。注文ページへ移動…");
+  location.replace(`${THUNKABLE_URL}#shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}`);
+})().catch(e => {
+  console.error(e);
+  msg("失敗。Firebase Rules / URL / shop,table を確認して。");
+});
 </script>
 </body>
 </html>

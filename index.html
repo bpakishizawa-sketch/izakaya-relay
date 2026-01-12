@@ -3,98 +3,92 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>izakaya-relay debug</title>
+  <title>izakaya-relay</title>
 </head>
 <body style="margin:0">
-<pre id="msg" style="padding:16px;font-family:ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;">loading...</pre>
+  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">読み込み中…</div>
 
 <script>
-const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
-const out = document.getElementById("msg");
-const log = (s) => out.textContent += s + "\n";
+(() => {
+  const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
+  const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
 
-out.textContent = "";
+  const msg = (t) => document.getElementById("msg").textContent = t;
+  const enc = encodeURIComponent;
 
-const params = new URLSearchParams(location.search);
-const shop  = params.get("shop");
-const table = params.get("table");
-const v     = params.get("v"); // キャッシュ潰し用（表示するだけ）
-log("v=" + v);
+  const params = new URLSearchParams(location.search);
+  const shop  = params.get("shop");
+  const table = params.get("table");
 
-if (!shop || !table) {
-  log("missing params: ?shop=daboya&table=1");
-  throw new Error("missing params");
-}
-log("shop=" + shop + " table=" + table);
-
-const enc = encodeURIComponent;
-const activeUrl  = `${FIREBASE_DB_URL}/webActiveSessions/${enc(shop)}/${enc(table)}.json`;
-
-function token4() {
-  return String(Math.floor(Math.random()*10000)).padStart(4,"0");
-}
-
-async function GET(url){
-  const r = await fetch(url, { method:"GET" });
-  const t = await r.text();
-  return { ok:r.ok, status:r.status, text:t };
-}
-async function PUT(url, obj){
-  const r = await fetch(url, {
-    method:"PUT",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(obj)
-  });
-  const t = await r.text();
-  return { ok:r.ok, status:r.status, text:t };
-}
-
-(async ()=>{
-  log("ACTIVE URL:");
-  log(activeUrl);
-
-  log("\nGET active...");
-  const g = await GET(activeUrl);
-  log("GET status=" + g.status);
-  log("GET text=" + g.text);
-
-  // ここで「permission denied」かどうかが分かる
-  if (g.text && g.text.includes("Permission")) {
-    log("\n=> RULES BLOCKING (permission denied)");
+  if (!shop || !table) {
+    msg("missing params: shop / table\n例: ?shop=daboya&table=1");
     return;
   }
 
-  // active が null なら作る
-  if (g.text === "null" || g.text.trim() === "" ) {
-    const t4 = token4();
-    const token = `${shop}-${table}-${t4}`;
-    log("\nactive is null -> CREATE token=" + token);
+  const activeUrl = `${FIREBASE_DB_URL}/webActiveSessions/${enc(shop)}/${enc(table)}.json`;
 
-    const activePayload = { token, token4: t4, updatedAt: Date.now() };
-    const sessionUrl = `${FIREBASE_DB_URL}/webSessions/${enc(token)}.json`;
+  const token4 = () => String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+  const rand6  = () => Math.random().toString(16).slice(2, 8);
+
+  const GET = async (url) => {
+    const r = await fetch(url, { method:"GET" });
+    const t = await r.text();
+    if (!r.ok) throw new Error(t || ("HTTP " + r.status));
+    return t ? JSON.parse(t) : null; // null or object
+  };
+
+  const PUT = async (url, obj) => {
+    const r = await fetch(url, {
+      method:"PUT",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(obj)
+    });
+    const t = await r.text();
+    if (!r.ok) throw new Error(t || ("HTTP " + r.status));
+    return true;
+  };
+
+  const goThunkable = () => {
+    // どっちでも拾えるように「query + hash」両方付ける
+    const qs = `shop=${enc(shop)}&table=${enc(table)}`;
+    location.replace(`${THUNKABLE_URL}?${qs}#${qs}`);
+  };
+
+  (async () => {
+    msg("active確認中…");
+
+    const active = await GET(activeUrl);
+
+    // ✅ 既にactiveがある→上書きしない（会計まで固定）
+    if (active && active.token) {
+      msg(`既存セッション使用\nshop=${shop} table=${table}\ntoken4=${active.token4 || ""}\n\n注文ページへ移動…`);
+      goThunkable();
+      return;
+    }
+
+    // ✅ 無い→初回だけ作成
+    const t4 = token4();
+    const token = `${shop}-${table}-${t4}-${rand6()}`; // keyは衝突しにくく、token4は短い
+
+    const activePayload  = { token, token4: t4, updatedAt: Date.now() };
     const sessionPayload = { shop, table, token, token4: t4, createdAt: Date.now() };
 
-    log("\nPUT active...");
-    const pa = await PUT(activeUrl, activePayload);
-    log("PUT active status=" + pa.status);
-    log("PUT active text=" + pa.text);
+    const sessionUrl = `${FIREBASE_DB_URL}/webSessions/${enc(token)}.json`;
 
-    log("\nPUT session...");
-    log(sessionUrl);
-    const ps = await PUT(sessionUrl, sessionPayload);
-    log("PUT session status=" + ps.status);
-    log("PUT session text=" + ps.text);
+    msg(`初回セッション作成中…\nshop=${shop} table=${table}\ntoken4=${t4}`);
 
-    log("\nDONE (if 200/OK then write succeeded)");
-    return;
-  }
+    await Promise.all([
+      PUT(activeUrl,  activePayload),
+      PUT(sessionUrl, sessionPayload)
+    ]);
 
-  // active が既にあるなら「書かない」（会計リセット運用）
-  log("\nactive exists -> NO WRITE (this is expected until checkout reset)");
-})().catch(e=>{
-  log("\nERROR: " + e.message);
-  console.error(e);
-});
+    msg("OK。注文ページへ移動…");
+    goThunkable();
+  })().catch((e) => {
+    console.error(e);
+    msg("失敗。\nRules/URL/パスを確認。\n" + (e && e.message ? e.message : String(e)));
+  });
+})();
 </script>
 </body>
 </html>

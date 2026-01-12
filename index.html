@@ -13,6 +13,8 @@
 <script>
 (function () {
   const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
+
+  // ★あなたの「客側WEBアプリ（Thunkable Web公開URL）」を入れる
   const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
 
   const msgEl = document.getElementById("msg");
@@ -55,6 +57,7 @@
     updatedAt: Date.now()
   };
 
+  // ★書き込み先：webSessions / webActiveSessions（あなたの現ツリーに合わせる）
   const sessionUrl = FIREBASE_DB_URL + "/webSessions/" + enc(token) + ".json";
   const activeUrl  = FIREBASE_DB_URL + "/webActiveSessions/" + enc(shop) + "/" + enc(table) + ".json";
 
@@ -80,9 +83,11 @@
       }
     }
     msg("OK。注文ページへ移動…");
+
+    // ★ここが重要：Thunkableへは「?shop=...&table=...&token=...」（クエリ）で渡す
     location.replace(
       THUNKABLE_URL +
-      "#shop=" + enc(shop) +
+      "?shop=" + enc(shop) +
       "&table=" + enc(table) +
       "&token=" + enc(token)
     );

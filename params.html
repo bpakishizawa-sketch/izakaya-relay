@@ -4,113 +4,101 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>izakaya-relay</title>
-  <style>
-    body { margin:0; font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif; }
-    #msg { padding:16px; white-space:pre-wrap; word-break:break-word; }
-  </style>
 </head>
-<body>
-  <div id="msg">読み込み中…</div>
+<body style="margin:0">
+  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">
+    読み込み中…
+  </div>
 
 <script>
-/** ====== 設定（ここだけあなたの環境） ====== */
 const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
 const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH"; // あなたのWebアプリURL
-
-/** ====== ここから下はいじらない ====== */
 const msg = (t) => document.getElementById("msg").textContent = t;
-const url = new URL(location.href);
 
-const shop  = url.searchParams.get("shop");
-const table = url.searchParams.get("table");
-const debug = url.searchParams.get("debug") === "1"; // debug=1 のときは遷移しない
+const params = new URLSearchParams(location.search);
+const shop   = params.get("shop");
+const table  = params.get("table");
+const debug  = params.get("debug") === "1";
 
 if (!shop || !table) {
-  msg('missing params: shop / table\n例: ?shop=daboya&table=1');
+  msg("missing params: shop / table\n例: ?shop=daboya&table=1");
   throw new Error("missing params");
 }
 
-// 4桁トークン（0000〜9999）
-const token4 = String(Math.floor(Math.random() * 10000)).padStart(4, "0");
-// tokenキー（衝突しないように shop-table-token4）
-const token = `${shop}-${table}-${token4}`;
+const activeUrl = `${FIREBASE_DB_URL}/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
 
-// 書き込み先（あなたが使ってる “WEB active/sessions” に合わせる）
-const activePath  = `/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
-const sessionPath = `/webSessions/${encodeURIComponent(token)}.json`;
-
-const activeUrl  = `${FIREBASE_DB_URL}${activePath}`;
-const sessionUrl = `${FIREBASE_DB_URL}${sessionPath}`;
-
-// 重要：activeが既にあるなら上書きしない（＝毎回更新しない）
-async function getJson(u) {
-  const r = await fetch(u, { method:"GET" });
-  if (!r.ok) throw new Error(await r.text());
-  return await r.json();
+function token4() {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+function makeToken(shop, table) {
+  const t4 = token4();
+  return { token: `${shop}-${table}-${t4}`, token4: t4 };
 }
 
-async function putJson(u, body) {
-  const r = await fetch(u, {
+async function fetchJson(url) {
+  const r = await fetch(url, { method: "GET" });
+  const txt = await r.text();
+  let data = null;
+  try { data = txt ? JSON.parse(txt) : null; } catch (e) {}
+  return { ok: r.ok, status: r.status, data, raw: txt };
+}
+
+async function putJson(url, body) {
+  const r = await fetch(url, {
     method: "PUT",
-    headers: { "Content-Type":"application/json" },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error(await r.text());
-  return await r.json();
+  const txt = await r.text();
+  if (!r.ok) throw new Error(txt || ("HTTP " + r.status));
+  return txt;
 }
 
 (async () => {
   msg("active確認中…");
 
-  let existing = null;
-  try {
-    existing = await getJson(activeUrl); // null or object
-  } catch (e) {
-    // ここで Permission denied が出るなら Rules 側が原因
-    msg("active GET失敗: " + e.message);
-    throw e;
-  }
-
-  if (existing && existing.token) {
-    // すでに着席中 → token維持（上書きしない）
-    const next = `${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&v=${Date.now()}`;
-    if (debug) {
-      msg("DEBUG\nactiveは既に存在 → 上書きせず遷移だけ\n\n" + JSON.stringify(existing, null, 2) + "\n\nnext:\n" + next);
-      return;
-    }
-    msg("active存在 → 注文へ移動…");
-    location.replace(next);
+  // 1) 既存activeがあれば再利用（上書きしない）
+  const cur = await fetchJson(activeUrl);
+  if (!cur.ok) {
+    msg("active GET失敗（Rules/URL）\nstatus=" + cur.status + "\n" + cur.raw);
     return;
   }
 
-  // activeが無い → ここで初めて作成
-  msg("セッション作成中…");
+  let active = cur.data;
+  let tok;
 
-  const activePayload = { token, token4, updatedAt: Date.now() };
-  const sessionPayload = { shop, table, token, token4, createdAt: Date.now() };
+  if (active && active.token) {
+    msg("既存activeを再利用…\n" + JSON.stringify(active, null, 2));
+    tok = { token: active.token, token4: active.token4 || (String(active.token).split("-").pop() || "") };
+  } else {
+    // 2) activeが無いなら新規発行して作成
+    msg("activeなし → 新規発行中…");
+    tok = makeToken(shop, table);
 
-  try {
-    await Promise.all([
-      putJson(activeUrl, activePayload),
-      putJson(sessionUrl, sessionPayload)
-    ]);
-  } catch (e) {
-    msg("Firebase書き込み失敗: " + e.message);
-    throw e;
+    const sessionUrl = `${FIREBASE_DB_URL}/webSessions/${encodeURIComponent(tok.token)}.json`;
+
+    const sessionPayload = { shop, table, token: tok.token, token4: tok.token4, createdAt: Date.now() };
+    const activePayload  = { token: tok.token, token4: tok.token4, updatedAt: Date.now() };
+
+    await putJson(sessionUrl, sessionPayload);
+    await putJson(activeUrl,  activePayload);
+
+    msg("作成OK\n" + JSON.stringify(activePayload, null, 2));
   }
 
-  const next = `${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&v=${Date.now()}`;
+  const nextUrl = `${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&v=${Date.now()}`;
 
   if (debug) {
-    msg("DEBUG\nactive/session 作成OK\n\nactive:\n" + JSON.stringify(activePayload, null, 2) +
-        "\n\nsession:\n" + JSON.stringify(sessionPayload, null, 2) +
-        "\n\nnext:\n" + next);
+    msg(msg.textContent + "\n\nnext:\n" + nextUrl);
     return;
   }
 
-  msg("OK。注文ページへ移動…");
-  location.replace(next);
-})();
+  // 3) Thunkableへ遷移（#じゃなく ? を使う！）
+  location.replace(nextUrl);
+})().catch((e) => {
+  console.error(e);
+  msg("失敗: " + (e && e.message ? e.message : String(e)));
+});
 </script>
 </body>
 </html>

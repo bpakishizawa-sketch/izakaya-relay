@@ -5,99 +5,46 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>PARAMS PAGE</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; padding: 16px; }
-    pre { white-space: pre-wrap; word-break: break-all; background:#f4f4f4; padding:12px; border-radius:10px; }
-    .muted { color:#666; font-size: 13px; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; padding: 20px; }
+    pre { background:#f4f4f4; padding:12px; border-radius:10px; overflow:auto; }
+    h1 { margin: 0 0 10px; }
+    .muted { color:#666; }
   </style>
 </head>
 <body>
-  <h2>PARAMS PAGE</h2>
-  <div class="muted">shop/table を受け取って Thunkable に渡します。</div>
+  <h1>PARAMS PAGE</h1>
+  <p class="muted">shop/table を受け取って Thunkable に渡します。</p>
   <pre id="out">loading...</pre>
 
-<script>
-/** ★ここだけ自分のThunkable Web App URLにする（スクショのやつ） */
-const THUNKABLE_WEBAPP_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+  <script>
+    // ★あなたのThunkable Web App URL（固定）
+    const THUNKABLE_BASE = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
 
-const out = document.getElementById("out");
-const now = () => Date.now();
+    const qs = new URLSearchParams(location.search);
+    const shop = qs.get("shop") || "";
+    const table = qs.get("table") || "";
+    const debug = qs.get("debug") === "1";
 
-function qs() { return new URLSearchParams(location.search); }
-function getParam(name) { return qs().get(name) || ""; }
+    const payload = {
+      type: "PARAMS",
+      shop,
+      table,
+      raw: location.search,
+      at: Date.now()
+    };
 
-function isInThunkableWebviewer() {
-  // Thunkable WebViewer ならこれが存在することが多い
-  return (typeof ThunkableWebviewerExtension !== "undefined");
-}
+    // 次に飛ぶURL（キャッシュ避けで v を付ける）
+    const next = `${THUNKABLE_BASE}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&v=${Date.now()}`;
 
-function postToThunkable(payloadObj) {
-  const msg = JSON.stringify(payloadObj);
+    // 表示
+    document.getElementById("out").textContent =
+      (debug ? "DEBUG MODE (no redirect)\nnext:\n" + next + "\n\n" : "") +
+      JSON.stringify(payload, null, 2);
 
-  // Thunkable WebViewer Extension
-  if (typeof ThunkableWebviewerExtension !== "undefined" &&
-      typeof ThunkableWebviewerExtension.postMessage === "function") {
-    ThunkableWebviewerExtension.postMessage(msg);
-    return true;
-  }
-
-  // 念のため（環境差）
-  if (window.ReactNativeWebView && typeof window.ReactNativeWebView.postMessage === "function") {
-    window.ReactNativeWebView.postMessage(msg);
-    return true;
-  }
-  return false;
-}
-
-function redirectToThunkable(shop, table) {
-  // Thunkable側で受け取りやすいようにそのまま付与
-  const u = new URL(THUNKABLE_WEBAPP_URL);
-  u.searchParams.set("shop", shop);
-  u.searchParams.set("table", table);
-  // キャッシュ回避
-  u.searchParams.set("v", String(now()));
-  location.replace(u.toString());
-}
-
-(async function main(){
-  const shop = getParam("shop");
-  const table = getParam("table");
-  const debug = getParam("debug") === "1";
-
-  const payload = {
-    type: "PARAMS",
-    shop,
-    table,
-    raw: location.search || "",
-    at: now()
-  };
-
-  // 表示（デバッグ用）
-  out.textContent = JSON.stringify(payload, null, 2);
-
-  if (!shop || !table) {
-    out.textContent = "missing params: shop / table\n例: ?shop=daboya&table=1";
-    return;
-  }
-
-  // ① Thunkableアプリ内(WebViewer)で開かれた時 → redirectしないで postMessage だけ
-  if (isInThunkableWebviewer()) {
-    const ok = postToThunkable(payload);
-    if (debug) {
-      out.textContent = "IN-APP (postMessage)\n\n" + JSON.stringify({ ok, payload }, null, 2);
+    // 本番はリダイレクト
+    if (!debug) {
+      location.replace(next);
     }
-    return;
-  }
-
-  // ② 外部ブラウザ(QRで開いた時) → Thunkable WebAppへ redirect
-  if (debug) {
-    out.textContent = "DEBUG MODE (no redirect)\nnext:\n" +
-      THUNKABLE_WEBAPP_URL + "?shop=" + encodeURIComponent(shop) + "&table=" + encodeURIComponent(table) +
-      "&v=" + now() + "\n\n" + JSON.stringify(payload, null, 2);
-    return;
-  }
-
-  redirectToThunkable(shop, table);
-})();
-</script>
+  </script>
 </body>
 </html>

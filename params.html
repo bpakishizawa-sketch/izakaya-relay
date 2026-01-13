@@ -2,89 +2,81 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>params loader</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PARAMS PAGE</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; margin: 16px; }
-    pre { background:#f6f6f6; padding:12px; border-radius:8px; white-space:pre-wrap; word-break:break-word; }
-    .muted { color:#666; font-size: 13px; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; margin: 24px; }
+    h1 { margin: 0 0 10px; }
+    .muted { color:#666; margin-bottom: 18px; }
+    .box { background:#f6f6f7; border-radius:12px; padding:16px; white-space:pre-wrap; word-break:break-word; }
+    .small { font-size: 12px; color:#777; margin-top: 8px; }
   </style>
 </head>
 <body>
-  <h3>PARAMS PAGE</h3>
+  <h1>PARAMS PAGE</h1>
   <div class="muted">shop/table を受け取って Thunkable Web App に転送します。</div>
-  <pre id="out">loading...</pre>
+
+  <div id="out" class="box">loading...</div>
+  <div class="small" id="hint"></div>
 
 <script>
-  // ★ここだけ固定：君が貼ってくれた Thunkable の Web App URL
-  const THUNKABLE_APP_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+(function(){
+  // ★あなたのThunkable Web App（スクショに出てるURL）
+  const THUNKABLE_WEBAPP_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
 
-  // --- helpers ---
-  function qs() { return new URLSearchParams(location.search || ""); }
-  function now() { return Date.now(); }
-  function safe(v){ return (v===null||v===undefined) ? "" : String(v); }
-  function buildThunkableUrl(shop, table) {
-    const u = new URL(THUNKABLE_APP_URL);
-    u.searchParams.set("shop", shop);
-    u.searchParams.set("table", table);
-    // キャッシュ対策（毎回変わってOK。activeSessionとは別物）
-    u.searchParams.set("v", String(now()));
-    return u.toString();
+  const qs = new URLSearchParams(location.search);
+
+  const shop  = (qs.get("shop")  || "").trim();
+  const table = (qs.get("table") || "").trim();
+
+  // debug=1 のときは転送しない
+  const debug = qs.get("debug") === "1";
+
+  // キャッシュ回避（毎回違うURLにする）。固定したいならここを "999" とかにしてもOK
+  const v = String(Date.now());
+
+  const out = document.getElementById("out");
+  const hint = document.getElementById("hint");
+
+  if (!shop || !table) {
+    out.textContent =
+`VERSION=relay-fixedqr-20260113-1
+missing params: shop / table
+例: ?shop=daboya&table=1`;
+    hint.textContent = "※ QR には shop と table を必ず入れてください。";
+    return;
   }
 
-  // --- main ---
-  (function main(){
-    const p = qs();
-    const shop = p.get("shop");
-    const table = p.get("table");
+  // 次に飛ぶURL（Thunkable側で Web Params として受け取れる）
+  const next =
+    THUNKABLE_WEBAPP_URL +
+    "?shop=" + encodeURIComponent(shop) +
+    "&table=" + encodeURIComponent(table) +
+    "&v=" + encodeURIComponent(v);
 
-    const debug = p.get("debug") === "1"; // debug=1 のときだけ転送しない
+  const payload = {
+    type: "PARAMS",
+    shop,
+    table,
+    raw: location.search || "",
+    at: Date.now()
+  };
 
-    const info = {
-      type: "PARAMS",
-      shop: shop,
-      table: table,
-      raw: location.search || "",
-      at: now()
-    };
-    document.getElementById("out").textContent = JSON.stringify(info, null, 2);
-
-    if (!shop || !table) {
-      // パラメータ不足ならここで終了（案内表示）
-      const example = `${location.origin}${location.pathname}?shop=daboya&table=1`;
-      document.getElementById("out").textContent =
-`missing params: shop / table
-
-例:
-${example}
-
-現在:
-${JSON.stringify(info, null, 2)}
-`;
-      return;
-    }
-
-    const go = buildThunkableUrl(shop, table);
-
-    // debug=1 の時は転送しない（確認用）
-    if (debug) {
-      document.getElementById("out").textContent =
+  if (debug) {
+    out.textContent =
 `DEBUG MODE (no redirect)
 
 next:
-${go}
+${next}
 
-${JSON.stringify(info, null, 2)}
-`;
-      return;
-    }
+${JSON.stringify(payload, null, 2)}`;
+    hint.textContent = "debug=1 を消すと Thunkable に転送します。";
+    return;
+  }
 
-    // ちょい表示してから転送（真っ白の不安対策）
-    setTimeout(() => {
-      // 戻るを汚さないよう replace
-      location.replace(go);
-    }, 250);
-  })();
+  // 本番：Thunkableへ転送（履歴に残りにくい）
+  location.replace(next);
+})();
 </script>
 </body>
 </html>

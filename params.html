@@ -2,46 +2,89 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>params</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>params loader</title>
   <style>
-    body { font-family: system-ui, sans-serif; padding: 16px; }
-    pre { white-space: pre-wrap; word-break: break-word; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; margin: 16px; }
+    pre { background:#f6f6f6; padding:12px; border-radius:8px; white-space:pre-wrap; word-break:break-word; }
+    .muted { color:#666; font-size: 13px; }
   </style>
-
-  <script src="https://thunkable.github.io/webviewer-extension/thunkableWebviewerExtension.js"></script>
 </head>
 <body>
+  <h3>PARAMS PAGE</h3>
+  <div class="muted">shop/table を受け取って Thunkable Web App に転送します。</div>
   <pre id="out">loading...</pre>
 
-  <script>
-    const out = (s) => document.getElementById("out").textContent = s;
+<script>
+  // ★ここだけ固定：君が貼ってくれた Thunkable の Web App URL
+  const THUNKABLE_APP_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
 
-    function parse(search) {
-      const p = new URLSearchParams(search || "");
-      return { shop: p.get("shop") || "", table: p.get("table") || "" };
+  // --- helpers ---
+  function qs() { return new URLSearchParams(location.search || ""); }
+  function now() { return Date.now(); }
+  function safe(v){ return (v===null||v===undefined) ? "" : String(v); }
+  function buildThunkableUrl(shop, table) {
+    const u = new URL(THUNKABLE_APP_URL);
+    u.searchParams.set("shop", shop);
+    u.searchParams.set("table", table);
+    // キャッシュ対策（毎回変わってOK。activeSessionとは別物）
+    u.searchParams.set("v", String(now()));
+    return u.toString();
+  }
+
+  // --- main ---
+  (function main(){
+    const p = qs();
+    const shop = p.get("shop");
+    const table = p.get("table");
+
+    const debug = p.get("debug") === "1"; // debug=1 のときだけ転送しない
+
+    const info = {
+      type: "PARAMS",
+      shop: shop,
+      table: table,
+      raw: location.search || "",
+      at: now()
+    };
+    document.getElementById("out").textContent = JSON.stringify(info, null, 2);
+
+    if (!shop || !table) {
+      // パラメータ不足ならここで終了（案内表示）
+      const example = `${location.origin}${location.pathname}?shop=daboya&table=1`;
+      document.getElementById("out").textContent =
+`missing params: shop / table
+
+例:
+${example}
+
+現在:
+${JSON.stringify(info, null, 2)}
+`;
+      return;
     }
 
-    window.addEventListener("load", function () {
-      let search = "";
-      try {
-        search = window.parent.location.search || "";
-      } catch (e) {
-        search = window.location.search || "";
-      }
+    const go = buildThunkableUrl(shop, table);
 
-      const q = parse(search);
-      const payload = { type: "PARAMS", ...q, raw: search, at: Date.now() };
+    // debug=1 の時は転送しない（確認用）
+    if (debug) {
+      document.getElementById("out").textContent =
+`DEBUG MODE (no redirect)
 
-      out("PARAMS PAGE\n" + JSON.stringify(payload, null, 2));
+next:
+${go}
 
-      // Thunkableへ送る
-      if (typeof ThunkableWebviewerExtension !== "undefined") {
-        ThunkableWebviewerExtension.postMessage(JSON.stringify(payload));
-      } else {
-        out("ERR: ThunkableWebviewerExtension not found\n" + JSON.stringify(payload, null, 2));
-      }
-    });
-  </script>
+${JSON.stringify(info, null, 2)}
+`;
+      return;
+    }
+
+    // ちょい表示してから転送（真っ白の不安対策）
+    setTimeout(() => {
+      // 戻るを汚さないよう replace
+      location.replace(go);
+    }, 250);
+  })();
+</script>
 </body>
 </html>

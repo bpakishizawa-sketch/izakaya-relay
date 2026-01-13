@@ -2,81 +2,63 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PARAMS PAGE</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; margin: 24px; }
-    h1 { margin: 0 0 10px; }
-    .muted { color:#666; margin-bottom: 18px; }
-    .box { background:#f6f6f7; border-radius:12px; padding:16px; white-space:pre-wrap; word-break:break-word; }
-    .small { font-size: 12px; color:#777; margin-top: 8px; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; padding: 24px; }
+    pre { background:#f5f5f5; padding: 16px; border-radius: 10px; overflow:auto; }
+    .small { color:#666; font-size: 12px; }
   </style>
 </head>
 <body>
-  <h1>PARAMS PAGE</h1>
-  <div class="muted">shop/table を受け取って Thunkable Web App に転送します。</div>
+  <h2>PARAMS PAGE</h2>
+  <p class="small">shop/table を受け取って Thunkable Web App に転送します。</p>
 
-  <div id="out" class="box">loading...</div>
-  <div class="small" id="hint"></div>
+  <pre id="out">loading...</pre>
 
-<script>
-(function(){
-  // ★あなたのThunkable Web App（スクショに出てるURL）
-  const THUNKABLE_WEBAPP_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+  <script>
+    // ★ここだけあなたのThunkable URLを入れる（今のやつ）
+    const THUNKABLE_WEBAPP_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
 
-  const qs = new URLSearchParams(location.search);
+    const qs = new URLSearchParams(location.search);
+    const shop  = qs.get("shop");
+    const table = qs.get("table");
+    const debug = qs.get("debug") === "1";
 
-  const shop  = (qs.get("shop")  || "").trim();
-  const table = (qs.get("table") || "").trim();
+    const payload = {
+      type: "PARAMS",
+      shop: shop,
+      table: table,
+      raw: location.search || "",
+      at: Date.now()
+    };
 
-  // debug=1 のときは転送しない
-  const debug = qs.get("debug") === "1";
+    const out = document.getElementById("out");
 
-  // キャッシュ回避（毎回違うURLにする）。固定したいならここを "999" とかにしてもOK
-  const v = String(Date.now());
+    if (!shop || !table) {
+      out.textContent =
+        "missing params: shop / table\n" +
+        "例: ?shop=daboya&table=1\n\n" +
+        JSON.stringify(payload, null, 2);
+    } else {
+      // キャッシュ回避（毎回変わる値）
+      const v = Date.now();
 
-  const out = document.getElementById("out");
-  const hint = document.getElementById("hint");
+      const next =
+        THUNKABLE_WEBAPP_URL +
+        "?shop=" + encodeURIComponent(shop) +
+        "&table=" + encodeURIComponent(table) +
+        "&v=" + v;
 
-  if (!shop || !table) {
-    out.textContent =
-`VERSION=relay-fixedqr-20260113-1
-missing params: shop / table
-例: ?shop=daboya&table=1`;
-    hint.textContent = "※ QR には shop と table を必ず入れてください。";
-    return;
-  }
-
-  // 次に飛ぶURL（Thunkable側で Web Params として受け取れる）
-  const next =
-    THUNKABLE_WEBAPP_URL +
-    "?shop=" + encodeURIComponent(shop) +
-    "&table=" + encodeURIComponent(table) +
-    "&v=" + encodeURIComponent(v);
-
-  const payload = {
-    type: "PARAMS",
-    shop,
-    table,
-    raw: location.search || "",
-    at: Date.now()
-  };
-
-  if (debug) {
-    out.textContent =
-`DEBUG MODE (no redirect)
-
-next:
-${next}
-
-${JSON.stringify(payload, null, 2)}`;
-    hint.textContent = "debug=1 を消すと Thunkable に転送します。";
-    return;
-  }
-
-  // 本番：Thunkableへ転送（履歴に残りにくい）
-  location.replace(next);
-})();
-</script>
+      if (debug) {
+        out.textContent =
+          "DEBUG MODE (no redirect)\n\nnext:\n" + next + "\n\n" +
+          JSON.stringify(payload, null, 2);
+      } else {
+        // 本番：Thunkableに飛ぶ
+        location.replace(next);
+      }
+    }
+  </script>
 </body>
 </html>

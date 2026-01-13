@@ -1,42 +1,47 @@
 <!doctype html>
-<html>
+<html lang="ja">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>params</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 16px; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+  </style>
 
-  <!-- Thunkable Webviewer Extension -->
   <script src="https://thunkable.github.io/webviewer-extension/thunkableWebviewerExtension.js"></script>
-
-  <script>
-    (function () {
-      function parse(search) {
-        const p = new URLSearchParams(search || "");
-        return {
-          shop: p.get("shop") || "",
-          table: p.get("table") || ""
-        };
-      }
-
-      function send(obj) {
-        ThunkableWebviewerExtension.postMessage(JSON.stringify(obj));
-      }
-
-      window.addEventListener("load", function () {
-        let search = "";
-        try {
-          search = window.parent.location.search || "";
-        } catch (e) {
-          search = window.location.search || "";
-        }
-
-        const q = parse(search);
-        send({ type: "PARAMS", ...q, raw: search, at: Date.now() });
-      });
-    })();
-  </script>
 </head>
 <body>
-  params loader
+  <pre id="out">loading...</pre>
+
+  <script>
+    const out = (s) => document.getElementById("out").textContent = s;
+
+    function parse(search) {
+      const p = new URLSearchParams(search || "");
+      return { shop: p.get("shop") || "", table: p.get("table") || "" };
+    }
+
+    window.addEventListener("load", function () {
+      let search = "";
+      try {
+        search = window.parent.location.search || "";
+      } catch (e) {
+        search = window.location.search || "";
+      }
+
+      const q = parse(search);
+      const payload = { type: "PARAMS", ...q, raw: search, at: Date.now() };
+
+      out("PARAMS PAGE\n" + JSON.stringify(payload, null, 2));
+
+      // Thunkableへ送る
+      if (typeof ThunkableWebviewerExtension !== "undefined") {
+        ThunkableWebviewerExtension.postMessage(JSON.stringify(payload));
+      } else {
+        out("ERR: ThunkableWebviewerExtension not found\n" + JSON.stringify(payload, null, 2));
+      }
+    });
+  </script>
 </body>
 </html>

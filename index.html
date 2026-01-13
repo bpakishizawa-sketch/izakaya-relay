@@ -2,122 +2,146 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>izakaya-relay</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif; padding: 16px; }
+    pre { white-space: pre-wrap; word-break: break-word; }
+  </style>
 </head>
-<body style="margin:0">
-  <div id="msg" style="padding:16px;font-family:sans-serif;white-space:pre-wrap;">loading...</div>
+<body>
+  <pre id="log"></pre>
 
 <script>
-(() => {
-  // ====== 設定（ここだけ自分のに合わせる）======
-  const VERSION        = "relay-fixedqr-20260112-1";
-  const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
-  const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
-  // 書き込み先（あなたの現状に合わせて固定）
-  const ACTIVE_PATH = "webActiveSessions"; // /webActiveSessions/{shop}/{table}
-  const SESS_PATH   = "webSessions";       // /webSessions/{token}
-  // ===============================================
+/** ========= ここだけ差し替え ========= */
+const FIREBASE_DB = "https://izakayaorder-default-rtdb.firebaseio.com";
+const THUNKABLE_WEBAPP_URL = "PASTE_YOUR_THUNKABLE_WEBAPP_PUBLISHED_URL_HERE";
+/** =================================== */
 
-  const msgEl = document.getElementById("msg");
-  const msg = (t) => { msgEl.textContent = t; };
+const VERSION = "relay-fixedqr-20260113-1";
 
-  const enc = encodeURIComponent;
-  const params = new URLSearchParams(location.search);
-  const shop  = params.get("shop");
-  const table = params.get("table");
+const $log = document.getElementById("log");
+function log(s) { $log.textContent += s + "\n"; }
 
-  msg(`VERSION=${VERSION}\n`);
+function qs(name) {
+  const u = new URL(location.href);
+  return u.searchParams.get(name);
+}
+function hasDebug() {
+  const u = new URL(location.href);
+  return u.searchParams.get("debug") === "1";
+}
+function nowMs() { return Date.now(); }
 
+function rand4() {
+  // 0000〜9999
+  return String(Math.floor(Math.random() * 10000)).padStart(4, "0");
+}
+
+function fbUrl(path) {
+  // path は先頭スラッシュなしで渡す
+  return `${FIREBASE_DB}/${path}.json`;
+}
+
+async function fbGet(path) {
+  const r = await fetch(fbUrl(path), { method: "GET" });
+  const t = await r.text();
+  let j = null;
+  try { j = t ? JSON.parse(t) : null; } catch(e) {}
+  return { status: r.status, text: t, json: j };
+}
+
+async function fbPut(path, obj) {
+  const r = await fetch(fbUrl(path), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(obj),
+  });
+  const t = await r.text();
+  let j = null;
+  try { j = t ? JSON.parse(t) : null; } catch(e) {}
+  return { status: r.status, text: t, json: j };
+}
+
+function redirectToThunkable(params) {
+  // Thunkable 側が shop/table/token/token4 を受け取れるようにクエリを付ける
+  const u = new URL(THUNKABLE_WEBAPP_URL);
+  Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, v));
+  location.replace(u.toString());
+}
+
+(async function main() {
+  const shop = qs("shop");
+  const table = qs("table");
+
+  log(`VERSION=${VERSION}`);
   if (!shop || !table) {
-    msg(`VERSION=${VERSION}\nmissing params: shop / table\n例: ?shop=daboya&table=1`);
+    log("missing params: shop / table");
+    log("例: ?shop=daboya&table=1");
     return;
   }
 
-  const activeUrl  = `${FIREBASE_DB_URL}/${ACTIVE_PATH}/${enc(shop)}/${enc(table)}.json`;
+  // デバッグ表示の有無
+  const debug = hasDebug();
+  if (!debug) {
+    // debug=1 じゃない時は画面表示を最小化（でもログは一応残す）
+    $log.style.display = "none";
+  } else {
+    log(`shop=${shop} table=${table}`);
+  }
 
-  const makeToken4 = () => String(Math.floor(Math.random()*10000)).padStart(4,"0");
-  const makeRand4  = () => String(Math.floor(Math.random()*10000)).padStart(4,"0");
+  // 1) active を読む（固定QRは shop/table だけ。active は「会計まで固定」）
+  const activePath = `webActiveSessions/${shop}/${table}`;
+  const activeUrl = fbUrl(activePath).replace(".json", ""); // 表示用
+  if (debug) log(`ACTIVE URL:\n${activeUrl}`);
 
-  const GET = async (url) => {
-    const r = await fetch(url, { method:"GET" });
-    const t = await r.text();
-    if (!r.ok) throw new Error(t || ("HTTP " + r.status));
-    return t ? JSON.parse(t) : null;
-  };
+  const g1 = await fbGet(activePath);
+  if (debug) {
+    log("");
+    log("GET active...");
+    log(`GET status=${g1.status}`);
+    log(`GET text=${g1.text}`);
+  }
 
-  const PUT = async (url, obj) => {
-    const r = await fetch(url, {
-      method:"PUT",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(obj)
-    });
-    const t = await r.text();
-    if (!r.ok) throw new Error(t || ("HTTP " + r.status));
-    return true;
-  };
+  // 2) active が存在するなら「書き換えない」→ そのトークンでThunkableへ
+  if (g1.status === 200 && g1.json && g1.json.token) {
+    if (debug) log("\nactive exists -> NO WRITE (until checkout reset)");
+    const token = g1.json.token;
+    const token4 = g1.json.token4 || "";
+    redirectToThunkable({ shop, table, token, token4 });
+    return;
+  }
 
-  const thunkableGoUrl = () => {
-    const qs = `shop=${enc(shop)}&table=${enc(table)}`;
-    return `${THUNKABLE_URL}?${qs}#${qs}`;
-  };
+  // 3) active が無い（null）なら「初回着席」→ 発行して書く
+  // ※ここが “着席したら固定” の実装
+  const token4 = rand4();
+  const token = `${shop}-${table}-${token4}`;
+  const ts = nowMs();
 
-  const showLink = (url) => {
-    const a = document.createElement("a");
-    a.href = url;
-    a.textContent = "→ 注文ページへ進む（タップ）";
-    a.style.display = "inline-block";
-    a.style.marginTop = "12px";
-    a.style.fontSize = "20px";
-    document.body.appendChild(a);
-  };
+  const activeObj = { token, token4, updatedAt: ts };
+  const s1 = await fbPut(activePath, activeObj);
 
-  (async () => {
-    msg(`VERSION=${VERSION}\nshop=${shop} table=${table}\nactive確認中…`);
+  if (debug) {
+    log("");
+    log("PUT active...");
+    log(`PUT status=${s1.status}`);
+    log(`PUT text=${s1.text}`);
+  }
 
-    const active = await GET(activeUrl);
+  // 4) webSessions も作成（履歴・検証用）
+  const sessionPath = `webSessions/${token}`;
+  const sessionObj = { createdAt: ts, shop, table: String(table), token, token4 };
+  const s2 = await fbPut(sessionPath, sessionObj);
 
-    // 既にactiveがある → 上書きしない（会計まで固定）
-    if (active && active.token) {
-      const go = thunkableGoUrl();
-      msg(
-        `VERSION=${VERSION}\nshop=${shop} table=${table}\n` +
-        `既存セッション使用\ntoken=${active.token}\ntoken4=${active.token4 || ""}\n\n` +
-        `進まない場合は下のリンクをタップしてください。`
-      );
-      showLink(go);
-      // 自動遷移（ブロックされてもリンクで行ける）
-      setTimeout(() => { location.href = go; }, 200);
-      return;
-    }
+  if (debug) {
+    log("");
+    log("PUT session...");
+    log(`PUT status=${s2.status}`);
+    log(`PUT text=${s2.text}`);
+  }
 
-    // activeが無い → 初回だけ作成（客が読んだ瞬間に発行）
-    const t4 = makeToken4();
-    const token = `${shop}-${table}-${t4}-${makeRand4()}`;
-
-    const activePayload  = { token, token4: t4, updatedAt: Date.now() };
-    const sessionPayload = { shop, table, token, token4: t4, createdAt: Date.now() };
-    const sessionUrl = `${FIREBASE_DB_URL}/${SESS_PATH}/${enc(token)}.json`;
-
-    msg(`VERSION=${VERSION}\nshop=${shop} table=${table}\n初回セッション作成中…\ntoken4=${t4}`);
-
-    await Promise.all([
-      PUT(activeUrl, activePayload),
-      PUT(sessionUrl, sessionPayload)
-    ]);
-
-    const go = thunkableGoUrl();
-    msg(
-      `VERSION=${VERSION}\nshop=${shop} table=${table}\n` +
-      `OK（初回発行）\ntoken=${token}\ntoken4=${t4}\n\n` +
-      `進まない場合は下のリンクをタップしてください。`
-    );
-    showLink(go);
-    setTimeout(() => { location.href = go; }, 200);
-
-  })().catch((e) => {
-    msg(`VERSION=${VERSION}\nERROR:\n${(e && e.message) ? e.message : String(e)}`);
-  });
+  // 5) Thunkableへ遷移
+  redirectToThunkable({ shop, table, token, token4 });
 })();
 </script>
 </body>

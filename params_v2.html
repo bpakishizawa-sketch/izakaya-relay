@@ -2,77 +2,103 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>params_v2</title>
-
-  <!-- Thunkable WebViewer Extension -->
-  <script src="https://thunkable.github.io/webviewer-extension/thunkableWebviewerExtension.js"></script>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
+    .ok{color:#0a7a2a;font-weight:700}
+    .ng{color:#b00020;font-weight:700}
+    pre{background:#f5f5f5;padding:12px;border-radius:8px;overflow:auto}
+    .hint{color:#666;font-size:13px}
+  </style>
 </head>
+<body>
+  <h2>params_v2 debug</h2>
+  <div id="status" class="hint">loading...</div>
+  <pre id="payload"></pre>
 
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial; padding:16px;">
-  <h2 style="margin:0 0 12px 0;">params_v2 debug</h2>
+<script>
+/** ★ここだけ要設定：あなたのRealtimeDB */
+const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com"; // ←違うなら差し替え
 
-  <div id="status" style="margin:10px 0; font-weight:700;"></div>
+function qs(name){
+  const u = new URL(location.href);
+  return (u.searchParams.get(name) || "").trim();
+}
 
-  <pre id="out" style="background:#f3f3f3; padding:12px; border-radius:10px; white-space:pre-wrap;"></pre>
+function rand4(){
+  return Math.floor(1000 + Math.random()*9000).toString(); // 1000-9999
+}
 
-  <script>
-    function parseParamsFromUrl(urlStr) {
-      try {
-        const u = new URL(urlStr);
-        const shop = u.searchParams.get("shop") || "";
-        const table = u.searchParams.get("table") || "";
-        return { shop, table };
-      } catch (e) {
-        return { shop: "", table: "" };
-      }
-    }
+async function putJson(path, obj){
+  const url = `${DB_BASE}${path}.json`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(obj)
+  });
+  const text = await res.text();
+  if(!res.ok){
+    throw new Error(`HTTP ${res.status} ${text}`);
+  }
+  return text;
+}
 
-    // 1) まず自分のURL（params_v2.html?shop=...）を見て
-    const selfParams = parseParamsFromUrl(window.location.href);
+(async () => {
+  const shop = qs("shop");
+  const table = qs("table");
+  const ts = Date.now();
 
-    // 2) 無ければ referrer（＝ThunkableのURL）を見る
-    const ref = document.referrer || "";
-    const refParams = parseParamsFromUrl(ref);
+  // payload表示（デバッグ）
+  const info = {
+    type: "PARAMS",
+    shop,
+    table,
+    href: location.href,
+    referrer: document.referrer || "",
+    ts
+  };
+  document.getElementById("payload").textContent = JSON.stringify(info, null, 2);
 
-    const shop = selfParams.shop || refParams.shop || "";
-    const table = selfParams.table || refParams.table || "";
+  if(!shop || !table){
+    document.getElementById("status").innerHTML =
+      `<span class="ng">missing params: shop / table</span><br>
+       例) <code>${location.origin}${location.pathname}?shop=daboya&table=1</code><br>
+       <div class="hint">※QRはこのURLをそのまま埋め込む</div>`;
+    return;
+  }
 
-    const payload = {
-      type: "PARAMS",
-      shop: shop,
-      table: table,
-      href: window.location.href,
-      referrer: ref,
-      ts: Date.now()
-    };
+  // token生成（tableは文字列のままでOK）
+  const token = `${shop}-${table}-${rand4()}`;
 
-    document.getElementById("out").textContent = JSON.stringify(payload, null, 2);
+  // FBRDへ activeSession 作成（必要最低限）
+  // パスは好きに変えてOK。まずは /webActiveSessions/ を採用
+  const activePath = `/webActiveSessions/${token}`;
+  const activeObj = {
+    shop,
+    table,
+    token,
+    createdAt: ts,
+    updatedAt: ts
+  };
 
-    // Thunkableへ送る（extensionが生きるまで少しリトライ）
-    let tries = 0;
-    const maxTries = 30;
+  try{
+    document.getElementById("status").textContent = "writing activeSession...";
+    await putJson(activePath, activeObj);
+    document.getElementById("status").innerHTML = `<span class="ok">activeSession created</span>`;
 
-    function trySend() {
-      tries++;
+    // 注文ページへ遷移（tokenも渡す）
+    const next = `${location.origin}/izakaya-relay/order.html?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&token=${encodeURIComponent(token)}`;
+    // 画面でも確認したいなら下行を有効化
+    // document.getElementById("status").innerHTML += `<div class="hint">next: ${next}</div>`;
+    location.replace(next);
 
-      if (window.ThunkableWebviewerExtension && typeof ThunkableWebviewerExtension.postMessage === "function") {
-        ThunkableWebviewerExtension.postMessage(JSON.stringify(payload));
-        document.getElementById("status").textContent = "✅ postMessage sent to Thunkable";
-        document.getElementById("status").style.color = "#0a8f08";
-        return;
-      }
-
-      if (tries >= maxTries) {
-        document.getElementById("status").textContent = "❌ Thunkable extension not found（WebViewer外で開いてる可能性）";
-        document.getElementById("status").style.color = "#c40000";
-        return;
-      }
-
-      setTimeout(trySend, 100);
-    }
-
-    trySend();
-  </script>
+  }catch(e){
+    document.getElementById("status").innerHTML =
+      `<span class="ng">activeSession write failed</span><br><div class="hint">${String(e.message || e)}</div>
+       <div class="hint">※401 Permission denied なら、RealtimeDB Rulesが拒否してます（後述）</div>`;
+  }
+})();
+</script>
 </body>
 </html>

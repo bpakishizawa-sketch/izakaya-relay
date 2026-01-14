@@ -6,52 +6,73 @@
   <title>params_v2</title>
 
   <!-- Thunkable WebViewer Extension -->
-  <script src="https://cdn.jsdelivr.net/gh/thunkable/webviewer-extension@latest/thunkableWebviewerExtension.js"></script>
-  <!-- ※公式のWebViewer拡張を使う。詳細はThunkable Web Viewer Extensions参照 -->
+  <script src="https://thunkable.github.io/webviewer-extension/thunkableWebviewerExtension.js"></script>
 </head>
-<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;">
-  <h2>params_v2 debug</h2>
-  <pre id="out" style="background:#f3f3f3;padding:12px;border-radius:8px;overflow:auto;"></pre>
+
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial; padding:16px;">
+  <h2 style="margin:0 0 12px 0;">params_v2 debug</h2>
+
+  <div id="status" style="margin:10px 0; font-weight:700;"></div>
+
+  <pre id="out" style="background:#f3f3f3; padding:12px; border-radius:10px; white-space:pre-wrap;"></pre>
 
   <script>
-    const out = document.getElementById("out");
+    function parseParamsFromUrl(urlStr) {
+      try {
+        const u = new URL(urlStr);
+        const shop = u.searchParams.get("shop") || "";
+        const table = u.searchParams.get("table") || "";
+        return { shop, table };
+      } catch (e) {
+        return { shop: "", table: "" };
+      }
+    }
 
-    const qs = new URLSearchParams(location.search);
-    const shop = (qs.get("shop") || "").trim();
-    const table = (qs.get("table") || "").trim();
+    // 1) まず自分のURL（params_v2.html?shop=...）を見て
+    const selfParams = parseParamsFromUrl(window.location.href);
+
+    // 2) 無ければ referrer（＝ThunkableのURL）を見る
+    const ref = document.referrer || "";
+    const refParams = parseParamsFromUrl(ref);
+
+    const shop = selfParams.shop || refParams.shop || "";
+    const table = selfParams.table || refParams.table || "";
 
     const payload = {
       type: "PARAMS",
-      shop,
-      table,
-      href: location.href,
+      shop: shop,
+      table: table,
+      href: window.location.href,
+      referrer: ref,
       ts: Date.now()
     };
 
-    out.textContent = JSON.stringify(payload, null, 2);
+    document.getElementById("out").textContent = JSON.stringify(payload, null, 2);
 
-    // shop/table が空なら説明を出す（これは“成功に見せるIF”じゃなく、入力不足の表示）
-    if (!shop || !table) {
-      out.textContent =
-        "missing params: shop / table\n\n例) " +
-        location.origin + location.pathname +
-        "?shop=daboya&table=1\n\n---\n" +
-        JSON.stringify(payload, null, 2);
-    }
+    // Thunkableへ送る（extensionが生きるまで少しリトライ）
+    let tries = 0;
+    const maxTries = 30;
 
-    // Thunkable WebViewer内なら postMessage できる
-    try {
-      if (window.ThunkableWebviewerExtension && window.ThunkableWebviewerExtension.postMessage) {
-        window.ThunkableWebviewerExtension.postMessage(JSON.stringify(payload));
-      } else {
-        // Safariで直接開いたときはここになる（正常）
-        out.textContent =
-          "✘ Thunkable extension not found (postMessageできてない)\n\n" +
-          out.textContent;
+    function trySend() {
+      tries++;
+
+      if (window.ThunkableWebviewerExtension && typeof ThunkableWebviewerExtension.postMessage === "function") {
+        ThunkableWebviewerExtension.postMessage(JSON.stringify(payload));
+        document.getElementById("status").textContent = "✅ postMessage sent to Thunkable";
+        document.getElementById("status").style.color = "#0a8f08";
+        return;
       }
-    } catch (e) {
-      out.textContent = "✘ postMessage error: " + e + "\n\n" + out.textContent;
+
+      if (tries >= maxTries) {
+        document.getElementById("status").textContent = "❌ Thunkable extension not found（WebViewer外で開いてる可能性）";
+        document.getElementById("status").style.color = "#c40000";
+        return;
+      }
+
+      setTimeout(trySend, 100);
     }
+
+    trySend();
   </script>
 </body>
 </html>

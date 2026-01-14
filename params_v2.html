@@ -2,68 +2,56 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>params_v2</title>
 
-  <!-- Thunkable Webviewer Extension (公式) -->
-  <script src="https://thunkable.github.io/webviewer-extension/thunkableWebviewerExtension.js" type="text/javascript"></script>
-  <!-- ↑公式がこのscriptと postMessage を案内してる -->
-  <!-- 参考: ThunkableWebviewerExtension.postMessage('hello world'); -->
-  <!--  [oai_citation:2‡GitHub](https://github.com/thunkable/webviewer-extension/) -->
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans JP",sans-serif;margin:24px}
-    .err{color:#d00;font-weight:800}
-    pre{background:#f6f6f6;padding:12px;border-radius:8px;overflow:auto}
-  </style>
+  <!-- Thunkable WebViewer Extension -->
+  <script src="https://cdn.jsdelivr.net/gh/thunkable/webviewer-extension@latest/thunkableWebviewerExtension.js"></script>
+  <!-- ※公式のWebViewer拡張を使う。詳細はThunkable Web Viewer Extensions参照 -->
 </head>
-<body>
-  <h1>params_v2 debug</h1>
-  <div id="status"></div>
-  <pre id="payload"></pre>
+<body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;">
+  <h2>params_v2 debug</h2>
+  <pre id="out" style="background:#f3f3f3;padding:12px;border-radius:8px;overflow:auto;"></pre>
 
-<script>
-(function () {
-  const $status = document.getElementById('status');
-  const $payload = document.getElementById('payload');
+  <script>
+    const out = document.getElementById("out");
 
-  const qs = new URLSearchParams(location.search);
-  const shop = qs.get('shop') || '';
-  const table = qs.get('table') || '';
+    const qs = new URLSearchParams(location.search);
+    const shop = (qs.get("shop") || "").trim();
+    const table = (qs.get("table") || "").trim();
 
-  // “成功したように見せる”のを避ける：無ければ赤字で止める
-  if (!shop || !table) {
-    $status.innerHTML =
-      '<div class="err">missing params: shop / table</div>' +
-      '<div class="err">例) ' + location.origin + location.pathname + '?shop=daboya&table=1</div>' +
-      '<div class="err">※QRはこのURLをそのまま埋め込む</div>';
-    $payload.textContent = JSON.stringify({
+    const payload = {
       type: "PARAMS",
-      shop, table,
+      shop,
+      table,
       href: location.href,
       ts: Date.now()
-    }, null, 2);
-    return;
-  }
+    };
 
-  const data = {
-    type: "PARAMS",
-    shop: shop,
-    table: table,
-    href: location.href,
-    ts: Date.now()
-  };
+    out.textContent = JSON.stringify(payload, null, 2);
 
-  $payload.textContent = JSON.stringify(data, null, 2);
+    // shop/table が空なら説明を出す（これは“成功に見せるIF”じゃなく、入力不足の表示）
+    if (!shop || !table) {
+      out.textContent =
+        "missing params: shop / table\n\n例) " +
+        location.origin + location.pathname +
+        "?shop=daboya&table=1\n\n---\n" +
+        JSON.stringify(payload, null, 2);
+    }
 
-  // Thunkable内で開かれた時だけ postMessage できる
-  if (window.ThunkableWebviewerExtension && typeof window.ThunkableWebviewerExtension.postMessage === 'function') {
-    window.ThunkableWebviewerExtension.postMessage(JSON.stringify(data));
-    $status.innerHTML = '<div>✅ postMessage sent to Thunkable</div>';
-  } else {
-    // Safari直開きなら当然ここになる（異常じゃない）
-    $status.innerHTML = '<div class="err">✖ Thunkable extension not found（Safari直開きだと正常）</div>';
-  }
-})();
-</script>
+    // Thunkable WebViewer内なら postMessage できる
+    try {
+      if (window.ThunkableWebviewerExtension && window.ThunkableWebviewerExtension.postMessage) {
+        window.ThunkableWebviewerExtension.postMessage(JSON.stringify(payload));
+      } else {
+        // Safariで直接開いたときはここになる（正常）
+        out.textContent =
+          "✘ Thunkable extension not found (postMessageできてない)\n\n" +
+          out.textContent;
+      }
+    } catch (e) {
+      out.textContent = "✘ postMessage error: " + e + "\n\n" + out.textContent;
+    }
+  </script>
 </body>
 </html>

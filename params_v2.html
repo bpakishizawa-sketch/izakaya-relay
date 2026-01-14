@@ -3,127 +3,68 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>izakaya-relay</title>
+  <title>params_v2</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; margin:0;}
-    .wrap{padding:16px; white-space:pre-wrap; word-break:break-word;}
-    .ok{color:#0a7;}
-    .ng{color:#c00;}
-    code{background:#f4f4f4; padding:2px 4px; border-radius:4px;}
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
+    .err { color: #d00; font-weight: 700; }
+    pre { background:#f6f6f6; padding:12px; border-radius:8px; overflow:auto; }
   </style>
 </head>
 <body>
-  <div class="wrap" id="msg">読み込み中…</div>
+  <h3>params_v2 debug</h3>
+  <div id="msg"></div>
+  <pre id="out"></pre>
 
-<script>
-/** ====== 設定（ここだけ自分の値に） ====== */
-const FIREBASE_DB_URL = "https://izakayaorder-default-rtdb.firebaseio.com";
-const THUNKABLE_URL   = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH"; // あなたの客側Webアプリ
-/** ======================================= */
-
-const el = document.getElementById("msg");
-const msg = (t, cls="") => { el.className = "wrap " + cls; el.textContent = t; };
-
-const qs = new URLSearchParams(location.search);
-const shop   = (qs.get("shop")  || "").trim();
-const table  = (qs.get("table") || "").trim();
-const debug  = (qs.get("debug") === "1");     // debug=1 なら遷移しない
-const force  = (qs.get("force") === "1");     // force=1 ならactiveを作り直す（会計後など）
-
-if (!shop || !table) {
-  msg(
-`missing params: shop / table
-
-例）
-${location.origin + location.pathname}?shop=daboya&table=1
-
-※QRはこのURLをそのまま埋め込む`,
-  "ng");
-  throw new Error("missing params");
-}
-
-// 4桁トークン
-function token4() {
-  return String(Math.floor(1000 + Math.random() * 9000));
-}
-function makeToken(shop, table) {
-  const t4 = token4();
-  return { token: `${shop}-${table}-${t4}`, token4: t4 };
-}
-
-async function fetchJson(url){
-  const r = await fetch(url, { method:"GET" });
-  const txt = await r.text();
-  let data = null;
-  try { data = txt ? JSON.parse(txt) : null; } catch(e) {}
-  return { ok: r.ok, status: r.status, data, raw: txt };
-}
-async function putJson(url, body){
-  const r = await fetch(url, {
-    method:"PUT",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(body)
-  });
-  const txt = await r.text();
-  if (!r.ok) throw new Error(txt || ("HTTP " + r.status));
-  return txt;
-}
-
-(async () => {
-  const activeUrl  = `${FIREBASE_DB_URL}/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}.json`;
-
-  msg(`shop=${shop}\ntable=${table}\n\nactive確認中…`);
-
-  // 1) 既存active確認
-  const cur = await fetchJson(activeUrl);
-  if (!cur.ok) {
-    msg(`active GET 失敗\nstatus=${cur.status}\n${cur.raw || ""}\n\nRules/URLを確認`, "ng");
-    return;
-  }
-
-  // 2) 既存activeがあり、force=1じゃなければ「上書きしない」
-  if (!force && cur.data && cur.data.token) {
-    const next = `${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&v=${Date.now()}`;
-    if (debug) {
-      msg(
-`既存activeを再利用（上書きしない）\n\nactive:\n${JSON.stringify(cur.data, null, 2)}\n\nnext:\n${next}\n\n(debug=1なので遷移しません)`,
-      "ok");
-      return;
+  <script>
+    function pickFromUrl(urlStr) {
+      const u = new URL(urlStr);
+      return {
+        shop: u.searchParams.get("shop") || "",
+        table: u.searchParams.get("table") || ""
+      };
     }
-    msg("既存activeを再利用 → 注文ページへ移動…", "ok");
-    location.replace(next);
-    return;
-  }
 
-  // 3) activeが無い、または force=1 なら新規発行して作成
-  msg(`activeなし（またはforce=1）→ 新規発行中…`);
+    // 1) まずは自分のURLから（単体で開いた時用）
+    let shop = "";
+    let table = "";
+    try {
+      const selfPicked = pickFromUrl(window.location.href);
+      shop = selfPicked.shop;
+      table = selfPicked.table;
+    } catch (e) {}
 
-  const tok = makeToken(shop, table);
+    // 2) 無ければ referrer（WebViewer内で開いた時の本命）
+    const ref = document.referrer || "";
+    if ((!shop || !table) && ref) {
+      try {
+        const refPicked = pickFromUrl(ref);
+        shop = refPicked.shop;
+        table = refPicked.table;
+      } catch (e) {}
+    }
 
-  const sessionUrl = `${FIREBASE_DB_URL}/webSessions/${encodeURIComponent(tok.token)}.json`;
+    const payload = {
+      type: "params",
+      shop,
+      table,
+      href: window.location.href,
+      referrer: ref
+    };
 
-  const sessionPayload = { shop, table, token: tok.token, token4: tok.token4, createdAt: Date.now() };
-  const activePayload  = { token: tok.token, token4: tok.token4, updatedAt: Date.now() };
+    // 画面にも出す
+    const ok = (shop && table);
+    document.getElementById("msg").innerHTML = ok
+      ? "OK: shop/table 取得できた"
+      : '<span class="err">missing params: shop / table</span><br>例) https://thunkable.site/... ?shop=daboya&table=1';
 
-  await putJson(sessionUrl, sessionPayload);
-  await putJson(activeUrl,  activePayload);
+    document.getElementById("out").textContent = JSON.stringify(payload, null, 2);
 
-  const next = `${THUNKABLE_URL}?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(table)}&v=${Date.now()}`;
-
-  if (debug) {
-    msg(
-`作成OK\n\nactive:\n${JSON.stringify(activePayload, null, 2)}\n\nsession:\n${JSON.stringify(sessionPayload, null, 2)}\n\nnext:\n${next}\n\n(debug=1なので遷移しません)`,
-    "ok");
-    return;
-  }
-
-  msg("作成OK → 注文ページへ移動…", "ok");
-  location.replace(next);
-
-})().catch((e) => {
-  console.error(e);
-  msg(`失敗: ${e && e.message ? e.message : String(e)}`, "ng");
-});
-</script>
+    // Thunkableへ送る
+    try {
+      if (window.ThunkableWebBridge && window.ThunkableWebBridge.postMessage) {
+        window.ThunkableWebBridge.postMessage(JSON.stringify(payload));
+      }
+    } catch (e) {}
+  </script>
 </body>
 </html>

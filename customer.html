@@ -3,93 +3,131 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>customer</title>
+  <title>customer debug</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px; }
-    .box { padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin: 12px 0; }
-    .ok { color: #0a7a2f; font-weight: 700; }
-    .ng { color: #b00020; font-weight: 700; }
-    code { word-break: break-all; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding: 18px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin: 12px 0; }
+    .btn { display:inline-block; padding: 12px 14px; border-radius: 10px; border: 0; cursor: pointer; font-weight: 700; }
+    .btn-primary { background: #2563eb; color: white; }
+    .ok { color: #16a34a; font-weight: 800; }
+    .ng { color: #dc2626; font-weight: 800; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #f7f7f7; padding: 10px; border-radius: 8px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
   </style>
 </head>
 <body>
   <h1>customer debug</h1>
 
-  <div class="box">
-    <div>shop: <b id="shop">(none)</b></div>
-    <div>table: <b id="table">(none)</b></div>
-    <div>href: <code id="href"></code></div>
+  <div class="card">
+    <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
+    <div><b>table:</b> <span id="tableText" class="mono">-</span></div>
+    <div><b>href:</b> <span id="hrefText" class="mono">-</span></div>
   </div>
 
-  <div class="box">
-    <button id="btn">Firebaseに書き込み（webActiveSessions）</button>
-    <div id="result">(未実行)</div>
+  <button id="btnGo" class="btn btn-primary">Firebaseに書き込み → Thunkableへ</button>
+
+  <div class="card" id="resultCard" style="display:none;">
+    <div id="resultLine" class="mono"></div>
+    <pre id="resultJson" class="mono"></pre>
   </div>
 
-  <div class="box">
-    <h3>送信データ</h3>
-    <pre id="payload" style="white-space:pre-wrap;"></pre>
-  </div>
+  <script>
+    // ====== ここだけ必要なら差し替え ======
+    const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+    const THUNKABLE_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+    // =====================================
 
-<script>
-(function () {
-  const dbBase = "https://izakayaorder-default-rtdb.firebaseio.com";
+    const $ = (id) => document.getElementById(id);
 
-  const qs = new URLSearchParams(location.search);
-  const shop = (qs.get("shop") || "").trim();
-  const table = (qs.get("table") || "").trim();
-
-  document.getElementById("shop").textContent = shop || "(missing)";
-  document.getElementById("table").textContent = table || "(missing)";
-  document.getElementById("href").textContent = location.href;
-
-  // ざっくりサニタイズ（最低限）
-  const safeShop = shop.replace(/[.#$\[\]\/\s]/g, "_");
-  const safeTable = table.replace(/[.#$\[\]\/\s]/g, "_");
-
-  const payload = {
-    shop: safeShop,
-    table: safeTable,
-    token: `${safeShop}-${safeTable}-${String(Math.floor(Math.random()*9000)+1000)}`,
-    updatedAt: Date.now(),
-    ua: navigator.userAgent
-  };
-  document.getElementById("payload").textContent = JSON.stringify(payload, null, 2);
-
-  const resultEl = document.getElementById("result");
-  const btn = document.getElementById("btn");
-
-  function setResult(ok, text) {
-    resultEl.innerHTML = `<span class="${ok ? "ok" : "ng"}">${ok ? "OK" : "NG"}</span> ${text}`;
-  }
-
-  btn.addEventListener("click", async () => {
-    if (!shop || !table) {
-      setResult(false, "URLに ?shop=xxx&table=yyy が必要");
-      return;
+    function getParam(name) {
+      const u = new URL(location.href);
+      return (u.searchParams.get(name) || "").trim();
     }
 
-    // 書き込み先：/webActiveSessions/{shop}/{table}.json
-    const url = `${dbBase}/webActiveSessions/${encodeURIComponent(safeShop)}/${encodeURIComponent(safeTable)}.json`;
+    // token生成（例: daboya-1-7284）
+    function genToken(shop, table) {
+      const n = Math.floor(1000 + Math.random() * 9000);
+      return `${shop}-${table}-${n}`;
+    }
 
-    try {
+    function showResult(ok, line, obj) {
+      $("resultCard").style.display = "block";
+      $("resultLine").innerHTML = ok ? `<span class="ok">OK</span> ${line}` : `<span class="ng">NG</span> ${line}`;
+      $("resultJson").textContent = JSON.stringify(obj, null, 2);
+    }
+
+    async function rtdbPut(path, data) {
+      // Realtime Database REST: .json 必須
+      const url = `${RTDB_BASE}/${path}.json`;
       const res = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(data),
       });
-
       const txt = await res.text();
-      if (!res.ok) {
-        setResult(false, `HTTP ${res.status} ${txt}`);
-        return;
-      }
-      setResult(true, `書き込み成功: ${url}`);
-    } catch (e) {
-      setResult(false, `例外: ${String(e)}`);
+      let json;
+      try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
+      return { ok: res.ok, status: res.status, json, url };
     }
-  });
-})();
-</script>
+
+    // 初期表示
+    const shop = getParam("shop");
+    const table = getParam("table");
+    $("shopText").textContent = shop || "(missing)";
+    $("tableText").textContent = table || "(missing)";
+    $("hrefText").textContent = location.href;
+
+    // shop/table 無い場合はここで止める
+    if (!shop || !table) {
+      showResult(false, "missing params: shop / table", {
+        example: `${location.origin}${location.pathname}?shop=daboya&table=1`
+      });
+    }
+
+    $("btnGo").addEventListener("click", async () => {
+      if (!shop || !table) return;
+
+      const token = genToken(shop, table);
+      const now = Date.now();
+      const ua = navigator.userAgent;
+
+      // あなたのスクショに合わせた書き込み形
+      // webActiveSessions/{shop}/{table}
+      const payload = {
+        shop: shop,
+        table: String(table),
+        token: token,
+        updatedAt: now,
+        ua: ua
+      };
+
+      // 書き込み
+      const path = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}`;
+      try {
+        const r = await rtdbPut(path, payload);
+
+        if (!r.ok) {
+          showResult(false, `書き込み失敗: HTTP ${r.status}  ${r.url}`, { payload, response: r.json });
+          return;
+        }
+
+        showResult(true, `書き込み成功: ${r.url}`, payload);
+
+        // 書き込み成功後にThunkableへ遷移（shop/table/token を渡す）
+        const jump =
+          THUNKABLE_URL +
+          `?shop=${encodeURIComponent(shop)}` +
+          `&table=${encodeURIComponent(table)}` +
+          `&token=${encodeURIComponent(token)}` +
+          `&v=${Date.now()}`;
+
+        // 0.6秒だけ見せてから移動（不要なら0に）
+        setTimeout(() => { location.href = jump; }, 600);
+
+      } catch (e) {
+        showResult(false, "例外エラー", { message: String(e), payload });
+      }
+    });
+  </script>
 </body>
 </html>

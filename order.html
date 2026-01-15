@@ -3,118 +3,216 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>order</title>
+  <title>注文</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
-    input,button{font-size:16px;padding:10px;}
+    input,select,button{font-size:16px;padding:10px;}
     button{cursor:pointer}
-    .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+    .row{display:flex;gap:8px;align-items:center;margin:10px 0}
     .ok{color:#0a7a2a;font-weight:700}
     .ng{color:#b00020;font-weight:700}
     pre{background:#f5f5f5;padding:12px;border-radius:8px;overflow:auto}
+    .meta{font-size:14px; margin-bottom:10px;}
+    .small{font-size:12px; color:#555}
   </style>
 </head>
 <body>
-  <h2>注文（仮）</h2>
-  <div id="meta"></div>
+  <h2>注文</h2>
+
+  <div class="meta" id="meta"></div>
+  <div id="status" class="small"></div>
 
   <div class="row">
-    <input id="item" placeholder="例：レモンサワー" style="flex:1">
+    <select id="menu" style="flex:1"></select>
     <input id="qty" type="number" min="1" value="1" style="width:90px">
     <button id="add">追加</button>
   </div>
 
-  <pre id="list">[]</pre>
+  <pre id="cart">[]</pre>
 
   <div class="row">
     <button id="send" style="flex:1">注文送信</button>
   </div>
 
-  <div id="status"></div>
-
 <script>
-const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com"; // params_v2と合わせる
+  // ====== 設定（あなたのDB） ======
+  const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+  // ===============================
 
-function qs(name){
-  const u = new URL(location.href);
-  return (u.searchParams.get(name) || "").trim();
-}
+  function qs(name){
+    const u = new URL(location.href);
+    return (u.searchParams.get(name) || "").trim();
+  }
 
-async function postJson(path, obj){
-  const url = `${DB_BASE}${path}.json`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(obj)
-  });
-  const text = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${text}`);
-  return JSON.parse(text);
-}
+  async function getJson(path){
+    const url = `${DB_BASE}${path}.json`;
+    const res = await fetch(url);
+    const text = await res.text();
+    if(!res.ok) throw new Error(`GET HTTP ${res.status} ${text}`);
+    return text ? JSON.parse(text) : null;
+  }
 
-const shop = qs("shop");
-const table = qs("table");
-const token = qs("token");
+  async function postJson(path, obj){
+    const url = `${DB_BASE}${path}.json`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(obj)
+    });
+    const text = await res.text();
+    if(!res.ok) throw new Error(`POST HTTP ${res.status} ${text}`);
+    return text ? JSON.parse(text) : null;
+  }
 
-const meta = document.getElementById("meta");
-meta.innerHTML = `
-  <div>shop: <b>${shop||"(none)"}</b></div>
-  <div>table: <b>${table||"(none)"}</b></div>
-  <div>token: <b style="font-size:12px">${token||"(none)"}</b></div>
-`;
+  // URLパラメータ
+  const shop  = qs("shop");
+  const table = qs("table");
+  const token = qs("token");
 
-if(!shop || !table || !token){
-  document.getElementById("status").innerHTML = `<span class="ng">URL params が不足です</span>`;
-}
+  // 表示
+  const meta = document.getElementById("meta");
+  meta.innerHTML = `
+    <div>shop: <b>${shop||"(none)"}</b></div>
+    <div>table: <b>${table||"(none)"}</b></div>
+    <div>token: <b style="font-size:12px">${token||"(none)"}</b></div>
+  `;
 
-let items = [];
-const listEl = document.getElementById("list");
+  const statusEl = document.getElementById("status");
+  function setStatus(html){ statusEl.innerHTML = html; }
 
-function render(){
-  listEl.textContent = JSON.stringify(items, null, 2);
-}
+  if(!shop || !table || !token){
+    setStatus(`<span class="ng">URL params が不足です（shop / table / token）</span>`);
+  } else {
+    setStatus(`メニュー読込中...`);
+  }
 
-document.getElementById("add").onclick = () => {
-  const item = document.getElementById("item").value.trim();
-  const qty = Number(document.getElementById("qty").value || 1);
-  if(!item) return;
-  items.push({name:item, qty});
-  document.getElementById("item").value = "";
-  document.getElementById("qty").value = 1;
-  render();
-};
+  // メニュー格納
+  // option の value は JSON文字列（後でそのまま追加できるように）
+  async function loadMenu(){
+    const sel = document.getElementById("menu");
+    sel.innerHTML = "";
 
-document.getElementById("send").onclick = async () => {
-  try{
-    if(!shop || !table || !token) return;
+    // ★スクショに合わせてここ固定
+    const foodPath  = `/shops/${encodeURIComponent(shop)}/menu/food`;
+    const drinkPath = `/shops/${encodeURIComponent(shop)}/menu/drink`;
 
-    if(items.length === 0){
-      document.getElementById("status").innerHTML = `<span class="ng">注文が空です</span>`;
+    const [foodObj, drinkObj] = await Promise.all([
+      getJson(foodPath).catch(e => { throw new Error(`food取得失敗: ${e.message}`); }),
+      getJson(drinkPath).catch(e => { throw new Error(`drink取得失敗: ${e.message}`); }),
+    ]);
+
+    // RTDBは {f1:{...}, f2:{...}} 形式が多いので Object.values で配列化
+    const foodList  = foodObj  ? Object.entries(foodObj).map(([id,v]) => ({id, ...v, _cat:"food"})) : [];
+    const drinkList = drinkObj ? Object.entries(drinkObj).map(([id,v]) => ({id, ...v, _cat:"drink"})) : [];
+
+    // 表示用にまとめる（空なら警告）
+    if(foodList.length === 0 && drinkList.length === 0){
+      setStatus(`<span class="ng">メニューが空です（/shops/${shop}/menu/*）</span>`);
       return;
     }
 
-    const ts = Date.now();
-    const orderObj = {
-      shop, table, token,
-      items,
-      createdAt: ts
-    };
+    // optgroup を使う
+    function addGroup(label, list){
+      const g = document.createElement("optgroup");
+      g.label = label;
 
-    document.getElementById("status").textContent = "sending...";
-    // /orders にpush（POST）で注文ID自動生成
-    await postJson(`/orders/${shop}`, orderObj);
+      list.forEach(m=>{
+        // データ構造に name/price がある前提。無い場合も落ちないようにする
+        const name  = (m.name ?? m.title ?? m.itemName ?? m.id ?? "no-name");
+        const price = (m.price ?? m.amount ?? "");
+        const text  = price !== "" ? `${name}（${price}）` : `${name}`;
 
-    document.getElementById("status").innerHTML = `<span class="ok">送信OK</span>`;
-    items = [];
-    render();
+        const payload = {
+          id: m.id,
+          cat: m._cat,
+          name: String(name),
+          price: (price === "" ? null : price)
+        };
 
-  }catch(e){
-    document.getElementById("status").innerHTML =
-      `<span class="ng">送信失敗</span><div style="font-size:12px">${String(e.message||e)}</div>`;
+        const opt = document.createElement("option");
+        opt.value = JSON.stringify(payload);
+        opt.textContent = text;
+        g.appendChild(opt);
+      });
+
+      sel.appendChild(g);
+    }
+
+    // 並びは好みでOK
+    addGroup("ドリンク", drinkList);
+    addGroup("フード", foodList);
+
+    setStatus(`<span class="ok">メニュー読込OK</span>`);
   }
-};
 
-render();
+  // カート
+  let cart = [];
+  const cartEl = document.getElementById("cart");
+  function renderCart(){
+    cartEl.textContent = JSON.stringify(cart, null, 2);
+  }
+
+  document.getElementById("add").onclick = () => {
+    if(!shop || !table || !token) return;
+
+    const selVal = document.getElementById("menu").value;
+    if(!selVal) return;
+
+    const qty = Math.max(1, Number(document.getElementById("qty").value || 1));
+    const item = JSON.parse(selVal);
+
+    cart.push({
+      ...item,
+      qty
+    });
+
+    document.getElementById("qty").value = 1;
+    renderCart();
+  };
+
+  document.getElementById("send").onclick = async () => {
+    try{
+      if(!shop || !table || !token) return;
+
+      if(cart.length === 0){
+        setStatus(`<span class="ng">注文が空です</span>`);
+        return;
+      }
+
+      const ts = Date.now();
+      const orderObj = {
+        shop,
+        table: String(table),
+        token,
+        items: cart,
+        createdAt: ts
+      };
+
+      setStatus(`送信中...`);
+
+      // ★送信先：/orders/{shop}（今の仮と同じ）
+      await postJson(`/orders/${encodeURIComponent(shop)}`, orderObj);
+
+      setStatus(`<span class="ok">送信OK</span>`);
+      cart = [];
+      renderCart();
+
+    }catch(e){
+      setStatus(`<span class="ng">送信失敗</span><div class="small">${String(e.message||e)}</div>`);
+    }
+  };
+
+  renderCart();
+
+  // 起動
+  (async()=>{
+    if(!shop || !table || !token) return;
+    try{
+      await loadMenu();
+    }catch(e){
+      setStatus(`<span class="ng">メニュー取得失敗</span><div class="small">${String(e.message||e)}</div>`);
+    }
+  })();
 </script>
 </body>
 </html>

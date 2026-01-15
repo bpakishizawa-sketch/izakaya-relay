@@ -2,84 +2,116 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>shop login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shop Login</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:720px;margin:0 auto}
-    input,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #ccc}
-    button{cursor:pointer;border:0;font-weight:800}
-    .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:560px; margin:0 auto;}
+    h1{font-size:22px;margin:0 0 14px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;}
+    label{display:block;font-weight:700;margin:10px 0 6px}
+    input{width:100%;font-size:16px;padding:12px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box}
+    button{width:100%;margin-top:14px;font-size:16px;padding:12px;border:0;border-radius:10px;font-weight:800;cursor:pointer}
     .btn{background:#111827;color:#fff}
-    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0}
+    .sub{font-size:12px;color:#6b7280}
     .ok{color:#16a34a;font-weight:800}
     .ng{color:#dc2626;font-weight:800}
-    a{display:inline-block;padding:12px 14px;border-radius:10px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;margin:6px 6px 0 0}
-    .muted{color:#6b7280;font-size:12px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .row{display:flex; gap:10px; align-items:center; justify-content:space-between; margin-top:12px}
+    .linkbtn{display:inline-block; padding:10px 12px; border-radius:10px; border:1px solid #ddd; text-decoration:none; color:#111827; font-weight:700}
   </style>
 </head>
 <body>
-  <h2>店側ログイン</h2>
+  <h1>店側ログイン</h1>
+  <div class="sub">shopコード + PIN で端末ログイン（厨房/会計など端末ごとにOK）</div>
 
   <div class="card">
-    <div class="row">
-      <input id="shop" placeholder="shopコード（例：daboya）" style="flex:1;min-width:240px">
-      <input id="pin"  placeholder="PIN（例：1111）" style="width:160px" inputmode="numeric">
-      <button id="btnLogin" class="btn">ログイン</button>
-    </div>
-    <div id="msg" class="muted">端末ごとにログインします（厨房／会計で分けてもOK）。</div>
+    <label for="shop">shopコード</label>
+    <input id="shop" placeholder="例：daboya" autocomplete="off" autocapitalize="none" />
+
+    <label for="pin">PIN</label>
+    <input id="pin" placeholder="例：1111" inputmode="numeric" autocomplete="off" />
+
+    <button id="btnLogin" class="btn">ログイン</button>
+
+    <div id="status" style="margin-top:12px;"></div>
+    <div id="debug" class="mono" style="margin-top:10px;font-size:12px;white-space:pre-wrap;"></div>
   </div>
 
-  <div id="menu" class="card" style="display:none;">
-    <div class="ok">ログイン中：<span id="who"></span></div>
-    <div style="margin-top:10px">
-      <a href="orders.html">注文（厨房）</a>
-      <a href="checkout.html">会計</a>
-      <a href="qr.html">QR印刷</a>
-      <a href="menu.html">メニュー編集</a>
-    </div>
-    <div class="row" style="margin-top:12px">
-      <button id="btnLogout" style="background:#ef4444;color:#fff">ログアウト</button>
-    </div>
+  <div class="row">
+    <a class="linkbtn" href="./menu.html?v=1">menu.html を開く（テスト）</a>
+    <a class="linkbtn" href="./index.html?v=1">index.html</a>
   </div>
 
-  <!-- 共通JS -->
-  <script src="shop_common.js"></script>
+<script>
+/** ===== 設定（ここだけあなたの環境に合わせる） ===== */
+const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ===================================================== */
 
-  <script>
-    function showMenu(){
-      const shop = getShop();
-      const pin  = getPin();
-      if(shop && pin){
-        document.getElementById("menu").style.display = "block";
-        document.getElementById("who").textContent = `${shop} / PIN ****`;
-      }
+function $(id){ return document.getElementById(id); }
+
+async function rtdbGet(path){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url);
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt);
+}
+
+function setStatus(html){
+  $("status").innerHTML = html;
+}
+function setDebug(obj){
+  $("debug").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+}
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
+
+// すでにログイン情報があれば表示（上書き可）
+(function init(){
+  const savedShop = localStorage.getItem("shopCode") || "";
+  const savedPin  = localStorage.getItem("shopPin") || "";
+  if(savedShop) $("shop").value = savedShop;
+  if(savedPin) $("pin").value = savedPin;
+})();
+
+$("btnLogin").onclick = async () => {
+  const shop = $("shop").value.trim();
+  const pin  = $("pin").value.trim();
+
+  if(!shop || !pin){
+    setStatus(`<span class="ng">shop と pin を入力してください</span>`);
+    return;
+  }
+
+  try{
+    setStatus(`checking...`);
+    setDebug({ shop, pinMasked: "*".repeat(Math.min(pin.length, 8)) });
+
+    // 例：shops/{shop}/staffPin が正解PIN
+    const staffPin = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
+
+    if(String(staffPin || "") !== String(pin)){
+      setStatus(`<span class="ng">PINが違います</span>`);
+      setDebug({ staffPinFromDB: staffPin, inputPin: pin });
+      return;
     }
 
-    // すでにログイン済みならメニュー表示
-    showMenu();
+    // 保存（端末ログイン方式A）
+    localStorage.setItem("shopCode", shop);
+    localStorage.setItem("shopPin", pin);
 
-    document.getElementById("btnLogin").onclick = async () => {
-      const shop = document.getElementById("shop").value.trim();
-      const pin  = document.getElementById("pin").value.trim();
+    setStatus(`<span class="ok">OK</span> ログイン成功：${esc(shop)}`);
 
-      if(!shop || !pin){
-        document.getElementById("msg").innerHTML = `<span class="ng">shop と PIN を入れてください</span>`;
-        return;
-      }
+    // 次の画面へ（menu.htmlを作ってから使う）
+    location.href = `menu.html?v=${Date.now()}`;
 
-      // いまは「PINの正誤チェック」をDBに持たせても良いが、まずは端末保存だけで運用開始OK
-      // 後で master/shops/{shop}/pin などを見て照合する形に拡張できる
-      ssSet("shop", shop);
-      ssSet("pin",  pin);
-
-      document.getElementById("msg").innerHTML = `<span class="ok">ログインしました</span>`;
-      showMenu();
-    };
-
-    document.getElementById("btnLogout").onclick = () => {
-      ssClear();
-      location.reload();
-    };
-  </script>
+  }catch(e){
+    setStatus(`<span class="ng">エラー</span> ${esc(e.message || e)}`);
+    setDebug(String(e.stack || e));
+  }
+};
+</script>
 </body>
 </html>

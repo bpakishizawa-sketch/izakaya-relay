@@ -3,17 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>注文</title>
+  <title>order</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
-    .row{display:flex;gap:8px;align-items:center;margin:10px 0}
-    select,input,button{font-size:16px;padding:10px}
+    input,button,select{font-size:16px;padding:10px;}
     button{cursor:pointer}
+    .row{display:flex;gap:8px;align-items:center;margin:8px 0}
     .ok{color:#0a7a2a;font-weight:700}
     .ng{color:#b00020;font-weight:700}
     pre{background:#f5f5f5;padding:12px;border-radius:8px;overflow:auto}
+    .card{border:1px solid #ddd;border-radius:12px;padding:12px;margin:12px 0}
+    .muted{color:#666;font-size:12px}
+    .h{font-weight:800;margin:0 0 8px 0}
+    .histItem{border-top:1px solid #e6e6e6;padding:10px 0}
+    .histItem:first-child{border-top:0}
     .small{font-size:12px;color:#444}
-    .card{border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
   </style>
 </head>
 <body>
@@ -23,87 +28,186 @@
 
   <div class="card">
     <div class="row">
-      <select id="menuSelect" style="flex:1"></select>
+      <select id="menuSelect" style="flex:1">
+        <option value="">メニューを選択</option>
+      </select>
       <input id="qty" type="number" min="1" value="1" style="width:90px">
       <button id="add">追加</button>
     </div>
-    <div class="small">メニューは FBRD: <code>shops/{shop}/menu/drink</code>, <code>shops/{shop}/menu/food</code> から読みます</div>
+    <div class="muted">メニューは FBRD: shops/{shop}/menu/drink, shops/{shop}/menu/food から読みます</div>
+    <div id="menuStatus" class="muted"></div>
   </div>
 
   <div class="card">
-    <div><b>カート</b></div>
-    <pre id="cart">[]</pre>
+    <div class="h">カート</div>
+    <pre id="cartPre">[]</pre>
     <div class="row">
       <button id="send" style="flex:1">注文送信</button>
-      <button id="clear" style="width:120px">クリア</button>
+      <button id="clear" style="flex:1">クリア</button>
     </div>
     <div id="status"></div>
   </div>
 
+  <!-- テーブル別 注文履歴 -->
+  <div class="card">
+    <div class="row" style="justify-content:space-between;">
+      <div class="h" style="margin:0;">このテーブルの注文履歴</div>
+      <button id="refreshHistory">更新</button>
+    </div>
+    <div class="muted">読み込み先：shops/{shop}/orders/{table}</div>
+    <div id="historyStatus" class="muted"></div>
+    <div id="historyList"></div>
+  </div>
+
 <script>
-/** ===== 設定（あなたのDB） ===== */
-const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-/** ============================= */
+/** ===== 設定 ===== */
+const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com"; // いまのDB
+/** =============== */
 
 function qs(name){
   const u = new URL(location.href);
   return (u.searchParams.get(name) || "").trim();
 }
 
-async function rtdbGet(path){
-  const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url, { method:"GET" });
-  const text = await res.text();
-  let json; try{ json = JSON.parse(text); }catch{ json = null; }
-  if(!res.ok) throw new Error(`GET HTTP ${res.status} ${text}`);
-  return { url, data: json };
+function ymdhis(ms){
+  const d = new Date(ms);
+  const pad = (n)=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-async function rtdbPut(path, obj){
-  const url = `${DB_BASE}/${path}.json`;
+async function getJson(path){
+  const url = `${DB_BASE}${path}.json`;
+  const res = await fetch(url);
+  const text = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${text}`);
+  return text ? JSON.parse(text) : null;
+}
+
+async function postJson(path, obj){
+  const url = `${DB_BASE}${path}.json`;
   const res = await fetch(url, {
-    method:"PUT",
+    method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify(obj)
   });
   const text = await res.text();
-  let json; try{ json = JSON.parse(text); }catch{ json = null; }
-  if(!res.ok) throw new Error(`PUT HTTP ${res.status} ${text}`);
-  return { url, data: json };
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${text}`);
+  return JSON.parse(text);
 }
 
-async function rtdbPost(path, obj){
-  const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url, {
-    method:"POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(obj)
-  });
-  const text = await res.text();
-  let json; try{ json = JSON.parse(text); }catch{ json = null; }
-  if(!res.ok) throw new Error(`POST HTTP ${res.status} ${text}`);
-  return { url, data: json };
+/** menu: shops/{shop}/menu/drink と /food を読み、プルダウンに入れる */
+async function loadMenu(shop){
+  const select = document.getElementById("menuSelect");
+  const menuStatus = document.getElementById("menuStatus");
+
+  try{
+    menuStatus.textContent = "メニュー読み込み中...";
+    const drinkObj = await getJson(`/shops/${encodeURIComponent(shop)}/menu/drink`);
+    const foodObj  = await getJson(`/shops/${encodeURIComponent(shop)}/menu/food`);
+
+    // Firebaseの形が「idキー: {name,price,...}」でも「配列」でも拾えるようにする
+    const normalize = (obj, cat)=>{
+      if(!obj) return [];
+      if(Array.isArray(obj)){
+        return obj.filter(Boolean).map(x=>({ ...x, cat: x.cat || cat, id: x.id || "" }));
+      }
+      if(typeof obj === "object"){
+        return Object.keys(obj).map(k=>({ id:k, cat, ...obj[k] }));
+      }
+      return [];
+    };
+
+    const drink = normalize(drinkObj, "drink");
+    const food  = normalize(foodObj,  "food");
+    let menu = [...drink, ...food];
+
+    // 並び：idの数値部分で昇順（d1,d2,... / f1,f2,...）にしたい場合
+    const numPart = (id)=> {
+      const m = String(id||"").match(/(\d+)/);
+      return m ? Number(m[1]) : 999999;
+    };
+    menu.sort((a,b)=>{
+      const ac = (a.cat||"").localeCompare(b.cat||""); // catで先に分けたいなら
+      if(ac !== 0) return ac;
+      return numPart(a.id) - numPart(b.id);
+    });
+
+    // options 再作成
+    select.innerHTML = `<option value="">メニューを選択</option>`;
+    for(const m of menu){
+      const name = m.name ?? "(no name)";
+      const price = m.price ?? "";
+      const label = `${name} (${price})`;
+      const value = JSON.stringify({
+        id: m.id || "",
+        cat: m.cat || "",
+        name,
+        price,
+      });
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = label;
+      select.appendChild(opt);
+    }
+
+    menuStatus.innerHTML = `<span class="ok">メニュー読み込みOK</span>（${menu.length}件）`;
+  }catch(e){
+    menuStatus.innerHTML = `<span class="ng">メニュー読み込み失敗</span> <span class="small">${String(e.message||e)}</span>`;
+  }
 }
 
-/** idが f103 / d12 みたいな時に「数字」で並べたい */
-function sortByIdNumber(a,b){
-  const na = Number(String(a.id).match(/\d+/)?.[0] || 0);
-  const nb = Number(String(b.id).match(/\d+/)?.[0] || 0);
-  if(na !== nb) return na - nb;
-  return String(a.id).localeCompare(String(b.id));
+/** テーブル別注文履歴：shops/{shop}/orders/{table} を取得して表示 */
+async function refreshHistory(shop, table){
+  const st = document.getElementById("historyStatus");
+  const list = document.getElementById("historyList");
+  try{
+    st.textContent = "履歴読み込み中...";
+    list.innerHTML = "";
+
+    const obj = await getJson(`/shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(table)}`);
+
+    if(!obj){
+      st.textContent = "履歴なし";
+      return;
+    }
+
+    // pushIDのオブジェクト → 配列化
+    const arr = Object.keys(obj).map(key => ({ key, ...obj[key] }));
+
+    // createdAt で新しい順
+    arr.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+
+    st.innerHTML = `<span class="ok">履歴OK</span>（${arr.length}件）`;
+
+    for(const o of arr){
+      const items = Array.isArray(o.items) ? o.items : (o.items ? Object.values(o.items) : []);
+      const total = o.total ?? "";
+      const when = o.createdAt ? ymdhis(o.createdAt) : "-";
+
+      // 1件の表示（店側が見たい形式に近い形）
+      const lines = items.map(it=>{
+        const n = it.name ?? "";
+        const q = it.qty ?? 1;
+        const p = it.price ?? "";
+        return `・${n} ×${q}（${p}）`;
+      }).join("<br>");
+
+      const div = document.createElement("div");
+      div.className = "histItem";
+      div.innerHTML = `
+        <div class="small mono">#${o.key} / ${when} / token:${o.token||"-"}</div>
+        <div>${lines || "<span class='muted'>(itemsなし)</span>"}</div>
+        <div class="small">total: <b>${total}</b></div>
+      `;
+      list.appendChild(div);
+    }
+
+  }catch(e){
+    st.innerHTML = `<span class="ng">履歴読み込み失敗</span> <span class="small">${String(e.message||e)}</span>`;
+  }
 }
 
-function yen(n){
-  const x = Number(n||0);
-  return String(x);
-}
-
-function toTextItem(it, table){
-  // 店側が / で split するので「/商品×数量Tテーブル」形式にする
-  // 例: /冷やしトマト×1T2
-  return `/${it.name}×${it.qty}T${table}`;
-}
-
+/** ====== 初期パラメータ ====== */
 const shop = qs("shop");
 const table = qs("table");
 const token = qs("token");
@@ -112,194 +216,91 @@ const meta = document.getElementById("meta");
 meta.innerHTML = `
   <div>shop: <b>${shop||"(none)"}</b></div>
   <div>table: <b>${table||"(none)"}</b></div>
-  <div>token: <b style="font-size:12px">${token||"(none)"}</b></div>
-  <div class="small">URL: ${location.href}</div>
+  <div>token: <b style="font-size:12px" class="mono">${token||"(none)"}</b></div>
+  <div class="muted mono">URL: ${location.href}</div>
 `;
 
-const statusEl = document.getElementById("status");
-function setStatus(ok, msg, extra){
-  statusEl.innerHTML =
-    (ok ? `<span class="ok">${msg}</span>` : `<span class="ng">${msg}</span>`) +
-    (extra ? `<div class="small">${extra}</div>` : "");
-}
-
 if(!shop || !table || !token){
-  setStatus(false, "URL params が不足です", "例: ?shop=daboya&table=1&token=xxxx");
+  document.getElementById("status").innerHTML = `<span class="ng">URL params が不足です（shop/table/token 必須）</span>`;
 }
 
-let menuItems = []; // {id,cat,name,price}
-let cart = [];      // {id,cat,name,price,qty}
-
-const menuSelect = document.getElementById("menuSelect");
-const cartEl = document.getElementById("cart");
-
+/** ====== カート ====== */
+let cart = [];
+const cartPre = document.getElementById("cartPre");
 function renderCart(){
-  cartEl.textContent = JSON.stringify(cart, null, 2);
+  cartPre.textContent = JSON.stringify(cart, null, 2);
 }
+renderCart();
 
-function rebuildMenuSelect(){
-  menuSelect.innerHTML = "";
-
-  const opt0 = document.createElement("option");
-  opt0.value = "";
-  opt0.textContent = "メニューを選択";
-  menuSelect.appendChild(opt0);
-
-  // drink → food の順に並べたいならここで並び替え
-  const drinks = menuItems.filter(x => x.cat==="drink").sort(sortByIdNumber);
-  const foods  = menuItems.filter(x => x.cat==="food").sort(sortByIdNumber);
-
-  function addGroup(label, arr){
-    if(arr.length===0) return;
-    const og = document.createElement("optgroup");
-    og.label = label;
-    for(const m of arr){
-      const o = document.createElement("option");
-      o.value = m.id;
-      o.textContent = `${m.name} (${yen(m.price)})`;
-      o.dataset.cat = m.cat;
-      o.dataset.name = m.name;
-      o.dataset.price = m.price;
-      og.appendChild(o);
-    }
-    menuSelect.appendChild(og);
-  }
-
-  addGroup("ドリンク", drinks);
-  addGroup("フード", foods);
-}
-
-async function loadMenu(){
-  if(!shop) return;
-  setStatus(true, "メニュー読込中...");
-
-  // 期待DB構造:
-  // shops/{shop}/menu/drink/{d1..} = { id, name, price, ... } または 文字列でも可
-  // shops/{shop}/menu/food/{f1..}  = { id, name, price, ... }
-  const drinkPath = `shops/${encodeURIComponent(shop)}/menu/drink`;
-  const foodPath  = `shops/${encodeURIComponent(shop)}/menu/food`;
-
-  const [dr, fr] = await Promise.all([ rtdbGet(drinkPath), rtdbGet(foodPath) ]);
-
-  const out = [];
-
-  function normalize(cat, obj){
-    if(!obj) return;
-    // obj = { d1:{name,price...}, d2:{...} } みたいな形を想定
-    for(const key of Object.keys(obj)){
-      const v = obj[key];
-      if(v && typeof v === "object"){
-        out.push({
-          id: v.id || key,
-          cat,
-          name: String(v.name ?? v.item ?? v.title ?? key),
-          price: String(v.price ?? v.cost ?? "0")
-        });
-      } else {
-        // 値が文字列だけだった場合（例: "生ビール,650" みたいなやつ）
-        out.push({
-          id: key,
-          cat,
-          name: String(v),
-          price: "0"
-        });
-      }
-    }
-  }
-
-  normalize("drink", dr.data);
-  normalize("food",  fr.data);
-
-  menuItems = out;
-  rebuildMenuSelect();
-  setStatus(true, `メニュー読み込みOK（${menuItems.length}件）`);
-}
-
+/** 追加 */
 document.getElementById("add").onclick = () => {
-  const opt = menuSelect.selectedOptions?.[0];
-  if(!opt || !opt.value) return;
+  const sel = document.getElementById("menuSelect").value;
+  const qty = Number(document.getElementById("qty").value || 1);
+  if(!sel) return;
 
-  const qty = Math.max(1, Number(document.getElementById("qty").value || 1));
-
-  const item = {
-    id: opt.value,
-    cat: opt.dataset.cat,
-    name: opt.dataset.name,
-    price: opt.dataset.price,
-    qty
-  };
-
-  cart.push(item);
+  const m = JSON.parse(sel);
+  cart.push({ id:m.id, cat:m.cat, name:m.name, price:m.price, qty: qty });
   document.getElementById("qty").value = 1;
-  menuSelect.value = "";
   renderCart();
 };
 
+/** クリア */
 document.getElementById("clear").onclick = () => {
   cart = [];
   renderCart();
-  setStatus(true, "クリアしました");
+  document.getElementById("status").textContent = "";
 };
 
+/** 送信（shops/{shop}/orders/{table} にPOST） */
 document.getElementById("send").onclick = async () => {
+  const statusEl = document.getElementById("status");
   try{
     if(!shop || !table || !token) return;
 
     if(cart.length === 0){
-      setStatus(false, "注文が空です");
+      statusEl.innerHTML = `<span class="ng">注文が空です</span>`;
       return;
     }
 
     const ts = Date.now();
-    const total = cart.reduce((s,it)=> s + (Number(it.price||0) * Number(it.qty||0)), 0);
+    const total = cart.reduce((sum,it)=>sum + (Number(it.price||0)*Number(it.qty||1)), 0);
 
-    // 1) 注文本体： shops/{shop}/orders/{table} にPOST（pushキーで保存）
     const orderObj = {
+      createdAt: ts,
       shop, table: String(table), token,
       items: cart,
-      total,
-      createdAt: ts,
+      total: total,
       ua: navigator.userAgent
     };
 
-    setStatus(true, "送信中...");
+    statusEl.textContent = "sending...";
 
-    await rtdbPost(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(table)}`, orderObj);
+    // ここが重要：テーブル別の正本
+    await postJson(`/shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(table)}`, orderObj);
 
-    // 2) 店側が読んでる shopDrinkList/shopFoodList を更新（/区切り文字列）
-    //    今ある文字列をGETして追記 → PUT
-    const drinkAdd = cart.filter(x=>x.cat==="drink").map(x=>toTextItem(x, table)).join("");
-    const foodAdd  = cart.filter(x=>x.cat==="food").map(x=>toTextItem(x, table)).join("");
-
-    async function appendToList(listKey, addText){
-      if(!addText) return;
-      const p = `shops/${encodeURIComponent(shop)}/${listKey}`;
-      const cur = await rtdbGet(p);
-      const curStr = (typeof cur.data === "string" ? cur.data : "");
-      const nextStr = curStr + addText; // 末尾追記（/は addText 側が持つ）
-      await rtdbPut(p, nextStr);
-    }
-
-    await appendToList("shopDrinkList", drinkAdd);
-    await appendToList("shopFoodList",  foodAdd);
-
-    // 3) tables/{table}/orderList & total も更新（店側で扱いやすい）
-    //    orderList は ["生ビール×1T2", ...] みたいな文字列配列にする
-    const orderListArr = cart.map(it => `${it.name}×${it.qty}T${table}`);
-    await rtdbPut(`shops/${encodeURIComponent(shop)}/tables/${encodeURIComponent(table)}/orderList`, orderListArr);
-    await rtdbPut(`shops/${encodeURIComponent(shop)}/tables/${encodeURIComponent(table)}/total`, total);
-
-    setStatus(true, "送信OK");
+    statusEl.innerHTML = `<span class="ok">送信OK</span>`;
     cart = [];
     renderCart();
 
+    // 送信後に履歴も更新
+    await refreshHistory(shop, table);
+
   }catch(e){
-    setStatus(false, "送信失敗", String(e.message || e));
+    statusEl.innerHTML =
+      `<span class="ng">送信失敗</span><div class="small mono">${String(e.message||e)}</div>`;
   }
 };
 
-renderCart();
-loadMenu();
+/** 履歴更新ボタン */
+document.getElementById("refreshHistory").onclick = () => refreshHistory(shop, table);
+
+/** 起動時：メニュー読み込み＋履歴表示 */
+if(shop){
+  loadMenu(shop);
+}
+if(shop && table){
+  refreshHistory(shop, table);
+}
 </script>
 </body>
 </html>

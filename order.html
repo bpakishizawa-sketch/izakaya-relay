@@ -6,79 +6,105 @@
   <title>注文</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
-    input,button,select{font-size:16px;padding:10px;}
-    button{cursor:pointer}
     .row{display:flex;gap:8px;align-items:center;margin:10px 0}
+    select,input,button{font-size:16px;padding:10px}
+    button{cursor:pointer}
     .ok{color:#0a7a2a;font-weight:700}
     .ng{color:#b00020;font-weight:700}
     pre{background:#f5f5f5;padding:12px;border-radius:8px;overflow:auto}
-    .meta{margin:10px 0; line-height:1.7}
     .small{font-size:12px;color:#444}
+    .card{border:1px solid #ddd;border-radius:10px;padding:12px;margin:10px 0}
   </style>
 </head>
 <body>
   <h2>注文</h2>
 
-  <div class="meta" id="meta"></div>
+  <div class="card" id="meta"></div>
 
-  <div class="row">
-    <select id="cat" style="width:140px">
-      <option value="food">food</option>
-      <option value="drink">drink</option>
-    </select>
-
-    <select id="menu" style="flex:1">
-      <option value="">メニュー読込中...</option>
-    </select>
-
-    <input id="qty" type="number" min="1" value="1" style="width:90px">
-    <button id="add">追加</button>
+  <div class="card">
+    <div class="row">
+      <select id="menuSelect" style="flex:1"></select>
+      <input id="qty" type="number" min="1" value="1" style="width:90px">
+      <button id="add">追加</button>
+    </div>
+    <div class="small">メニューは FBRD: <code>shops/{shop}/menu/drink</code>, <code>shops/{shop}/menu/food</code> から読みます</div>
   </div>
 
-  <div class="small" id="menuStatus"></div>
-
-  <pre id="list">[]</pre>
-
-  <div class="row">
-    <button id="send" style="flex:1">注文送信</button>
+  <div class="card">
+    <div><b>カート</b></div>
+    <pre id="cart">[]</pre>
+    <div class="row">
+      <button id="send" style="flex:1">注文送信</button>
+      <button id="clear" style="width:120px">クリア</button>
+    </div>
+    <div id="status"></div>
   </div>
-
-  <div id="status"></div>
 
 <script>
-/**
- * あなたのDB
- * menu: /shops/{shop}/menu/{cat}/{id}  (id例: f103)
- * order保存先: /shops/{shop}/orders/{table}/{pushId}
- */
+/** ===== 設定（あなたのDB） ===== */
 const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ============================= */
 
 function qs(name){
   const u = new URL(location.href);
   return (u.searchParams.get(name) || "").trim();
 }
 
-async function getJson(path){
-  const url = `${DB_BASE}${path}.json`;
-  const res = await fetch(url);
+async function rtdbGet(path){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, { method:"GET" });
   const text = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${text}`);
-  return text ? JSON.parse(text) : null;
+  let json; try{ json = JSON.parse(text); }catch{ json = null; }
+  if(!res.ok) throw new Error(`GET HTTP ${res.status} ${text}`);
+  return { url, data: json };
 }
 
-async function postJson(path, obj){
-  const url = `${DB_BASE}${path}.json`;
+async function rtdbPut(path, obj){
+  const url = `${DB_BASE}/${path}.json`;
   const res = await fetch(url, {
-    method: "POST",
+    method:"PUT",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify(obj)
   });
   const text = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${text}`);
-  return JSON.parse(text);
+  let json; try{ json = JSON.parse(text); }catch{ json = null; }
+  if(!res.ok) throw new Error(`PUT HTTP ${res.status} ${text}`);
+  return { url, data: json };
 }
 
-const shop  = qs("shop");
+async function rtdbPost(path, obj){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method:"POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(obj)
+  });
+  const text = await res.text();
+  let json; try{ json = JSON.parse(text); }catch{ json = null; }
+  if(!res.ok) throw new Error(`POST HTTP ${res.status} ${text}`);
+  return { url, data: json };
+}
+
+/** idが f103 / d12 みたいな時に「数字」で並べたい */
+function sortByIdNumber(a,b){
+  const na = Number(String(a.id).match(/\d+/)?.[0] || 0);
+  const nb = Number(String(b.id).match(/\d+/)?.[0] || 0);
+  if(na !== nb) return na - nb;
+  return String(a.id).localeCompare(String(b.id));
+}
+
+function yen(n){
+  const x = Number(n||0);
+  return String(x);
+}
+
+function toTextItem(it, table){
+  // 店側が / で split するので「/商品×数量Tテーブル」形式にする
+  // 例: /冷やしトマト×1T2
+  return `/${it.name}×${it.qty}T${table}`;
+}
+
+const shop = qs("shop");
 const table = qs("table");
 const token = qs("token");
 
@@ -87,159 +113,193 @@ meta.innerHTML = `
   <div>shop: <b>${shop||"(none)"}</b></div>
   <div>table: <b>${table||"(none)"}</b></div>
   <div>token: <b style="font-size:12px">${token||"(none)"}</b></div>
+  <div class="small">URL: ${location.href}</div>
 `;
 
+const statusEl = document.getElementById("status");
+function setStatus(ok, msg, extra){
+  statusEl.innerHTML =
+    (ok ? `<span class="ok">${msg}</span>` : `<span class="ng">${msg}</span>`) +
+    (extra ? `<div class="small">${extra}</div>` : "");
+}
+
 if(!shop || !table || !token){
-  document.getElementById("status").innerHTML =
-    `<span class="ng">URL params が不足です（shop/table/token）</span>`;
+  setStatus(false, "URL params が不足です", "例: ?shop=daboya&table=1&token=xxxx");
 }
 
-const catSel  = document.getElementById("cat");
-const menuSel = document.getElementById("menu");
-const qtyEl   = document.getElementById("qty");
-const menuStatus = document.getElementById("menuStatus");
+let menuItems = []; // {id,cat,name,price}
+let cart = [];      // {id,cat,name,price,qty}
 
-let menuCache = { food: [], drink: [] }; // [{id,cat,name,price}]
-let items = []; // 注文リスト
-const listEl = document.getElementById("list");
+const menuSelect = document.getElementById("menuSelect");
+const cartEl = document.getElementById("cart");
 
-function render(){
-  listEl.textContent = JSON.stringify(items, null, 2);
+function renderCart(){
+  cartEl.textContent = JSON.stringify(cart, null, 2);
 }
 
-function normalizeMenuObj(cat, obj){
-  // obj は { f103: {id,cat,name,price}, ... } の想定
-  if(!obj) return [];
-  const out = [];
-  for(const key of Object.keys(obj)){
-    const v = obj[key] || {};
-    out.push({
-      id: v.id || key,
-      cat: v.cat || cat,
-      name: v.name || String(key),
-      price: String(v.price ?? "")
-    });
+function rebuildMenuSelect(){
+  menuSelect.innerHTML = "";
+
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = "メニューを選択";
+  menuSelect.appendChild(opt0);
+
+  // drink → food の順に並べたいならここで並び替え
+  const drinks = menuItems.filter(x => x.cat==="drink").sort(sortByIdNumber);
+  const foods  = menuItems.filter(x => x.cat==="food").sort(sortByIdNumber);
+
+  function addGroup(label, arr){
+    if(arr.length===0) return;
+    const og = document.createElement("optgroup");
+    og.label = label;
+    for(const m of arr){
+      const o = document.createElement("option");
+      o.value = m.id;
+      o.textContent = `${m.name} (${yen(m.price)})`;
+      o.dataset.cat = m.cat;
+      o.dataset.name = m.name;
+      o.dataset.price = m.price;
+      og.appendChild(o);
+    }
+    menuSelect.appendChild(og);
   }
-  // 表示が安定するように name でソート
-  out.sort((a,b)=> (a.name||"").localeCompare(b.name||"", "ja"));
-  return out;
+
+  addGroup("ドリンク", drinks);
+  addGroup("フード", foods);
 }
 
-function fillMenuDropdown(cat){
-  const arr = menuCache[cat] || [];
-  menuSel.innerHTML = "";
-  if(arr.length === 0){
-    const op = document.createElement("option");
-    op.value = "";
-    op.textContent = "メニューなし（または読込失敗）";
-    menuSel.appendChild(op);
-    return;
-  }
-  const first = document.createElement("option");
-  first.value = "";
-  first.textContent = "選択してください";
-  menuSel.appendChild(first);
-
-  for(const m of arr){
-    const op = document.createElement("option");
-    op.value = m.id;
-    op.textContent = `${m.name} (${m.price})`;
-    op.dataset.name = m.name;
-    op.dataset.price = m.price;
-    op.dataset.cat = m.cat;
-    menuSel.appendChild(op);
-  }
-}
-
-async function loadMenuAll(){
+async function loadMenu(){
   if(!shop) return;
-  menuStatus.textContent = "メニュー読込中...";
-  try{
-    const [foodObj, drinkObj] = await Promise.all([
-      getJson(`/shops/${encodeURIComponent(shop)}/menu/food`),
-      getJson(`/shops/${encodeURIComponent(shop)}/menu/drink`)
-    ]);
-    menuCache.food  = normalizeMenuObj("food",  foodObj);
-    menuCache.drink = normalizeMenuObj("drink", drinkObj);
-    menuStatus.innerHTML = `<span class="ok">メニュー読込OK</span> food:${menuCache.food.length} / drink:${menuCache.drink.length}`;
-    fillMenuDropdown(catSel.value);
-  }catch(e){
-    menuStatus.innerHTML = `<span class="ng">メニュー読込失敗</span> <span class="small">${String(e.message||e)}</span>`;
-    menuCache.food = [];
-    menuCache.drink = [];
-    fillMenuDropdown(catSel.value);
-  }
-}
+  setStatus(true, "メニュー読込中...");
 
-catSel.addEventListener("change", ()=>{
-  fillMenuDropdown(catSel.value);
-});
+  // 期待DB構造:
+  // shops/{shop}/menu/drink/{d1..} = { id, name, price, ... } または 文字列でも可
+  // shops/{shop}/menu/food/{f1..}  = { id, name, price, ... }
+  const drinkPath = `shops/${encodeURIComponent(shop)}/menu/drink`;
+  const foodPath  = `shops/${encodeURIComponent(shop)}/menu/food`;
+
+  const [dr, fr] = await Promise.all([ rtdbGet(drinkPath), rtdbGet(foodPath) ]);
+
+  const out = [];
+
+  function normalize(cat, obj){
+    if(!obj) return;
+    // obj = { d1:{name,price...}, d2:{...} } みたいな形を想定
+    for(const key of Object.keys(obj)){
+      const v = obj[key];
+      if(v && typeof v === "object"){
+        out.push({
+          id: v.id || key,
+          cat,
+          name: String(v.name ?? v.item ?? v.title ?? key),
+          price: String(v.price ?? v.cost ?? "0")
+        });
+      } else {
+        // 値が文字列だけだった場合（例: "生ビール,650" みたいなやつ）
+        out.push({
+          id: key,
+          cat,
+          name: String(v),
+          price: "0"
+        });
+      }
+    }
+  }
+
+  normalize("drink", dr.data);
+  normalize("food",  fr.data);
+
+  menuItems = out;
+  rebuildMenuSelect();
+  setStatus(true, `メニュー読み込みOK（${menuItems.length}件）`);
+}
 
 document.getElementById("add").onclick = () => {
-  const cat = catSel.value;
-  const selectedId = menuSel.value;
-  const qty = Number(qtyEl.value || 1);
+  const opt = menuSelect.selectedOptions?.[0];
+  if(!opt || !opt.value) return;
 
-  if(!selectedId){
-    document.getElementById("status").innerHTML = `<span class="ng">メニューを選んでください</span>`;
-    return;
-  }
-  const arr = menuCache[cat] || [];
-  const m = arr.find(x => x.id === selectedId);
-  if(!m){
-    document.getElementById("status").innerHTML = `<span class="ng">メニュー取得エラー（選択が見つからない）</span>`;
-    return;
-  }
+  const qty = Math.max(1, Number(document.getElementById("qty").value || 1));
 
-  items.push({
-    id: m.id,
-    cat: m.cat,
-    name: m.name,
-    price: m.price,
-    qty: qty
-  });
-  qtyEl.value = 1;
-  render();
-  document.getElementById("status").textContent = "";
+  const item = {
+    id: opt.value,
+    cat: opt.dataset.cat,
+    name: opt.dataset.name,
+    price: opt.dataset.price,
+    qty
+  };
+
+  cart.push(item);
+  document.getElementById("qty").value = 1;
+  menuSelect.value = "";
+  renderCart();
+};
+
+document.getElementById("clear").onclick = () => {
+  cart = [];
+  renderCart();
+  setStatus(true, "クリアしました");
 };
 
 document.getElementById("send").onclick = async () => {
   try{
     if(!shop || !table || !token) return;
 
-    if(items.length === 0){
-      document.getElementById("status").innerHTML = `<span class="ng">注文が空です</span>`;
+    if(cart.length === 0){
+      setStatus(false, "注文が空です");
       return;
     }
 
     const ts = Date.now();
+    const total = cart.reduce((s,it)=> s + (Number(it.price||0) * Number(it.qty||0)), 0);
+
+    // 1) 注文本体： shops/{shop}/orders/{table} にPOST（pushキーで保存）
     const orderObj = {
-      shop,
-      table: String(table),
-      token,
-      items,
+      shop, table: String(table), token,
+      items: cart,
+      total,
       createdAt: ts,
       ua: navigator.userAgent
     };
 
-    document.getElementById("status").textContent = "sending...";
+    setStatus(true, "送信中...");
 
-    // ✅ 保存先は shops 配下に固定
-    await postJson(`/shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`, orderObj);
+    await rtdbPost(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(table)}`, orderObj);
 
-    document.getElementById("status").innerHTML = `<span class="ok">送信OK（shops/${shop}/orders/${table}）</span>`;
-    items = [];
-    render();
+    // 2) 店側が読んでる shopDrinkList/shopFoodList を更新（/区切り文字列）
+    //    今ある文字列をGETして追記 → PUT
+    const drinkAdd = cart.filter(x=>x.cat==="drink").map(x=>toTextItem(x, table)).join("");
+    const foodAdd  = cart.filter(x=>x.cat==="food").map(x=>toTextItem(x, table)).join("");
+
+    async function appendToList(listKey, addText){
+      if(!addText) return;
+      const p = `shops/${encodeURIComponent(shop)}/${listKey}`;
+      const cur = await rtdbGet(p);
+      const curStr = (typeof cur.data === "string" ? cur.data : "");
+      const nextStr = curStr + addText; // 末尾追記（/は addText 側が持つ）
+      await rtdbPut(p, nextStr);
+    }
+
+    await appendToList("shopDrinkList", drinkAdd);
+    await appendToList("shopFoodList",  foodAdd);
+
+    // 3) tables/{table}/orderList & total も更新（店側で扱いやすい）
+    //    orderList は ["生ビール×1T2", ...] みたいな文字列配列にする
+    const orderListArr = cart.map(it => `${it.name}×${it.qty}T${table}`);
+    await rtdbPut(`shops/${encodeURIComponent(shop)}/tables/${encodeURIComponent(table)}/orderList`, orderListArr);
+    await rtdbPut(`shops/${encodeURIComponent(shop)}/tables/${encodeURIComponent(table)}/total`, total);
+
+    setStatus(true, "送信OK");
+    cart = [];
+    renderCart();
 
   }catch(e){
-    document.getElementById("status").innerHTML =
-      `<span class="ng">送信失敗</span><div class="small">${String(e.message||e)}</div>`;
+    setStatus(false, "送信失敗", String(e.message || e));
   }
 };
 
-// 起動時にメニューを読みに行く
-loadMenuAll();
-render();
+renderCart();
+loadMenu();
 </script>
 </body>
 </html>

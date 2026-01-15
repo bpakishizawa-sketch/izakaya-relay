@@ -24,7 +24,7 @@
     <div><b>href:</b> <span id="hrefText" class="mono">-</span></div>
   </div>
 
-  <button id="btnGo" class="btn btn-primary">Firebaseに書き込み → Thunkableへ</button>
+  <button id="btnGo" class="btn btn-primary">Firebaseに書き込み → orderへ</button>
 
   <div class="card" id="resultCard" style="display:none;">
     <div id="resultLine" class="mono"></div>
@@ -34,7 +34,8 @@
   <script>
     // ====== ここだけ必要なら差し替え ======
     const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-    const THUNKABLE_URL = "https://thunkable.site/w/04B1h--YNF8YZthXS2grH";
+    // Thunkableへは飛ばさない。注文画面（order.html）へ飛ばす
+    const ORDER_URL = "https://bpakishizawa-sketch.github.io/izakaya-relay/order.html";
     // =====================================
 
     const $ = (id) => document.getElementById(id);
@@ -91,7 +92,6 @@
       const now = Date.now();
       const ua = navigator.userAgent;
 
-      // あなたのスクショに合わせた書き込み形
       // webActiveSessions/{shop}/{table}
       const payload = {
         shop: shop,
@@ -103,6 +103,7 @@
 
       // 書き込み
       const path = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}`;
+
       try {
         const r = await rtdbPut(path, payload);
 
@@ -113,16 +114,16 @@
 
         showResult(true, `書き込み成功: ${r.url}`, payload);
 
-        // 書き込み成功後にThunkableへ遷移（shop/table/token を渡す）
+        // ✅ Thunkableへは飛ばさない。order.htmlへ shop/table/token を渡して遷移
         const jump =
-          THUNKABLE_URL +
+          ORDER_URL +
           `?shop=${encodeURIComponent(shop)}` +
           `&table=${encodeURIComponent(table)}` +
           `&token=${encodeURIComponent(token)}` +
           `&v=${Date.now()}`;
 
-        // 0.6秒だけ見せてから移動（不要なら0に）
-        setTimeout(() => { location.href = jump; }, 600);
+        // デバッグ表示を見たいなら 600 などに。不要なら 0 で即遷移。
+        setTimeout(() => { location.href = jump; }, 0);
 
       } catch (e) {
         showResult(false, "例外エラー", { message: String(e), payload });

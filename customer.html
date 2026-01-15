@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>customer</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; padding: 16px; }
+    .box { padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin: 12px 0; }
+    .ok { color: #0a7a2f; font-weight: 700; }
+    .ng { color: #b00020; font-weight: 700; }
+    code { word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>customer debug</h1>
+
+  <div class="box">
+    <div>shop: <b id="shop">(none)</b></div>
+    <div>table: <b id="table">(none)</b></div>
+    <div>href: <code id="href"></code></div>
+  </div>
+
+  <div class="box">
+    <button id="btn">Firebaseに書き込み（webActiveSessions）</button>
+    <div id="result">(未実行)</div>
+  </div>
+
+  <div class="box">
+    <h3>送信データ</h3>
+    <pre id="payload" style="white-space:pre-wrap;"></pre>
+  </div>
+
+<script>
+(function () {
+  const dbBase = "https://izakayaorder-default-rtdb.firebaseio.com";
+
+  const qs = new URLSearchParams(location.search);
+  const shop = (qs.get("shop") || "").trim();
+  const table = (qs.get("table") || "").trim();
+
+  document.getElementById("shop").textContent = shop || "(missing)";
+  document.getElementById("table").textContent = table || "(missing)";
+  document.getElementById("href").textContent = location.href;
+
+  // ざっくりサニタイズ（最低限）
+  const safeShop = shop.replace(/[.#$\[\]\/\s]/g, "_");
+  const safeTable = table.replace(/[.#$\[\]\/\s]/g, "_");
+
+  const payload = {
+    shop: safeShop,
+    table: safeTable,
+    token: `${safeShop}-${safeTable}-${String(Math.floor(Math.random()*9000)+1000)}`,
+    updatedAt: Date.now(),
+    ua: navigator.userAgent
+  };
+  document.getElementById("payload").textContent = JSON.stringify(payload, null, 2);
+
+  const resultEl = document.getElementById("result");
+  const btn = document.getElementById("btn");
+
+  function setResult(ok, text) {
+    resultEl.innerHTML = `<span class="${ok ? "ok" : "ng"}">${ok ? "OK" : "NG"}</span> ${text}`;
+  }
+
+  btn.addEventListener("click", async () => {
+    if (!shop || !table) {
+      setResult(false, "URLに ?shop=xxx&table=yyy が必要");
+      return;
+    }
+
+    // 書き込み先：/webActiveSessions/{shop}/{table}.json
+    const url = `${dbBase}/webActiveSessions/${encodeURIComponent(safeShop)}/${encodeURIComponent(safeTable)}.json`;
+
+    try {
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const txt = await res.text();
+      if (!res.ok) {
+        setResult(false, `HTTP ${res.status} ${txt}`);
+        return;
+      }
+      setResult(true, `書き込み成功: ${url}`);
+    } catch (e) {
+      setResult(false, `例外: ${String(e)}`);
+    }
+  });
+})();
+</script>
+</body>
+</html>

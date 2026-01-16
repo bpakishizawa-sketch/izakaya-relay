@@ -7,8 +7,8 @@
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:720px; margin:0 auto;}
     h1{font-size:22px;margin:0 0 10px}
-    .sub{font-size:12px;color:#6b7280;margin-bottom:14px}
-    .card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;}
+    .sub{font-size:12px;color:#6b7280;margin-bottom:14px;line-height:1.6}
+    .card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;background:#fff;}
     .row{display:flex;gap:10px;flex-wrap:wrap}
     a.btn{
       display:inline-block; padding:12px 14px; border-radius:12px;
@@ -21,22 +21,22 @@
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     .ok{color:#16a34a;font-weight:800}
     .ng{color:#dc2626;font-weight:800}
-    input{font-size:16px;padding:10px;border:1px solid #ccc;border-radius:10px;width:100%;box-sizing:border-box}
     button{font-size:16px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:800}
     button.dark{background:#111827;color:#fff}
     .small{font-size:12px;color:#6b7280}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
   </style>
 </head>
 <body>
   <h1>店側メニュー</h1>
-  <div class="sub">この端末は shopコード＋PIN でログイン済み。ここから各機能ページへ移動します。</div>
+  <div class="sub">
+    この端末は <b>shopコード＋PIN</b> でログイン済み。ここから各機能ページへ移動します。<br>
+    端末を厨房・会計で分けてもOK。どの端末も同じログインで操作できます。
+  </div>
 
   <div class="card">
     <div>shop: <b id="shopText" class="mono">-</b></div>
     <div>PIN: <b id="pinText" class="mono">-</b> <span class="small">（表示はマスク）</span></div>
-    <div class="small" style="margin-top:8px;">
-      ※端末を厨房・会計で分けてもOK。どの端末も同じログインで操作できます。
-    </div>
     <div id="status" style="margin-top:10px;"></div>
 
     <div class="row" style="margin-top:12px;">
@@ -46,73 +46,113 @@
   </div>
 
   <div class="card">
-    <div class="row">
-      <!-- まだファイルが無い間は 404 になるので、順番に作っていく -->
-      <a class="btn kitchen" href="./kitchen.html?v=1">厨房：オーダーリスト</a>
-      <a class="btn warn" href="./cashier.html?v=1">会計：テーブル別お会計</a>
-      <a class="btn" href="./qr.html?v=1">QR：印刷用</a>
-      <a class="btn" href="./menu_edit.html?v=1">メニュー編集</a>
-    </div>
+    <div class="row" id="navRow"></div>
     <div class="small" style="margin-top:10px;">
-      まだ作ってないページは 404 になります。次は「厨房：オーダーリスト（kitchen.html）」から作るのが最短です。
+      ページが 404 の場合は、そのHTMLがまだリポジトリに存在しません（作成して commit すると開けます）。
     </div>
   </div>
 
   <div class="card">
     <div class="small">デバッグ</div>
-    <pre id="debug" class="mono" style="white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto">-</pre>
+    <pre id="debug" class="mono">-</pre>
   </div>
 
 <script>
-/** ===== 設定（login.html と同じにする） ===== */
+/** ===== 設定（login.htmlと同じにする） ===== */
 const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-/** ========================================== */
+/** ======================================= */
 
 function $(id){ return document.getElementById(id); }
 function esc(s){
-  return String(s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
+function maskPin(pin){
+  if(!pin) return "-";
+  return "*".repeat(Math.min(String(pin).length, 8));
 }
 async function rtdbGet(path){
   const url = `${DB_BASE}/${path}.json`;
   const res = await fetch(url);
   const txt = await res.text();
   if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-  return JSON.parse(txt);
+  return txt ? JSON.parse(txt) : null;
 }
 
-function maskPin(pin){
-  if(!pin) return "-";
-  return "*".repeat(Math.min(String(pin).length, 8));
+function getShop(){ return (localStorage.getItem("shopCode") || "").trim(); }
+function getPin(){  return (localStorage.getItem("shopPin")  || "").trim(); }
+
+function goto(path){
+  location.href = `${path}?v=${Date.now()}`;
+}
+
+function buildNav(){
+  const nav = [
+    { label:"厨房：オーダーリスト", href:"./kitchen.html", cls:"btn kitchen" },
+    { label:"会計：テーブル別お会計", href:"./cashier.html", cls:"btn warn" },
+    { label:"QR：印刷用", href:"./qr.html", cls:"btn" },
+    { label:"メニュー編集", href:"./menu_edit.html", cls:"btn" },
+  ];
+  const row = $("navRow");
+  row.innerHTML = "";
+  for(const n of nav){
+    const a = document.createElement("a");
+    a.className = n.cls;
+    a.href = `${n.href}?v=${Date.now()}`;
+    a.textContent = n.label;
+    row.appendChild(a);
+  }
 }
 
 (function init(){
-  const shop = localStorage.getItem("shopCode") || "";
-  const pin  = localStorage.getItem("shopPin") || "";
+  const shop = getShop();
+  const pin  = getPin();
 
   if(!shop || !pin){
     $("status").innerHTML = `<span class="ng">未ログイン</span> login.html へ戻ります`;
-    setTimeout(()=> location.href = `login.html?v=${Date.now()}`, 400);
+    setTimeout(()=> goto("login.html"), 300);
     return;
   }
 
   $("shopText").textContent = shop;
   $("pinText").textContent  = maskPin(pin);
   $("status").innerHTML = `<span class="ok">OK</span> ログイン状態`;
+  buildNav();
+
   $("debug").textContent = JSON.stringify({ shop, pinMasked: maskPin(pin), DB_BASE }, null, 2);
 })();
 
 $("btnLogout").onclick = () => {
   localStorage.removeItem("shopCode");
   localStorage.removeItem("shopPin");
-  location.href = `login.html?v=${Date.now()}`;
+  goto("login.html");
 };
 
 $("btnCheck").onclick = async () => {
   try{
-    const shop = localStorage.getItem("shopCode") || "";
+    const shop = getShop();
+    const pin  = getPin();
+    if(!shop || !pin){
+      $("status").innerHTML = `<span class="ng">未ログイン</span>`;
+      return;
+    }
+
     const staffPin = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
-    $("status").innerHTML = `<span class="ok">OK</span> FBRD 接続OK（staffPin取得）`;
-    $("debug").textContent = JSON.stringify({ shop, staffPin, checkedAt: Date.now() }, null, 2);
+    const okPin = String(staffPin ?? "").trim() === String(pin).trim();
+
+    if(okPin){
+      $("status").innerHTML = `<span class="ok">OK</span> FBRD接続OK / PIN一致`;
+    }else{
+      $("status").innerHTML = `<span class="ng">NG</span> FBRD接続OK だが PIN不一致（login見直し）`;
+    }
+
+    $("debug").textContent = JSON.stringify({
+      shop,
+      localPinMasked: maskPin(pin),
+      staffPinMasked: maskPin(staffPin),
+      pinMatched: okPin,
+      checkedAt: Date.now()
+    }, null, 2);
+
   }catch(e){
     $("status").innerHTML = `<span class="ng">NG</span> ${esc(e.message||e)}`;
     $("debug").textContent = String(e.stack || e);
@@ -121,3 +161,4 @@ $("btnCheck").onclick = async () => {
 </script>
 </body>
 </html>
+

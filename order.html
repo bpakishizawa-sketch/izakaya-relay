@@ -23,16 +23,21 @@
 
   <div class="card" id="meta"></div>
 
-  <div class="card">
+  <div class="card" id="sessionCard">
+    <div id="sessionStatus"></div>
+    <div id="sessionDetail" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="card" id="orderCard">
     <div class="row">
-      <select id="menuSel" style="flex:1">
+      <select id="menuSel" style="flex:1" disabled>
         <option value="">メニューを選択</option>
       </select>
-      <input id="qty" type="number" min="1" value="1" style="width:90px">
+      <input id="qty" type="number" min="1" value="1" style="width:90px" disabled>
     </div>
 
     <div class="row">
-      <button id="addBtn" class="btn2">カートに追加</button>
+      <button id="addBtn" class="btn2" disabled>カートに追加</button>
     </div>
 
     <div class="card">
@@ -42,8 +47,8 @@
     </div>
 
     <div class="row">
-      <button id="sendBtn" class="btn">注文送信</button>
-      <button id="clearBtn" class="btn2">クリア</button>
+      <button id="sendBtn" class="btn" disabled>注文送信</button>
+      <button id="clearBtn" class="btn2" disabled>クリア</button>
     </div>
 
     <div id="status"></div>
@@ -60,9 +65,15 @@ function qs(name){
   return (u.searchParams.get(name) || "").trim();
 }
 
+function esc(s){
+  return String(s||"").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
 async function getJson(path){
   const url = `${DB_BASE}${path}.json`;
-  const res = await fetch(url);
+  const res = await fetch(url, { method:"GET" });
   const text = await res.text();
   if(!res.ok) throw new Error(`GET HTTP ${res.status} ${text}`);
   return text ? JSON.parse(text) : null;
@@ -96,24 +107,34 @@ function sortMenu(a,b){
   return String(a.name||"").localeCompare(String(b.name||""), "ja");
 }
 
-const shop = qs("shop");
+function setEnabled(enabled){
+  $("menuSel").disabled = !enabled;
+  $("qty").disabled = !enabled;
+  $("addBtn").disabled = !enabled;
+  $("sendBtn").disabled = !enabled;
+  $("clearBtn").disabled = !enabled;
+}
+
+const shop  = qs("shop");
 const table = qs("table");
 const token = qs("token");
-const v = qs("v");
+const v     = qs("v");
 
 $("meta").innerHTML = `
-  <div><b>shop:</b> ${shop||"(none)"}</div>
-  <div><b>table:</b> ${table||"(none)"}</div>
-  <div><b>token:</b> <small>${token||"(none)"}</small></div>
-  <div><small>URL: ${location.href}</small></div>
+  <div><b>shop:</b> ${esc(shop||"(none)")}</div>
+  <div><b>table:</b> ${esc(table||"(none)")}</div>
+  <div><b>token:</b> <small>${esc(token||"(none)")}</small></div>
+  <div><small>URL: ${esc(location.href)}</small></div>
 `;
 
 if(!shop || !table || !token){
-  $("status").innerHTML = `<span class="ng">URL params が不足です（shop/table/token）</span>`;
+  $("sessionStatus").innerHTML = `<span class="ng">URL params が不足です（shop/table/token）</span>`;
+  setEnabled(false);
 }
 
 let menuAll = [];   // [{id,cat,name,price}]
 let cart = [];      // [{id,cat,name,price,qty}]
+let sessionOk = false;
 
 function renderCart(){
   $("cartPre").textContent = JSON.stringify(cart, null, 2);
@@ -142,7 +163,6 @@ async function loadMenu(){
     const arr = [];
     if(drinkObj){
       for(const [id, v] of Object.entries(drinkObj)){
-        // v が {name,price} でも文字列でも吸収
         const name = (v && typeof v === "object") ? (v.name ?? "") : String(v||"");
         const price = (v && typeof v === "object") ? Number(v.price ?? 0) : 0;
         arr.push({id, cat:"drink", name, price});
@@ -161,7 +181,49 @@ async function loadMenu(){
     buildMenuOptions();
     $("menuStatus").innerHTML = `<span class="ok">メニュー読み込みOK</span>（${menuAll.length}件）`;
   }catch(e){
-    $("menuStatus").innerHTML = `<span class="ng">メニュー読み込み失敗</span><div><small>${String(e.message||e)}</small></div>`;
+    $("menuStatus").innerHTML = `<span class="ng">メニュー読み込み失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
+  }
+}
+
+/**
+ * webActiveSessions/{shop}/{table} を読み、
+ * DB側 token と URL token が一致したら注文を有効化する
+ */
+async function verifySession(){
+  try{
+    if(!shop || !table || !token) return false;
+
+    $("sessionStatus").textContent = "セッション確認中...";
+    setEnabled(false);
+
+    const sess = await getJson(`/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`);
+
+    if(!sess){
+      $("sessionStatus").innerHTML = `<span class="ng">セッションが見つかりません（店のQRを読み直してください）</span>`;
+      $("sessionDetail").innerHTML = `<small>path: /webActiveSessions/${esc(shop)}/${esc(String(table))}</small>`;
+      return false;
+    }
+
+    const dbToken = String(sess.token || "").trim();
+    const urlToken = String(token || "").trim();
+
+    if(!dbToken || dbToken !== urlToken){
+      $("sessionStatus").innerHTML = `<span class="ng">トークン不一致（このURLでは注文できません）</span>`;
+      $("sessionDetail").innerHTML =
+        `<small>DB token: ${esc(dbToken||"(none)")}<br>URL token: ${esc(urlToken||"(none)")}</small>`;
+      return false;
+    }
+
+    // （任意）期限チェックを入れたい場合はここで sess.expiresAt を見る
+    $("sessionStatus").innerHTML = `<span class="ok">セッションOK</span>`;
+    $("sessionDetail").innerHTML =
+      `<small>updatedAt: ${esc(String(sess.updatedAt||""))}<br>table: ${esc(String(sess.table||table))}</small>`;
+
+    return true;
+
+  }catch(e){
+    $("sessionStatus").innerHTML = `<span class="ng">セッション確認失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
+    return false;
   }
 }
 
@@ -173,7 +235,6 @@ $("addBtn").onclick = ()=>{
   const m = menuAll.find(x=>x.id===id);
   if(!m) return;
 
-  // 同一idは数量加算
   const found = cart.find(x=>x.id===id);
   if(found){
     found.qty = Number(found.qty||0) + qty;
@@ -190,19 +251,27 @@ $("clearBtn").onclick = ()=>{
 };
 
 $("sendBtn").onclick = async ()=>{
+  let sendingLocked = false;
   try{
     if(!shop || !table || !token) return;
-
+    if(!sessionOk){
+      $("status").innerHTML = `<span class="ng">セッション未確認のため送信できません</span>`;
+      return;
+    }
     if(cart.length === 0){
       $("status").innerHTML = `<span class="ng">カートが空です</span>`;
       return;
     }
 
+    // 二重送信防止
+    if(sendingLocked) return;
+    sendingLocked = true;
+    $("sendBtn").disabled = true;
+
     const createdAt = Date.now();
     const ua = navigator.userAgent;
     const total = cart.reduce((s,x)=>s + (Number(x.price)||0) * (Number(x.qty)||0), 0);
 
-    // 注文本体（ordersに保存する“正”のデータ）
     const orderObj = {
       shop,
       table: String(table),
@@ -216,15 +285,13 @@ $("sendBtn").onclick = async ()=>{
 
     $("status").textContent = "sending...";
 
-    // 1) shops/{shop}/orders/{table} にPOSTして pushId を取得（必須）
+    // 1) orders にPOST（正本）
     const ordersPath =
       `/shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
     const ordersRes = await postJson(ordersPath, orderObj);
-
-    // Firebase REST POST の戻りは { name: "-OqX..." } が基本
     const orderKey = (ordersRes && ordersRes.name) ? String(ordersRes.name) : "";
 
-    // フィード（店側の一覧用：軽量＋ordersへの参照を持つ）
+    // 2) 店別 orderFeed にPOST（軽量）
     const feedObj = {
       shop,
       table: String(table),
@@ -237,11 +304,10 @@ $("sendBtn").onclick = async ()=>{
       orderPath: orderKey ? `${ordersPath}/${orderKey}` : ordersPath
     };
 
-    // 2) shops/{shop}/orderFeed にPOST（必須：方式A）
     const feedPath = `/shops/${encodeURIComponent(shop)}/orderFeed`;
     await postJson(feedPath, feedObj);
 
-    // 3) 全店集約（任意：必要になったらコメントアウト解除）
+    // 3) 全店集約（任意）
     // await postJson(`/orderFeedAll`, feedObj);
 
     $("status").innerHTML = `<span class="ok">送信OK</span>`;
@@ -249,12 +315,19 @@ $("sendBtn").onclick = async ()=>{
     renderCart();
 
   }catch(e){
-    $("status").innerHTML = `<span class="ng">送信失敗</span><div><small>${String(e.message||e)}</small></div>`;
+    $("status").innerHTML = `<span class="ng">送信失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
+  }finally{
+    $("sendBtn").disabled = !sessionOk;
   }
 };
 
-renderCart();
-loadMenu();
+(async ()=>{
+  renderCart();
+  // まずセッション検証 → OKならUI有効化＆メニュー読み込み
+  sessionOk = await verifySession();
+  setEnabled(sessionOk);
+  if(sessionOk) await loadMenu();
+})();
 </script>
 </body>
 </html>

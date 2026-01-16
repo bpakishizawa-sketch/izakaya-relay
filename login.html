@@ -30,7 +30,7 @@
 
     <div class="row" style="justify-content:space-between">
       <label class="chk">
-        <input id="remember" type="checkbox">
+        <input id="remember" type="checkbox" checked>
         この端末でログインを保持（推奨）
       </label>
       <button id="btnLogout" style="background:#ef4444;color:#fff;display:none">ログアウト</button>
@@ -39,7 +39,6 @@
     <div id="msg" class="muted">端末ごとにログインします（厨房／会計で分けてもOK）。</div>
   </div>
 
-  <!-- 共通JS -->
   <script src="shop_common.js"></script>
 
   <script>
@@ -47,19 +46,17 @@
 
     function setMsg(html){ $("msg").innerHTML = html; }
 
-    // 起動時：Remember があれば session に復元（shop_common.js側で restoreRememberedLogin を後で統一します）
-    // いまの shop_common.js に無ければ、この部分は後で shop_common.js を上書きした時に効きます。
-    try{
-      if(typeof restoreRememberedLogin === "function"){ restoreRememberedLogin(); }
-    }catch{}
+    // 起動時：Remember復元があればログイン状態にする
+    if(typeof restoreRememberedLogin === "function"){
+      restoreRememberedLogin();
+    }
 
-    // 既にログイン済みならボタン切り替え
     (function init(){
       const shop = getShop();
       const pin  = getPin();
       if(shop && pin){
         $("btnLogout").style.display = "inline-block";
-        setMsg(`<span class="ok">ログイン中：</span>${shop}（PINは非表示）<br><span class="muted">続きは店側メニューへ移動します</span>`);
+        setMsg(`<span class="ok">ログイン中：</span>${esc(shop)}（PINは非表示）<br><span class="muted">店側メニューへ移動できます</span>`);
       }
     })();
 
@@ -76,7 +73,7 @@
       try{
         setMsg(`checking...`);
 
-        // ✅ PIN照合：shops/{shop}/staffPin と一致したらOK
+        // PIN照合：shops/{shop}/staffPin
         const r = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
         if(!r.ok){
           setMsg(`<span class="ng">shopが見つからない/取得失敗</span><br><small>${esc(r.status)} ${esc(r.url)}</small>`);
@@ -94,11 +91,11 @@
           return;
         }
 
-        // ✅ sessionStorage に統一保存
+        // sessionStorageへ統一保存
         ssSet("shop", shop);
         ssSet("pin",  pin);
 
-        // ✅ Remember（任意）：localStorageにも保存（後で shop_common.js の restoreRememberedLogin で復元）
+        // Remember（任意）：localStorageへも保存
         if(remember){
           localStorage.setItem("shop", shop);
           localStorage.setItem("pin",  pin);
@@ -110,8 +107,7 @@
         $("btnLogout").style.display = "inline-block";
         setMsg(`<span class="ok">ログイン成功</span> → 店側メニューへ移動します`);
 
-        // 店側メニュー入口へ
-        setTimeout(()=>{ location.href = `menu.html?v=${Date.now()}`; }, 200);
+        setTimeout(()=>{ location.href = `menu.html?v=${Date.now()}`; }, 150);
 
       }catch(e){
         setMsg(`<span class="ng">エラー</span> <small>${esc(e.message||e)}</small>`);
@@ -119,13 +115,10 @@
     };
 
     $("btnLogout").onclick = () => {
-      // session統一：ログアウトも session を消す
-      ssClear();
-      // Rememberも消す
-      localStorage.removeItem("shop");
-      localStorage.removeItem("pin");
+      logoutAll();
       location.reload();
     };
   </script>
 </body>
 </html>
+

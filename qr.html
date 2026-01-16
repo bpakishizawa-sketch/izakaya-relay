@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>QR作成（shop + table）</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:1100px; margin:0 auto;}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:1200px; margin:0 auto;}
     .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
     .row{display:flex;gap:10px;align-items:end;flex-wrap:wrap;}
     label{display:block;font-size:12px;color:#666;margin-bottom:6px}
@@ -13,6 +13,7 @@
     button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:800;font-size:16px}
     .btn{background:#2563eb;color:#fff}
     .btn2{background:#e5e7eb;color:#111}
+    .dark{background:#111827;color:#fff}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
     .ok{color:#0a7a2a;font-weight:900}
     .ng{color:#b00020;font-weight:900}
@@ -25,13 +26,11 @@
     .urlBox{margin-top:10px;font-size:12px;color:#333;word-break:break-all}
     .muted{color:#777}
     .hint{font-size:12px;color:#666;margin-top:8px;line-height:1.6}
-    .topbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 12px}
-    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px;background:#f9fafb}
 
     /* 印刷（PDF保存）向け */
     @media print{
       .noPrint{display:none !important;}
-      body{padding:0;max-width:none;margin:0;}
+      body{padding:0;}
       .card{border:0;margin:0;padding:0;}
       .qrCard{page-break-inside:avoid;}
     }
@@ -40,28 +39,29 @@
   <!-- QR生成ライブラリ（軽量） -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-  <!-- PDF生成（任意機能） -->
+  <!-- PDF生成（任意） -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <h2>QR作成（shopコード + テーブル番号）</h2>
 
-  <div class="topbar noPrint">
-    <button id="btnBack" class="btn2">← menuへ</button>
-    <span class="pill">ログイン shop: <b id="shopPill" class="mono">-</b></span>
+  <div class="card noPrint">
+    <div class="row" style="align-items:center;">
+      <div class="mono">
+        shop: <b id="shopText">-</b>
+      </div>
+      <span style="flex:1"></span>
+      <button id="btnBack" class="btn2">← menuへ</button>
+      <button id="btnLogout" class="dark">ログアウト</button>
+    </div>
+    <div class="hint muted" id="loginHint">-</div>
   </div>
 
   <div class="card noPrint">
     <div class="row">
       <div>
-        <label>shopコード（ログインから自動）</label>
-        <input id="shop" style="width:220px" readonly />
-        <div class="hint">
-          <label style="display:flex;gap:8px;align-items:center;margin-top:8px">
-            <input id="allowEditShop" type="checkbox" />
-            <span>shop手入力を許可する（誤操作注意）</span>
-          </label>
-        </div>
+        <label>shopコード</label>
+        <input id="shop" style="width:220px" />
       </div>
 
       <div>
@@ -76,7 +76,8 @@
 
       <div style="flex:1;min-width:260px">
         <label>QRのリンク先（入店ページURL）</label>
-        <input id="entryUrl" class="mono" style="width:100%" />
+        <input id="entryUrl" class="mono" style="width:100%"
+               value="https://bpakishizawa-sketch.github.io/izakaya-relay/customer.html" />
         <div class="hint">
           このURLは「入店処理（セッション再利用→orderへ遷移）」のページにしてください。<br>
           QRには <span class="mono">?shop=SHOP&table=TABLE</span> が付きます。
@@ -106,13 +107,13 @@
     <div class="grid" id="grid"></div>
   </div>
 
-  <!-- ✅ 共通JS（sessionStorage統一） -->
+  <!-- 共通JS（sessionStorage統一） -->
   <script src="shop_common.js"></script>
 
 <script>
 const $ = (id)=>document.getElementById(id);
 
-function esc2(s){
+function escLocal(s){
   return String(s||"").replace(/[&<>"']/g, m => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[m]));
@@ -121,7 +122,6 @@ function esc2(s){
 function normUrl(u){
   return String(u||"").trim().replace(/\/+$/,""); // 末尾スラッシュ除去
 }
-
 function buildLink(entryUrl, shop, table){
   const base = normUrl(entryUrl);
   const qs = `?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(String(table))}`;
@@ -132,7 +132,6 @@ function clearGrid(){
   $("grid").innerHTML = "";
   $("countLine").textContent = "-";
 }
-
 function setStatus(t){
   $("status").textContent = t || "";
 }
@@ -147,13 +146,13 @@ function makeQrCard({shop, table, link}){
   card.innerHTML = `
     <div class="qrTop">
       <div>
-        <div class="qrTitle">Table ${esc2(String(table))}</div>
-        <div class="qrMeta">shop: <span class="mono">${esc2(shop)}</span></div>
+        <div class="qrTitle">Table ${escLocal(String(table))}</div>
+        <div class="qrMeta">shop: <span class="mono">${escLocal(shop)}</span></div>
       </div>
       <div class="mono muted" style="font-size:12px;">QR</div>
     </div>
     <div class="qrBox"><div class="qrTarget"></div></div>
-    <div class="urlBox mono">${esc2(link)}</div>
+    <div class="urlBox mono">${escLocal(link)}</div>
   `;
 
   const target = card.querySelector(".qrTarget");
@@ -183,21 +182,28 @@ function getCanvasFromCard(card){
   return null;
 }
 
+function clampIntFromInput(id, minVal){
+  let n = parseInt(String($(id).value||"").trim(), 10);
+  if(!Number.isFinite(n) || n < minVal) n = minVal;
+  $(id).value = String(n);
+  return n;
+}
+
 async function generate(){
   clearGrid();
   setStatus("");
 
   const shop = ($("shop").value || "").trim();
-  const tFrom = Number($("tFrom").value || 1);
-  const tTo = Number($("tTo").value || 1);
+  const tFrom = clampIntFromInput("tFrom", 1);
+  const tTo = clampIntFromInput("tTo", 1);
   const entryUrl = ($("entryUrl").value || "").trim();
 
   if(!shop || !entryUrl){
     setStatus("shop と 入店ページURL は必須です");
     return;
   }
-  if(!Number.isFinite(tFrom) || !Number.isFinite(tTo) || tFrom < 1 || tTo < tFrom){
-    setStatus("テーブル範囲が不正です");
+  if(tTo < tFrom){
+    setStatus("テーブル範囲が不正です（終了 < 開始）");
     return;
   }
 
@@ -216,7 +222,7 @@ async function generate(){
 async function downloadPdf(){
   const { jsPDF } = window.jspdf || {};
   if(!jsPDF){
-    setStatus("jsPDF が読み込めませんでした");
+    setStatus("jsPDF が読み込めませんでした（通信環境を確認）");
     return;
   }
 
@@ -250,15 +256,15 @@ async function downloadPdf(){
     const c = idx % cols;
     const x = margin + c*(cellW + colGap);
     const y = margin + r*(cellH + rowGap);
-    return { x, y, newPage: (i>0 && i % (cols*rows) === 0) };
+    return { x, y };
   }
 
   const shop = (cards[0].dataset.shop || "").trim();
 
   for(let i=0; i<cards.length; i++){
-    const { x, y, newPage } = cellXY(i);
-    if(newPage) doc.addPage();
+    if(i>0 && i % (cols*rows) === 0) doc.addPage();
 
+    const { x, y } = cellXY(i);
     const table = cards[i].dataset.table || "";
     const link = cards[i].dataset.link || "";
 
@@ -295,39 +301,36 @@ async function downloadPdf(){
 }
 
 (function init(){
-  // ✅ 未ログインなら login.html へ
+  // shop_common.js がある前提
+  if(typeof requireLogin !== "function") {
+    setStatus("shop_common.js が読み込めません");
+    return;
+  }
+  // 未ログインなら loginへ
   if(!requireLogin()) return;
 
   const shop = getShop();
-  $("shopPill").textContent = shop || "-";
+  const pin = getPin();
+
+  $("shopText").textContent = shop || "-";
+  $("loginHint").innerHTML = `ログイン中：<span class="mono">${escLocal(shop)}</span> / PIN ****`;
+
+  // 入力初期値：shopは自動セット（手打ちミス防止）
   $("shop").value = shop || "";
-
-  // 入店URLは端末ごとに保持したいので localStorage に保存
-  const savedEntry = localStorage.getItem("entryUrl") || "";
-  $("entryUrl").value = savedEntry || "https://bpakishizawa-sketch.github.io/izakaya-relay/customer.html";
-
-  // shop手入力許可（通常OFF）
-  $("allowEditShop").addEventListener("change", ()=>{
-    const on = $("allowEditShop").checked;
-    $("shop").readOnly = !on;
-    if(!on){
-      $("shop").value = getShop() || "";
-    }
-  });
-
-  $("btnBack").addEventListener("click", ()=> location.href = `menu.html?v=${Date.now()}`);
-
-  $("genBtn").addEventListener("click", async ()=>{
-    localStorage.setItem("entryUrl", ($("entryUrl").value || "").trim());
-    await generate();
-  });
-
-  $("pdfBtn").addEventListener("click", downloadPdf);
-  $("printBtn").addEventListener("click", ()=>window.print());
-
-  // 初回自動生成（不要ならコメントアウト）
-  generate();
 })();
+
+$("btnBack").addEventListener("click", ()=> location.href = `menu.html?v=${Date.now()}`);
+$("btnLogout").addEventListener("click", ()=>{
+  if(typeof logoutAll === "function") logoutAll();
+  location.href = `login.html?v=${Date.now()}`;
+});
+
+$("genBtn").addEventListener("click", generate);
+$("pdfBtn").addEventListener("click", downloadPdf);
+$("printBtn").addEventListener("click", ()=>window.print());
+
+// 初回は自動生成（不要ならコメントアウト）
+generate();
 </script>
 </body>
 </html>

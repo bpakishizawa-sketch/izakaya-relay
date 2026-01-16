@@ -331,3 +331,343 @@ $("sendBtn").onclick = async ()=>{
 </script>
 </body>
 </html>
+
+岸澤幹 <mikikilin@icloud.com>
+10:29 (16 分前)
+To 自分
+
+このメールは英語で書かれているようです
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>注文</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;}
+    select,input,button{font-size:16px;padding:10px;}
+    button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:700}
+    .btn{background:#2563eb;color:#fff;width:100%}
+    .btn2{background:#e5e7eb;color:#111;width:100%}
+    .row{display:flex;gap:10px;align-items:center;margin:10px 0}
+    .ok{color:#0a7a2a;font-weight:800}
+    .ng{color:#b00020;font-weight:800}
+    pre{background:#f5f5f5;padding:12px;border-radius:10px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+    small{color:#666}
+  </style>
+</head>
+<body>
+  <h2>注文</h2>
+
+  <div class="card" id="meta"></div>
+
+  <div class="card" id="sessionCard">
+    <div id="sessionStatus"></div>
+    <div id="sessionDetail" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="card" id="orderCard">
+    <div class="row">
+      <select id="menuSel" style="flex:1" disabled>
+        <option value="">メニューを選択</option>
+      </select>
+      <input id="qty" type="number" min="1" value="1" style="width:90px" disabled>
+    </div>
+
+    <div class="row">
+      <button id="addBtn" class="btn2" disabled>カートに追加</button>
+    </div>
+
+    <div class="card">
+      <b>カート</b>
+      <pre id="cartPre">[]</pre>
+      <div id="sumLine"></div>
+    </div>
+
+    <div class="row">
+      <button id="sendBtn" class="btn" disabled>注文送信</button>
+      <button id="clearBtn" class="btn2" disabled>クリア</button>
+    </div>
+
+    <div id="status"></div>
+    <div id="menuStatus" style="margin-top:8px;"></div>
+  </div>
+
+<script>
+const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+
+const $ = (id)=>document.getElementById(id);
+
+function qs(name){
+  const u = new URL(location.href);
+  return (u.searchParams.get(name) || "").trim();
+}
+
+function esc(s){
+  return String(s||"").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
+async function getJson(path){
+  const url = `${DB_BASE}${path}.json`;
+  const res = await fetch(url, { method:"GET" });
+  const text = await res.text();
+  if(!res.ok) throw new Error(`GET HTTP ${res.status} ${text}`);
+  return text ? JSON.parse(text) : null;
+}
+
+async function postJson(path, obj){
+  const url = `${DB_BASE}${path}.json`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(obj)
+  });
+  const text = await res.text();
+  if(!res.ok) throw new Error(`POST HTTP ${res.status} ${text}`);
+  return text ? JSON.parse(text) : null;
+}
+
+// id: d1 / f103 などを数字として取り出す
+function idNumber(id){
+  const m = String(id||"").match(/\d+/);
+  return m ? Number(m[0]) : 999999;
+}
+
+// drink/foodの順→id番号順
+function sortMenu(a,b){
+  const catOrder = (c)=> c==="drink" ? 0 : (c==="food" ? 1 : 9);
+  const ca = catOrder(a.cat), cb = catOrder(b.cat);
+  if(ca !== cb) return ca - cb;
+  const na = idNumber(a.id), nb = idNumber(b.id);
+  if(na !== nb) return na - nb;
+  return String(a.name||"").localeCompare(String(b.name||""), "ja");
+}
+
+function setEnabled(enabled){
+  $("menuSel").disabled = !enabled;
+  $("qty").disabled = !enabled;
+  $("addBtn").disabled = !enabled;
+  $("sendBtn").disabled = !enabled;
+  $("clearBtn").disabled = !enabled;
+}
+
+const shop  = qs("shop");
+const table = qs("table");
+const token = qs("token");
+const v     = qs("v");
+
+$("meta").innerHTML = `
+  <div><b>shop:</b> ${esc(shop||"(none)")}</div>
+  <div><b>table:</b> ${esc(table||"(none)")}</div>
+  <div><b>token:</b> <small>${esc(token||"(none)")}</small></div>
+  <div><small>URL: ${esc(location.href)}</small></div>
+`;
+
+if(!shop || !table || !token){
+  $("sessionStatus").innerHTML = `<span class="ng">URL params が不足です（shop/table/token）</span>`;
+  setEnabled(false);
+}
+
+let menuAll = [];   // [{id,cat,name,price}]
+let cart = [];      // [{id,cat,name,price,qty}]
+let sessionOk = false;
+
+function renderCart(){
+  $("cartPre").textContent = JSON.stringify(cart, null, 2);
+  const total = cart.reduce((s,x)=>s + (Number(x.price)||0) * (Number(x.qty)||0), 0);
+  $("sumLine").innerHTML = `<div><b>合計:</b> ${total}</div>`;
+}
+
+function buildMenuOptions(){
+  const sel = $("menuSel");
+  sel.innerHTML = `<option value="">メニューを選択</option>`;
+  for(const m of menuAll){
+    const label = `${m.id} / ${m.name} (${m.price}) [${m.cat}]`;
+    const opt = document.createElement("option");
+    opt.value = m.id;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  }
+}
+
+async function loadMenu(){
+  try{
+    if(!shop) return;
+    const drinkObj = await getJson(`/shops/${encodeURIComponent(shop)}/menu/drink`);
+    const foodObj  = await getJson(`/shops/${encodeURIComponent(shop)}/menu/food`);
+
+    const arr = [];
+    if(drinkObj){
+      for(const [id, v] of Object.entries(drinkObj)){
+        const name = (v && typeof v === "object") ? (v.name ?? "") : String(v||"");
+        const price = (v && typeof v === "object") ? Number(v.price ?? 0) : 0;
+        arr.push({id, cat:"drink", name, price});
+      }
+    }
+    if(foodObj){
+      for(const [id, v] of Object.entries(foodObj)){
+        const name = (v && typeof v === "object") ? (v.name ?? "") : String(v||"");
+        const price = (v && typeof v === "object") ? Number(v.price ?? 0) : 0;
+        arr.push({id, cat:"food", name, price});
+      }
+    }
+
+    arr.sort(sortMenu);
+    menuAll = arr;
+    buildMenuOptions();
+    $("menuStatus").innerHTML = `<span class="ok">メニュー読み込みOK</span>（${menuAll.length}件）`;
+  }catch(e){
+    $("menuStatus").innerHTML = `<span class="ng">メニュー読み込み失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
+  }
+}
+
+/**
+ * webActiveSessions/{shop}/{table} を読み、
+ * DB側 token と URL token が一致したら注文を有効化する
+ */
+async function verifySession(){
+  try{
+    if(!shop || !table || !token) return false;
+
+    $("sessionStatus").textContent = "セッション確認中...";
+    setEnabled(false);
+
+    const sess = await getJson(`/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`);
+
+    if(!sess){
+      $("sessionStatus").innerHTML = `<span class="ng">セッションが見つかりません（店のQRを読み直してください）</span>`;
+      $("sessionDetail").innerHTML = `<small>path: /webActiveSessions/${esc(shop)}/${esc(String(table))}</small>`;
+      return false;
+    }
+
+    const dbToken = String(sess.token || "").trim();
+    const urlToken = String(token || "").trim();
+
+    if(!dbToken || dbToken !== urlToken){
+      $("sessionStatus").innerHTML = `<span class="ng">トークン不一致（このURLでは注文できません）</span>`;
+      $("sessionDetail").innerHTML =
+        `<small>DB token: ${esc(dbToken||"(none)")}<br>URL token: ${esc(urlToken||"(none)")}</small>`;
+      return false;
+    }
+
+    // （任意）期限チェックを入れたい場合はここで sess.expiresAt を見る
+    $("sessionStatus").innerHTML = `<span class="ok">セッションOK</span>`;
+    $("sessionDetail").innerHTML =
+      `<small>updatedAt: ${esc(String(sess.updatedAt||""))}<br>table: ${esc(String(sess.table||table))}</small>`;
+
+    return true;
+
+  }catch(e){
+    $("sessionStatus").innerHTML = `<span class="ng">セッション確認失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
+    return false;
+  }
+}
+
+$("addBtn").onclick = ()=>{
+  const id = $("menuSel").value;
+  const qty = Number($("qty").value || 1);
+  if(!id) return;
+
+  const m = menuAll.find(x=>x.id===id);
+  if(!m) return;
+
+  const found = cart.find(x=>x.id===id);
+  if(found){
+    found.qty = Number(found.qty||0) + qty;
+  }else{
+    cart.push({id:m.id, cat:m.cat, name:m.name, price:m.price, qty});
+  }
+  renderCart();
+};
+
+$("clearBtn").onclick = ()=>{
+  cart = [];
+  renderCart();
+  $("status").textContent = "";
+};
+
+$("sendBtn").onclick = async ()=>{
+  let sendingLocked = false;
+  try{
+    if(!shop || !table || !token) return;
+    if(!sessionOk){
+      $("status").innerHTML = `<span class="ng">セッション未確認のため送信できません</span>`;
+      return;
+    }
+    if(cart.length === 0){
+      $("status").innerHTML = `<span class="ng">カートが空です</span>`;
+      return;
+    }
+
+    // 二重送信防止
+    if(sendingLocked) return;
+    sendingLocked = true;
+    $("sendBtn").disabled = true;
+
+    const createdAt = Date.now();
+    const ua = navigator.userAgent;
+    const total = cart.reduce((s,x)=>s + (Number(x.price)||0) * (Number(x.qty)||0), 0);
+
+    const orderObj = {
+      shop,
+      table: String(table),
+      token,
+      createdAt,
+      ua,
+      items: cart,
+      total,
+      status: "new"
+    };
+
+    $("status").textContent = "sending...";
+
+    // 1) orders にPOST（正本）
+    const ordersPath =
+      `/shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
+    const ordersRes = await postJson(ordersPath, orderObj);
+    const orderKey = (ordersRes && ordersRes.name) ? String(ordersRes.name) : "";
+
+    // 2) 店別 orderFeed にPOST（軽量）
+    const feedObj = {
+      shop,
+      table: String(table),
+      token,
+      createdAt,
+      status: "new",
+      total,
+      itemsCount: cart.reduce((n,x)=>n + (Number(x.qty)||0), 0),
+      orderKey,
+      orderPath: orderKey ? `${ordersPath}/${orderKey}` : ordersPath
+    };
+
+    const feedPath = `/shops/${encodeURIComponent(shop)}/orderFeed`;
+    await postJson(feedPath, feedObj);
+
+    // 3) 全店集約（任意）
+    // await postJson(`/orderFeedAll`, feedObj);
+
+    $("status").innerHTML = `<span class="ok">送信OK</span>`;
+    cart = [];
+    renderCart();
+
+  }catch(e){
+    $("status").innerHTML = `<span class="ng">送信失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
+  }finally{
+    $("sendBtn").disabled = !sessionOk;
+  }
+};
+
+(async ()=>{
+  renderCart();
+  // まずセッション検証 → OKならUI有効化＆メニュー読み込み
+  sessionOk = await verifySession();
+  setEnabled(sessionOk);
+  if(sessionOk) await loadMenu();
+})();
+</script>
+</body>
+</html>
+

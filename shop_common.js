@@ -5,6 +5,7 @@ const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 
 function ssGet(k){ return (sessionStorage.getItem(k) || "").trim(); }
 function ssSet(k,v){ sessionStorage.setItem(k, String(v||"")); }
+function ssDel(k){ sessionStorage.removeItem(k); }
 function ssClear(){ sessionStorage.clear(); }
 
 function lsGet(k){ return (localStorage.getItem(k) || "").trim(); }
@@ -12,9 +13,9 @@ function lsSet(k,v){ localStorage.setItem(k, String(v||"")); }
 function lsDel(k){ localStorage.removeItem(k); }
 
 function getShop(){ return ssGet("shop"); }
-function getPin(){ return ssGet("pin"); }
+function getPin(){  return ssGet("pin"); }
 
-// Remember（任意）: localStorage -> sessionStorage 復元
+// Rememberの復元（localStorage shop/pin -> sessionStorage shop/pin）
 function restoreRememberedLogin(){
   const shop = getShop();
   const pin  = getPin();
@@ -30,7 +31,6 @@ function restoreRememberedLogin(){
   return false;
 }
 
-// ログアウト（session + remember）
 function logoutAll(){
   ssClear();
   lsDel("shop");
@@ -38,7 +38,7 @@ function logoutAll(){
 }
 
 function requireLogin(){
-  // remember復元を先に試す
+  // 起動時に復元
   restoreRememberedLogin();
 
   const shop = getShop();
@@ -100,4 +100,5 @@ function esc(s){
   }[m]));
 }
 </script>
+
 

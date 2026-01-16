@@ -3,44 +3,50 @@
 const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 /** ======================== */
 
-function ssGet(k){ return (sessionStorage.getItem(k) || "").trim(); }
-function ssSet(k,v){ sessionStorage.setItem(k, String(v||"")); }
-function ssDel(k){ sessionStorage.removeItem(k); }
-function ssClear(){ sessionStorage.clear(); }
+/** ====== localStorage 統一キー ====== */
+const LS_SHOP = "shopCode";
+const LS_PIN  = "shopPin";
 
+/** ====== 互換：旧 sessionStorage から自動移行 ======
+ * 旧コードが ssSet("shop","pin") を使っていた場合でも、
+ * 初回アクセスで localStorage にコピーして以後は localStorage 運用に寄せる
+ */
+(function migrateSessionToLocal(){
+  try{
+    const oldShop = (sessionStorage.getItem("shop") || "").trim();
+    const oldPin  = (sessionStorage.getItem("pin")  || "").trim();
+    const curShop = (localStorage.getItem(LS_SHOP) || "").trim();
+    const curPin  = (localStorage.getItem(LS_PIN)  || "").trim();
+
+    if(!curShop && oldShop) localStorage.setItem(LS_SHOP, oldShop);
+    if(!curPin  && oldPin)  localStorage.setItem(LS_PIN,  oldPin);
+  }catch(e){
+    // Safari等で例外が出ても致命にしない
+  }
+})();
+
+/** ====== storage helpers ====== */
 function lsGet(k){ return (localStorage.getItem(k) || "").trim(); }
 function lsSet(k,v){ localStorage.setItem(k, String(v||"")); }
 function lsDel(k){ localStorage.removeItem(k); }
-
-function getShop(){ return ssGet("shop"); }
-function getPin(){  return ssGet("pin"); }
-
-// Rememberの復元（localStorage shop/pin -> sessionStorage shop/pin）
-function restoreRememberedLogin(){
-  const shop = getShop();
-  const pin  = getPin();
-  if(shop && pin) return true;
-
-  const rShop = lsGet("shop");
-  const rPin  = lsGet("pin");
-  if(rShop && rPin){
-    ssSet("shop", rShop);
-    ssSet("pin",  rPin);
-    return true;
-  }
-  return false;
+function lsClearShopLogin(){
+  localStorage.removeItem(LS_SHOP);
+  localStorage.removeItem(LS_PIN);
 }
 
-function logoutAll(){
-  ssClear();
-  lsDel("shop");
-  lsDel("pin");
-}
+/** 互換：旧コードが ssGet/ssSet を呼んでも動くように残す */
+function ssGet(k){ return (sessionStorage.getItem(k) || "").trim(); }
+function ssSet(k,v){ sessionStorage.setItem(k, String(v||"")); }
+function ssClear(){ sessionStorage.clear(); }
+
+/** ====== login state ====== */
+function getShop(){ return lsGet(LS_SHOP); }
+function getPin(){  return lsGet(LS_PIN); }
+
+function setShop(shop){ lsSet(LS_SHOP, (shop||"").trim()); }
+function setPin(pin){   lsSet(LS_PIN,  (pin||"").trim()); }
 
 function requireLogin(){
-  // 起動時に復元
-  restoreRememberedLogin();
-
   const shop = getShop();
   const pin  = getPin();
   if(!shop || !pin){
@@ -50,6 +56,7 @@ function requireLogin(){
   return true;
 }
 
+/** ====== RTDB REST helpers ====== */
 async function rtdbGet(path){
   const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, { method:"GET" });
@@ -100,5 +107,4 @@ function esc(s){
   }[m]));
 }
 </script>
-
 

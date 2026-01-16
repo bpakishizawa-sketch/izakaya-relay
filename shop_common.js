@@ -7,10 +7,40 @@ function ssGet(k){ return (sessionStorage.getItem(k) || "").trim(); }
 function ssSet(k,v){ sessionStorage.setItem(k, String(v||"")); }
 function ssClear(){ sessionStorage.clear(); }
 
+function lsGet(k){ return (localStorage.getItem(k) || "").trim(); }
+function lsSet(k,v){ localStorage.setItem(k, String(v||"")); }
+function lsDel(k){ localStorage.removeItem(k); }
+
 function getShop(){ return ssGet("shop"); }
-function getPin(){ return ssGet("pin"); } // 現状は簡易。後でAuth化可。
+function getPin(){ return ssGet("pin"); }
+
+// Remember（任意）: localStorage -> sessionStorage 復元
+function restoreRememberedLogin(){
+  const shop = getShop();
+  const pin  = getPin();
+  if(shop && pin) return true;
+
+  const rShop = lsGet("shop");
+  const rPin  = lsGet("pin");
+  if(rShop && rPin){
+    ssSet("shop", rShop);
+    ssSet("pin",  rPin);
+    return true;
+  }
+  return false;
+}
+
+// ログアウト（session + remember）
+function logoutAll(){
+  ssClear();
+  lsDel("shop");
+  lsDel("pin");
+}
 
 function requireLogin(){
+  // remember復元を先に試す
+  restoreRememberedLogin();
+
   const shop = getShop();
   const pin  = getPin();
   if(!shop || !pin){
@@ -70,3 +100,4 @@ function esc(s){
   }[m]));
 }
 </script>
+

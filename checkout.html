@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>お会計（店側）</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;}
+    .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap;}
+    input,button{font-size:16px;padding:10px;}
+    button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:800}
+    .btn{background:#2563eb;color:#fff}
+    .btn2{background:#e5e7eb;color:#111}
+    .danger{background:#dc2626;color:#fff}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+    .ok{color:#0a7a2a;font-weight:900}
+    .ng{color:#b00020;font-weight:900}
+    small{color:#666}
+    pre{background:#f5f5f5;padding:12px;border-radius:10px;overflow:auto;white-space:pre-wrap;word-break:break-word}
+    .hr{height:1px;background:#eee;margin:12px 0}
+    .right{margin-left:auto}
+    .badge{display:inline-block;background:#111;color:#fff;padding:2px 8px;border-radius:999px;font-size:12px}
+    .muted{color:#777}
+    .holdWrap{position:relative; width:100%;}
+    .holdBar{
+      position:absolute; left:0; top:0; height:100%; width:0%;
+      background: rgba(255,255,255,.25);
+      border-radius:10px;
+      pointer-events:none;
+      transition: width .05s linear;
+    }
+    .holdBtn{
+      position:relative; width:100%;
+      display:block;
+      text-align:center;
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action: manipulation;
+    }
+  </style>
+</head>
+<body>
+  <h2>お会計（店側）</h2>
+
+  <div class="card" id="shopCard">
+    <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
+    <div><small>※ログインは sessionStorage（shop/pin）を使用</small></div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="muted"><small>テーブル番号</small></div>
+        <input id="tableNo" type="number" min="1" step="1" value="1" style="width:120px">
+      </div>
+
+      <button id="loadBtn" class="btn2">読み込み</button>
+
+      <label class="row" style="gap:8px;margin:0;">
+        <input id="autoChk" type="checkbox">
+        <span class="muted">自動更新（3秒）</span>
+      </label>
+
+      <span class="right muted"><small id="lastRef">-</small></span>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="row">
+      <div style="flex:1; min-width:260px;">
+        <div><b>セッション（token）</b></div>
+        <div id="sessLine" class="mono">-</div>
+        <div id="sessMeta"><small class="muted">-</small></div>
+      </div>
+      <div style="flex:1; min-width:260px;">
+        <div><b>注文合計</b></div>
+        <div id="sumLine" class="mono" style="font-size:20px;font-weight:900;">0</div>
+        <div id="countLine"><small class="muted">-</small></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-top:0;">
+        <b>注文履歴（このテーブル）</b>
+        <span class="badge" id="ordersBadge">0件</span>
+      </div>
+      <div id="ordersList"></div>
+      <pre id="ordersRaw" style="display:none;"></pre>
+    </div>
+
+    <div id="status"></div>
+
+    <div class="hr"></div>
+
+    <div class="card">
+      <div><b>会計確定（長押し 1.2秒）</b></div>
+      <small class="muted">
+        実行内容：①レシート保存 → ②orders削除 → ③token削除（次回入店で新規token）
+      </small>
+
+      <div style="margin-top:10px;" class="holdWrap">
+        <div class="holdBar" id="holdBar"></div>
+        <button id="checkoutBtn" class="danger holdBtn" disabled>長押しで会計確定</button>
+      </div>
+
+      <div style="margin-top:8px;">
+        <small class="muted" id="holdHint">注文を読み込むと押せるようになります。</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- shop_common.js を同階層に置く -->
+  <script src="shop_common.js"></script>
+
+<script>
+(() => {
+  const $ = (id)=>document.getElementById(id);
+
+  // shop_common.js が無い/読み込み失敗した時の保険
+  function must(fnName){
+    if(typeof window[fnName] !== "function"){
+      throw new Error(`shop_common.js の ${fnName}() が見つかりません`);
+    }
+  }
+
+  // 必要関数
+  must("requireLogin");
+  must("getShop");
+  must("rtdbGet");
+  must("rtdbPut");
+  must("rtdbPost");
+  must("esc");
+
+  // ログイン必須
+  if(!requireLogin()) return;
+
+  const shop = getShop();
+  $("shopText").textContent = shop || "(missing)";
+
+  let autoTimer = null;
+  let lastLoaded = null; // {table, ordersObj, sessionObj, total, orderCount}
+
+  function jst(ts){
+    try{
+      return new Date(Number(ts||0)).toLocaleString("ja-JP");
+    }catch{
+      return String(ts||"");
+    }
+  }
+
+  function setStatus(html){
+    $("status").innerHTML = html || "";
+  }
+
+  function setLastRef(msg){
+    $("lastRef").textContent = msg || "-";
+  }
+
+  function yen(n){
+    const x = Number(n||0);
+    return x.toLocaleString("ja-JP") + " 円";
+  }
+
+  function calcTotal(ordersObj){
+    // ordersObj: {pushId: {items:[...], total, createdAt...}, ...}
+    if(!ordersObj || typeof ordersObj !== "object") return { total:0, count:0, lines:[] };
+
+    const lines = [];
+    for(const [key, o] of Object.entries(ordersObj)){
+      const createdAt = o && o.createdAt ? o.createdAt : 0;
+      const total = (o && typeof o.total !== "undefined") ? Number(o.total||0) : 0;
+      const items = (o && Array.isArray(o.items)) ? o.items : [];
+      lines.push({ key, createdAt, total, items, raw:o });
+    }
+    lines.sort((a,b)=> Number(a.createdAt||0) - Number(b.createdAt||0));
+    const sum = lines.reduce((s,x)=> s + Number(x.total||0), 0);
+    return { total:sum, count:lines.length, lines };
+  }
+
+  function renderOrders(lines){
+    const wrap = $("ordersList");
+    wrap.innerHTML = "";
+
+    if(!lines || lines.length === 0){
+      wrap.innerHTML = `<div class="muted"><small>このテーブルの注文はありません</small></div>`;
+      return;
+    }
+
+    for(const x of lines){
+      const items = x.items || [];
+      const itemText = items.map(it => {
+        const name = (it && it.name) ? String(it.name) : "";
+        const qty  = (it && typeof it.qty !== "undefined") ? Number(it.qty||0) : 0;
+        const price= (it && typeof it.price !== "undefined") ? Number(it.price||0) : 0;
+        return `- ${name} x${qty} (${price})`;
+      }).join("\n");
+
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <div class="row" style="margin:0;">
+          <div class="mono"><b>${esc(x.key)}</b></div>
+          <div class="right muted"><small>${esc(jst(x.createdAt))}</small></div>
+        </div>
+        <div class="row" style="margin:8px 0 0 0;">
+          <div class="mono" style="font-weight:900;">${esc(yen(x.total))}</div>
+        </div>
+        <pre class="mono" style="margin:10px 0 0 0;">${esc(itemText || "(itemsなし)")}</pre>
+      `;
+      wrap.appendChild(div);
+    }
+  }
+
+  async function loadAll(){
+    try{
+      const table = String(Number($("tableNo").value || 1));
+      if(!shop || !table) return;
+
+      setStatus(`<span class="mono">loading...</span>`);
+      $("checkoutBtn").disabled = true;
+
+      // 1) session (token)
+      const sessPath = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}`;
+      const sess = await rtdbGet(sessPath);
+
+      // 2) orders
+      const ordersPath = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(table)}`;
+      const orders = await rtdbGet(ordersPath);
+
+      const sessObj = (sess && sess.ok) ? sess.json : null;
+      const ordersObj = (orders && orders.ok) ? orders.json : null;
+
+      const c = calcTotal(ordersObj);
+
+      $("sessLine").textContent = sessObj && sessObj.token ? String(sessObj.token) : "(tokenなし)";
+      $("sessMeta").innerHTML = `<small class="muted">
+        active: ${esc(String(sessObj && typeof sessObj.active !== "undefined" ? sessObj.active : "(n/a)"))}
+        / updatedAt: ${esc(sessObj && sessObj.updatedAt ? jst(sessObj.updatedAt) : "-")}
+      </small>`;
+
+      $("sumLine").textContent = yen(c.total);
+      $("countLine").innerHTML = `<small class="muted">注文件数: ${esc(String(c.count))}</small>`;
+      $("ordersBadge").textContent = `${c.count}件`;
+
+      renderOrders(c.lines);
+
+      lastLoaded = { table, sessObj, ordersObj, total:c.total, count:c.count };
+      setLastRef(`更新: ${new Date().toLocaleTimeString("ja-JP")}`);
+
+      // 注文が0でも会計（リセット）したい場合があるので、ボタンはセッション/テーブルが有効なら押せるようにする
+      $("checkoutBtn").disabled = false;
+      $("holdHint").textContent = "長押しで会計確定（orders削除＋token削除）します。";
+
+      setStatus(`<span class="ok">OK</span>`);
+    }catch(e){
+      setStatus(`<span class="ng">NG</span> <small>${esc(String(e.message||e))}</small>`);
+      $("checkoutBtn").disabled = true;
+    }
+  }
+
+  // 自動更新
+  $("autoChk").addEventListener("change", ()=>{
+    if($("autoChk").checked){
+      if(autoTimer) clearInterval(autoTimer);
+      autoTimer = setInterval(loadAll, 3000);
+    }else{
+      if(autoTimer) clearInterval(autoTimer);
+      autoTimer = null;
+    }
+  });
+
+  $("loadBtn").addEventListener("click", loadAll);
+
+  // ----- 長押し会計（1.2秒） -----
+  const HOLD_MS = 1200;
+  let holdT = null;
+  let holdStart = 0;
+  let holding = false;
+
+  function setHoldBar(pct){
+    const p = Math.max(0, Math.min(100, pct));
+    $("holdBar").style.width = p + "%";
+  }
+
+  async function checkoutReset(){
+    try{
+      if(!lastLoaded){
+        setStatus(`<span class="ng">NG</span> <small>先に読み込みしてください</small>`);
+        return;
+      }
+      const table = lastLoaded.table;
+
+      $("checkoutBtn").disabled = true;
+      setStatus(`<span class="mono">会計処理中...</span>`);
+
+      // 0) 最新を取り直す（安全）
+      await loadAll();
+
+      const sessObj = lastLoaded.sessObj || null;
+      const ordersObj = lastLoaded.ordersObj || null;
+      const total = Number(lastLoaded.total||0);
+      const count = Number(lastLoaded.count||0);
+      const now = Date.now();
+
+      // 1) レシート保存（アーカイブ）※データ保全
+      const receipt = {
+        shop,
+        table: String(table),
+        token: sessObj && sessObj.token ? String(sessObj.token) : "",
+        closedAt: now,
+        closedAtText: jst(now),
+        total,
+        orderCount: count,
+        orders: ordersObj || null
+      };
+
+      const rcptPath = `shops/${encodeURIComponent(shop)}/receipts/${encodeURIComponent(String(table))}`;
+      const rcptRes = await rtdbPost(rcptPath, receipt);
+      if(!rcptRes || rcptRes.ok !== true){
+        // shop_common.js の rtdbPost は {ok,status,json,url} を返す想定
+        const info = rcptRes || {};
+        throw new Error(`レシート保存失敗: HTTP ${info.status} ${info.url}`);
+      }
+
+      // 2) orders削除（PUT null でノード削除）
+      const ordersPath = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
+      const delOrders = await rtdbPut(ordersPath, null);
+      if(!delOrders || delOrders.ok !== true){
+        throw new Error(`orders削除失敗: HTTP ${delOrders.status} ${delOrders.url}`);
+      }
+
+      // 3) token削除（webActiveSessions削除：PUT null）
+      const sessPath = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`;
+      const delSess = await rtdbPut(sessPath, null);
+      if(!delSess || delSess.ok !== true){
+        throw new Error(`token削除失敗: HTTP ${delSess.status} ${delSess.url}`);
+      }
+
+      setStatus(`<span class="ok">OK</span> 会計完了（レシート保存 → orders削除 → token削除）`);
+      setHoldBar(0);
+
+      // 表示更新
+      await loadAll();
+
+    }catch(e){
+      setStatus(`<span class="ng">NG</span> <small>${esc(String(e.message||e))}</small>`);
+      setHoldBar(0);
+      $("checkoutBtn").disabled = false;
+    }
+  }
+
+  function startHold(){
+    if($("checkoutBtn").disabled) return;
+    if(holding) return;
+    holding = true;
+    holdStart = Date.now();
+    setHoldBar(0);
+
+    const tick = () => {
+      if(!holding) return;
+      const elapsed = Date.now() - holdStart;
+      const pct = Math.floor((elapsed / HOLD_MS) * 100);
+      setHoldBar(pct);
+
+      if(elapsed >= HOLD_MS){
+        // 完了
+        holding = false;
+        setHoldBar(100);
+        checkoutReset();
+        return;
+      }
+      holdT = setTimeout(tick, 16);
+    };
+    tick();
+  }
+
+  function endHold(){
+    holding = false;
+    if(holdT) clearTimeout(holdT);
+    holdT = null;
+    setHoldBar(0);
+  }
+
+  const btn = $("checkoutBtn");
+  btn.addEventListener("pointerdown", (e)=>{ e.preventDefault(); startHold(); });
+  btn.addEventListener("pointerup", (e)=>{ e.preventDefault(); endHold(); });
+  btn.addEventListener("pointerleave", (e)=>{ endHold(); });
+  btn.addEventListener("pointercancel", (e)=>{ endHold(); });
+
+  // 初期読み込み
+  loadAll();
+})();
+</script>
+</body>
+</html>

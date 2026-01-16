@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>QR作成（shop + table）</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
-    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:1100px; margin:0 auto;}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
     .row{display:flex;gap:10px;align-items:end;flex-wrap:wrap;}
     label{display:block;font-size:12px;color:#666;margin-bottom:6px}
     input{font-size:16px;padding:10px;border:1px solid #ddd;border-radius:10px;}
@@ -25,11 +25,13 @@
     .urlBox{margin-top:10px;font-size:12px;color:#333;word-break:break-all}
     .muted{color:#777}
     .hint{font-size:12px;color:#666;margin-top:8px;line-height:1.6}
+    .topbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 12px}
+    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px;background:#f9fafb}
 
     /* 印刷（PDF保存）向け */
     @media print{
       .noPrint{display:none !important;}
-      body{padding:0;}
+      body{padding:0;max-width:none;margin:0;}
       .card{border:0;margin:0;padding:0;}
       .qrCard{page-break-inside:avoid;}
     }
@@ -44,11 +46,22 @@
 <body>
   <h2>QR作成（shopコード + テーブル番号）</h2>
 
+  <div class="topbar noPrint">
+    <button id="btnBack" class="btn2">← menuへ</button>
+    <span class="pill">ログイン shop: <b id="shopPill" class="mono">-</b></span>
+  </div>
+
   <div class="card noPrint">
     <div class="row">
       <div>
-        <label>shopコード（例: daboya）</label>
-        <input id="shop" value="daboya" style="width:220px" />
+        <label>shopコード（ログインから自動）</label>
+        <input id="shop" style="width:220px" readonly />
+        <div class="hint">
+          <label style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <input id="allowEditShop" type="checkbox" />
+            <span>shop手入力を許可する（誤操作注意）</span>
+          </label>
+        </div>
       </div>
 
       <div>
@@ -63,8 +76,7 @@
 
       <div style="flex:1;min-width:260px">
         <label>QRのリンク先（入店ページURL）</label>
-        <input id="entryUrl" class="mono" style="width:100%"
-               value="https://bpakishizawa-sketch.github.io/izakaya-relay/customer.html" />
+        <input id="entryUrl" class="mono" style="width:100%" />
         <div class="hint">
           このURLは「入店処理（セッション再利用→orderへ遷移）」のページにしてください。<br>
           QRには <span class="mono">?shop=SHOP&table=TABLE</span> が付きます。
@@ -94,10 +106,13 @@
     <div class="grid" id="grid"></div>
   </div>
 
+  <!-- ✅ 共通JS（sessionStorage統一） -->
+  <script src="shop_common.js"></script>
+
 <script>
 const $ = (id)=>document.getElementById(id);
 
-function esc(s){
+function esc2(s){
   return String(s||"").replace(/[&<>"']/g, m => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[m]));
@@ -132,17 +147,16 @@ function makeQrCard({shop, table, link}){
   card.innerHTML = `
     <div class="qrTop">
       <div>
-        <div class="qrTitle">Table ${esc(String(table))}</div>
-        <div class="qrMeta">shop: <span class="mono">${esc(shop)}</span></div>
+        <div class="qrTitle">Table ${esc2(String(table))}</div>
+        <div class="qrMeta">shop: <span class="mono">${esc2(shop)}</span></div>
       </div>
       <div class="mono muted" style="font-size:12px;">QR</div>
     </div>
     <div class="qrBox"><div class="qrTarget"></div></div>
-    <div class="urlBox mono">${esc(link)}</div>
+    <div class="urlBox mono">${esc2(link)}</div>
   `;
 
   const target = card.querySelector(".qrTarget");
-  // qrcodejs は target に canvas/img を生成
   new QRCode(target, {
     text: link,
     width: 160,
@@ -154,13 +168,11 @@ function makeQrCard({shop, table, link}){
 }
 
 function getCanvasFromCard(card){
-  // qrcodejs は canvas か img を作る。両対応で dataURL にする
   const canvas = card.querySelector("canvas");
   if(canvas) return canvas;
 
   const img = card.querySelector("img");
   if(img){
-    // img->canvas へ転写
     const c = document.createElement("canvas");
     c.width = img.naturalWidth || 160;
     c.height = img.naturalHeight || 160;
@@ -202,8 +214,7 @@ async function generate(){
 }
 
 async function downloadPdf(){
-  // jsPDF（A4縦 / mm単位）
-  const { jsPDF } = window.jspdf;
+  const { jsPDF } = window.jspdf || {};
   if(!jsPDF){
     setStatus("jsPDF が読み込めませんでした");
     return;
@@ -220,7 +231,7 @@ async function downloadPdf(){
   const doc = new jsPDF({ unit:"mm", format:"a4", orientation:"portrait" });
   const pageW = 210, pageH = 297;
 
-  // レイアウト：2列 x 4行 = 8枚/ページ
+  // 2列 x 4行 = 8枚/ページ
   const margin = 10;
   const colGap = 6;
   const rowGap = 6;
@@ -235,21 +246,18 @@ async function downloadPdf(){
 
   function cellXY(i){
     const idx = i % (cols*rows);
-    const page = Math.floor(i / (cols*rows));
     const r = Math.floor(idx / cols);
     const c = idx % cols;
     const x = margin + c*(cellW + colGap);
     const y = margin + r*(cellH + rowGap);
-    return { page, x, y };
+    return { x, y, newPage: (i>0 && i % (cols*rows) === 0) };
   }
 
   const shop = (cards[0].dataset.shop || "").trim();
 
   for(let i=0; i<cards.length; i++){
-    const { page, x, y } = cellXY(i);
-    if(i>0 && i % (cols*rows) === 0){
-      doc.addPage();
-    }
+    const { x, y, newPage } = cellXY(i);
+    if(newPage) doc.addPage();
 
     const table = cards[i].dataset.table || "";
     const link = cards[i].dataset.link || "";
@@ -259,24 +267,19 @@ async function downloadPdf(){
 
     const imgData = canvas.toDataURL("image/png");
 
-    // 枠
     doc.setDrawColor(220);
     doc.roundedRect(x, y, cellW, cellH, 2, 2, "S");
 
-    // タイトル
     doc.setFontSize(12);
     doc.text(`Table ${table}`, x + pad, y + pad + 2);
 
-    // shop
     doc.setFontSize(9);
     doc.text(`shop: ${shop}`, x + pad, y + pad + 8);
 
-    // QR
     const qrX = x + pad;
     const qrY = y + pad + 12;
     doc.addImage(imgData, "PNG", qrX, qrY, qrSize, qrSize);
 
-    // URL（長いので分割）
     doc.setFontSize(7);
     const urlX = x + pad;
     const urlY = qrY + qrSize + 6;
@@ -291,12 +294,40 @@ async function downloadPdf(){
   setStatus("PDFを保存しました");
 }
 
-$("genBtn").addEventListener("click", generate);
-$("pdfBtn").addEventListener("click", downloadPdf);
-$("printBtn").addEventListener("click", ()=>window.print());
+(function init(){
+  // ✅ 未ログインなら login.html へ
+  if(!requireLogin()) return;
 
-// 初回は自動生成しておく（不要ならコメントアウト）
-generate();
+  const shop = getShop();
+  $("shopPill").textContent = shop || "-";
+  $("shop").value = shop || "";
+
+  // 入店URLは端末ごとに保持したいので localStorage に保存
+  const savedEntry = localStorage.getItem("entryUrl") || "";
+  $("entryUrl").value = savedEntry || "https://bpakishizawa-sketch.github.io/izakaya-relay/customer.html";
+
+  // shop手入力許可（通常OFF）
+  $("allowEditShop").addEventListener("change", ()=>{
+    const on = $("allowEditShop").checked;
+    $("shop").readOnly = !on;
+    if(!on){
+      $("shop").value = getShop() || "";
+    }
+  });
+
+  $("btnBack").addEventListener("click", ()=> location.href = `menu.html?v=${Date.now()}`);
+
+  $("genBtn").addEventListener("click", async ()=>{
+    localStorage.setItem("entryUrl", ($("entryUrl").value || "").trim());
+    await generate();
+  });
+
+  $("pdfBtn").addEventListener("click", downloadPdf);
+  $("printBtn").addEventListener("click", ()=>window.print());
+
+  // 初回自動生成（不要ならコメントアウト）
+  generate();
+})();
 </script>
 </body>
 </html>

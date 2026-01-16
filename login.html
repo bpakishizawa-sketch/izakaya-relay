@@ -3,108 +3,352 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>shop login</title>
+  <title>QR作成（shop + table）</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:720px;margin:0 auto}
-    input,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #ccc}
-    button{cursor:pointer;border:0;font-weight:800}
-    .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
-    .btn{background:#111827;color:#fff}
-    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0}
-    .ok{color:#16a34a;font-weight:800}
-    .ng{color:#dc2626;font-weight:800}
-    .muted{color:#6b7280;font-size:12px;line-height:1.6}
-    small{color:#6b7280}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
+    .row{display:flex;gap:10px;align-items:end;flex-wrap:wrap;}
+    label{display:block;font-size:12px;color:#666;margin-bottom:6px}
+    input{font-size:16px;padding:10px;border:1px solid #ddd;border-radius:10px;}
+    button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:800;font-size:16px}
+    .btn{background:#2563eb;color:#fff}
+    .btn2{background:#e5e7eb;color:#111}
+    .btn3{background:#111827;color:#fff}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+    .ok{color:#0a7a2a;font-weight:900}
+    .ng{color:#b00020;font-weight:900}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+    .qrCard{border:1px solid #ddd;border-radius:12px;padding:12px;background:#fff;break-inside:avoid;}
+    .qrTop{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+    .qrTitle{font-size:18px;font-weight:900}
+    .qrMeta{color:#666;font-size:12px}
+    .qrBox{display:flex;align-items:center;justify-content:center;padding:10px;border:1px dashed #ddd;border-radius:12px;margin-top:10px;background:#fafafa;}
+    .urlBox{margin-top:10px;font-size:12px;color:#333;word-break:break-all}
+    .muted{color:#777}
+    .hint{font-size:12px;color:#666;margin-top:8px;line-height:1.6}
+
+    /* 印刷（PDF保存）向け */
+    @media print{
+      .noPrint{display:none !important;}
+      body{padding:0;}
+      .card{border:0;margin:0;padding:0;}
+      .qrCard{page-break-inside:avoid;}
+    }
   </style>
+
+  <!-- QR生成ライブラリ（軽量） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- PDF生成（任意機能） -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
-  <h2>店側ログイン</h2>
+  <h2>QR作成（shopコード + テーブル番号）</h2>
 
-  <div class="card">
+  <!-- ここが「戻るボタン」 -->
+  <div class="card noPrint" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <button type="button" id="backMenuBtn" class="btn2">← メニューへ戻る</button>
+    <button type="button" id="backLoginBtn" class="btn3">ログインへ</button>
+    <span class="muted mono" id="whoLine">-</span>
+    <span class="muted mono" id="statusTop" style="margin-left:auto">-</span>
+  </div>
+
+  <div class="card noPrint">
     <div class="row">
-      <input id="shop" placeholder="shopコード（例：daboya）" style="flex:1;min-width:240px">
-      <input id="pin"  placeholder="PIN（例：1111）" style="width:180px">
-      <button id="btnLogin" class="btn" type="button">ログイン</button>
+      <div style="min-width:240px">
+        <label>shopコード（ログインから自動）</label>
+        <input id="shop" class="mono" style="width:220px" readonly />
+        <div class="hint">
+          取得元：<span class="mono">localStorage.shopCode</span><br>
+          <span id="shopState" class="mono muted">-</span>
+        </div>
+      </div>
+
+      <div>
+        <label>開始テーブル</label>
+        <input id="tFrom" type="number" min="1" value="1" style="width:140px" />
+      </div>
+
+      <div>
+        <label>終了テーブル</label>
+        <input id="tTo" type="number" min="1" value="10" style="width:140px" />
+      </div>
+
+      <div style="flex:1;min-width:260px">
+        <label>QRのリンク先（入店ページURL）</label>
+        <input id="entryUrl" class="mono" style="width:100%"
+               value="https://bpakishizawa-sketch.github.io/izakaya-relay/customer.html" />
+        <div class="hint">
+          QRには <span class="mono">?shop=SHOP&table=TABLE</span> が付きます。
+        </div>
+      </div>
     </div>
 
-    <div id="msg" class="muted">
-      端末ごとにログインします（厨房／会計で分けてもOK）。<br>
-      保存先：<b>localStorage</b>（shopCode / shopPin）
-    </div>
-
-    <div class="row" style="margin-top:12px">
-      <button id="btnClear" type="button">保存データ削除</button>
-      <button id="btnToMenu" class="btn" type="button">メニューへ</button>
+    <div class="row" style="margin-top:12px;">
+      <button id="genBtn" class="btn" type="button">QR生成</button>
+      <button id="pdfBtn" class="btn2" type="button">PDF作成（ダウンロード）</button>
+      <button id="printBtn" class="btn2" type="button">印刷（ブラウザのPDF保存）</button>
+      <button id="toggleShopBtn" class="btn3" type="button">shop手入力に切替</button>
+      <span id="status" class="mono muted"></span>
     </div>
   </div>
 
   <div class="card">
-    <div class="muted"><small>デバッグ</small></div>
-    <pre id="dbg" style="white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto">-</pre>
+    <div class="row" style="align-items:center;">
+      <div style="flex:1;">
+        <div><b>生成結果</b></div>
+        <div class="hint">
+          ・店内掲示なら「印刷」→「PDFとして保存」でもOKです。<br>
+          ・PDF作成ボタンは、QRを画像として埋め込んだPDFを自動生成します。
+        </div>
+      </div>
+      <div class="mono muted" id="countLine">-</div>
+    </div>
+    <div class="grid" id="grid"></div>
   </div>
 
 <script>
-  const $ = (id)=>document.getElementById(id);
+const $ = (id)=>document.getElementById(id);
 
-  function dbg(obj){
-    $("dbg").textContent = JSON.stringify(obj, null, 2);
-  }
+function esc(s){
+  return String(s||"").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
 
-  function setMsg(html){
-    $("msg").innerHTML = html;
-  }
+function normUrl(u){
+  return String(u||"").trim().replace(/\/+$/,"");
+}
 
-  function saveLogin(shop, pin){
-    localStorage.setItem("shopCode", String(shop||"").trim());
-    localStorage.setItem("shopPin",  String(pin||"").trim());
-  }
+function buildLink(entryUrl, shop, table){
+  const base = normUrl(entryUrl);
+  const qs = `?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(String(table))}`;
+  return base + qs;
+}
 
-  function readLogin(){
-    return {
-      shopCode: (localStorage.getItem("shopCode") || "").trim(),
-      shopPin:  (localStorage.getItem("shopPin")  || "").trim(),
-    };
-  }
+function clearGrid(){
+  $("grid").innerHTML = "";
+  $("countLine").textContent = "-";
+}
 
-  function toMenu(){
-    location.href = `menu.html?v=${Date.now()}`;
-  }
+function setStatus(t){
+  $("status").textContent = t || "";
+}
+function setTopStatus(t){
+  $("statusTop").textContent = t || "";
+}
 
-  // 初期表示
-  dbg({
-    href: location.href,
-    stored: readLogin(),
-    note: "ここでログインできれば、shop_common.js が原因です"
+function makeQrCard({shop, table, link}){
+  const card = document.createElement("div");
+  card.className = "qrCard";
+  card.dataset.shop = shop;
+  card.dataset.table = String(table);
+  card.dataset.link = link;
+
+  card.innerHTML = `
+    <div class="qrTop">
+      <div>
+        <div class="qrTitle">Table ${esc(String(table))}</div>
+        <div class="qrMeta">shop: <span class="mono">${esc(shop)}</span></div>
+      </div>
+      <div class="mono muted" style="font-size:12px;">QR</div>
+    </div>
+    <div class="qrBox"><div class="qrTarget"></div></div>
+    <div class="urlBox mono">${esc(link)}</div>
+  `;
+
+  const target = card.querySelector(".qrTarget");
+  new QRCode(target, {
+    text: link,
+    width: 160,
+    height: 160,
+    correctLevel: QRCode.CorrectLevel.M
   });
 
-  $("btnLogin").addEventListener("click", ()=>{
-    const shop = $("shop").value.trim();
-    const pin  = $("pin").value.trim();
+  return card;
+}
 
-    if(!shop || !pin){
-      setMsg(`<span class="ng">shop と PIN を入れてください</span>`);
-      return;
-    }
+function getCanvasFromCard(card){
+  const canvas = card.querySelector("canvas");
+  if(canvas) return canvas;
 
-    saveLogin(shop, pin);
-    const st = readLogin();
-    setMsg(`<span class="ok">ログイン保存OK</span> shop=${st.shopCode}`);
-    dbg({ action:"login", stored: st, time: Date.now() });
+  const img = card.querySelector("img");
+  if(img){
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth || 160;
+    c.height = img.naturalHeight || 160;
+    const ctx = c.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    return c;
+  }
+  return null;
+}
 
-    // すぐメニューへ
-    toMenu();
-  });
+function getShopFromLogin(){
+  return (localStorage.getItem("shopCode") || "").trim();
+}
+function getPinFromLogin(){
+  return (localStorage.getItem("shopPin") || "").trim();
+}
 
-  $("btnClear").addEventListener("click", ()=>{
-    localStorage.removeItem("shopCode");
-    localStorage.removeItem("shopPin");
-    setMsg(`<span class="ok">保存データを削除しました</span>`);
-    dbg({ action:"clear", stored: readLogin(), time: Date.now() });
-  });
+function applyShopAuto(){
+  const s = getShopFromLogin();
+  if(s){
+    $("shop").value = s;
+    $("shopState").innerHTML = `<span class="ok">OK</span> shopCode=${esc(s)}`;
+  }else{
+    $("shop").value = "";
+    $("shopState").innerHTML = `<span class="ng">NG</span> 未ログイン（先に login.html でログイン）`;
+  }
+}
 
-  $("btnToMenu").addEventListener("click", ()=>{
-    toMenu();
-  });
+let shopEditable = false;
+function setShopEditable(on){
+  shopEditable = !!on;
+  $("shop").readOnly = !shopEditable;
+  $("toggleShopBtn").textContent = shopEditable ? "shop自動に戻す" : "shop手入力に切替";
+  if(!shopEditable) applyShopAuto();
+}
+
+async function generate(){
+  clearGrid();
+  setStatus("");
+
+  const shop = ($("shop").value || "").trim();
+  const tFrom = Number($("tFrom").value || 1);
+  const tTo = Number($("tTo").value || 1);
+  const entryUrl = ($("entryUrl").value || "").trim();
+
+  if(!shop || !entryUrl){
+    setStatus("shop と 入店ページURL は必須です");
+    return;
+  }
+  if(!Number.isFinite(tFrom) || !Number.isFinite(tTo) || tFrom < 1 || tTo < tFrom){
+    setStatus("テーブル範囲が不正です");
+    return;
+  }
+
+  const grid = $("grid");
+  let n = 0;
+  for(let table=tFrom; table<=tTo; table++){
+    const link = buildLink(entryUrl, shop, table);
+    const card = makeQrCard({shop, table, link});
+    grid.appendChild(card);
+    n++;
+  }
+  $("countLine").textContent = `${n} 枚`;
+  setStatus("生成しました");
+}
+
+async function downloadPdf(){
+  const { jsPDF } = (window.jspdf || {});
+  if(!jsPDF){
+    setStatus("jsPDF が読み込めませんでした");
+    return;
+  }
+
+  const cards = Array.from(document.querySelectorAll(".qrCard"));
+  if(cards.length === 0){
+    setStatus("先にQR生成してください");
+    return;
+  }
+
+  setStatus("PDF作成中...");
+
+  const doc = new jsPDF({ unit:"mm", format:"a4", orientation:"portrait" });
+  const pageW = 210, pageH = 297;
+
+  const margin = 10;
+  const colGap = 6;
+  const rowGap = 6;
+  const cols = 2;
+  const rows = 4;
+
+  const cellW = (pageW - margin*2 - colGap*(cols-1)) / cols;
+  const cellH = (pageH - margin*2 - rowGap*(rows-1)) / rows;
+
+  const qrSize = 38;
+  const pad = 6;
+
+  function cellXY(i){
+    const idx = i % (cols*rows);
+    const r = Math.floor(idx / cols);
+    const c = idx % cols;
+    const x = margin + c*(cellW + colGap);
+    const y = margin + r*(cellH + rowGap);
+    return { x, y };
+  }
+
+  const shop = (cards[0].dataset.shop || "").trim();
+
+  for(let i=0; i<cards.length; i++){
+    if(i>0 && i % (cols*rows) === 0) doc.addPage();
+
+    const { x, y } = cellXY(i);
+    const table = cards[i].dataset.table || "";
+    const link = cards[i].dataset.link || "";
+
+    const canvas = getCanvasFromCard(cards[i]);
+    if(!canvas) continue;
+
+    const imgData = canvas.toDataURL("image/png");
+
+    doc.setDrawColor(220);
+    doc.roundedRect(x, y, cellW, cellH, 2, 2, "S");
+
+    doc.setFontSize(12);
+    doc.text(`Table ${table}`, x + pad, y + pad + 2);
+
+    doc.setFontSize(9);
+    doc.text(`shop: ${shop}`, x + pad, y + pad + 8);
+
+    const qrX = x + pad;
+    const qrY = y + pad + 12;
+    doc.addImage(imgData, "PNG", qrX, qrY, qrSize, qrSize);
+
+    doc.setFontSize(7);
+    const urlX = x + pad;
+    const urlY = qrY + qrSize + 6;
+    const maxW = cellW - pad*2;
+    const lines = doc.splitTextToSize(link, maxW);
+    doc.text(lines, urlX, urlY);
+  }
+
+  doc.save(`QR_${shop || "shop"}_tables.pdf`);
+  setStatus("PDFを保存しました");
+}
+
+/** ====== ここが「戻る」 ====== */
+$("backMenuBtn").addEventListener("click", ()=>{
+  location.href = `menu.html?v=${Date.now()}`;
+});
+$("backLoginBtn").addEventListener("click", ()=>{
+  location.href = `login.html?v=${Date.now()}`;
+});
+
+/** 初期化 */
+$("genBtn").addEventListener("click", generate);
+$("pdfBtn").addEventListener("click", downloadPdf);
+$("printBtn").addEventListener("click", ()=>window.print());
+$("toggleShopBtn").addEventListener("click", ()=> setShopEditable(!shopEditable));
+
+(function init(){
+  const shop = getShopFromLogin();
+  const pin  = getPinFromLogin();
+
+  if(!shop || !pin){
+    setTopStatus("未ログイン：loginへ戻してください");
+    $("whoLine").textContent = "shopCode/shopPin が空です";
+    // すぐ飛ばしたい場合はコメント解除
+    // setTimeout(()=> location.href = `login.html?v=${Date.now()}`, 300);
+  }else{
+    $("whoLine").textContent = `shop=${shop} / pin=****`;
+    setTopStatus("ログインOK");
+  }
+
+  setShopEditable(false);
+  generate();
+})();
 </script>
 </body>
 </html>

@@ -24,20 +24,18 @@
     button{font-size:16px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:800}
     button.dark{background:#111827;color:#fff}
     .small{font-size:12px;color:#6b7280}
-    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
   </style>
 </head>
 <body>
   <h1>店側メニュー</h1>
   <div class="sub">
-    この端末は <b>shopコード＋PIN</b> でログイン済み（<b>sessionStorage</b>）。<br>
-    ここから各機能ページへ移動します。
+    この端末は shopコード＋PIN でログイン済み。ここから各機能ページへ移動します。<br>
+    ※ログイン情報は <b>localStorage</b> に保存（端末固定運用向け）
   </div>
 
   <div class="card">
     <div>shop: <b id="shopText" class="mono">-</b></div>
     <div>PIN: <b id="pinText" class="mono">-</b> <span class="small">（表示はマスク）</span></div>
-
     <div id="status" style="margin-top:10px;"></div>
 
     <div class="row" style="margin-top:12px;">
@@ -49,23 +47,21 @@
   <div class="card">
     <div class="row">
       <a class="btn kitchen" href="./kitchen.html?v=1">厨房：オーダーリスト</a>
-      <a class="btn warn" href="./cashier.html?v=1">会計：テーブル別お会計</a>
+      <a class="btn warn" href="./checkout.html?v=1">会計：テーブル別お会計</a>
       <a class="btn" href="./qr.html?v=1">QR：印刷用</a>
       <a class="btn" href="./menu_edit.html?v=1">メニュー編集</a>
     </div>
     <div class="small" style="margin-top:10px;">
-      404になる場合は「そのファイル名が違う」だけです。ファイル名を揃えればOKです。
+      もし404が出る場合は、ファイル名が一致しているか確認してください（このリポジトリは上記の名前で揃っています）。
     </div>
   </div>
 
   <div class="card">
     <div class="small">デバッグ</div>
-    <pre id="debug" class="mono">-</pre>
+    <pre id="debug" class="mono" style="white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto">-</pre>
   </div>
 
-  <!-- 共通JS（sessionStorage: shop/pin） -->
   <script src="shop_common.js"></script>
-
   <script>
     const $ = (id)=>document.getElementById(id);
 
@@ -74,36 +70,34 @@
       return "*".repeat(Math.min(String(pin).length, 8));
     }
 
-    // ここでログイン必須（未ログインなら login.html へ）
-    if(!requireLogin()) { /* requireLogin 内でリダイレクト */ }
+    // ログイン必須
+    if(!requireLogin()) { /* redirect */ }
 
     const shop = getShop();
     const pin  = getPin();
 
     $("shopText").textContent = shop || "-";
     $("pinText").textContent  = maskPin(pin);
-
     $("status").innerHTML = `<span class="ok">OK</span> ログイン状態`;
-    $("debug").textContent = JSON.stringify({ shop, pinMasked: maskPin(pin) }, null, 2);
+    $("debug").textContent = JSON.stringify({ shop, pinMasked: maskPin(pin), RTDB_BASE }, null, 2);
 
-    $("btnLogout").onclick = () => {
-      ssClear();
-      location.href = `login.html?v=${Date.now()}`;
+    $("btnLogout").onclick = ()=>{
+      lsClearShopLogin(); // localStorageのshopCode/shopPinのみ消す
+      location.href = "login.html?v=" + Date.now();
     };
 
-    $("btnCheck").onclick = async () => {
+    $("btnCheck").onclick = async ()=>{
       try{
-        // shopのstaffPinを読む（接続確認）
         const r = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
-        if(!r.ok) throw new Error(`HTTP ${r.status} ${JSON.stringify(r.json)}`);
+        if(!r.ok) throw new Error(`HTTP ${r.status}`);
         $("status").innerHTML = `<span class="ok">OK</span> FBRD 接続OK（staffPin取得）`;
         $("debug").textContent = JSON.stringify({ shop, staffPin: r.json, checkedAt: Date.now() }, null, 2);
       }catch(e){
         $("status").innerHTML = `<span class="ng">NG</span> ${esc(e.message||e)}`;
-        $("debug").textContent = String(e.stack || e);
       }
     };
   </script>
 </body>
 </html>
+
 

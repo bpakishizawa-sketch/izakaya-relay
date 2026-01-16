@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>QR作成（shop + table）</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:1200px; margin:0 auto;}
-    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;}
     .row{display:flex;gap:10px;align-items:end;flex-wrap:wrap;}
     label{display:block;font-size:12px;color:#666;margin-bottom:6px}
     input{font-size:16px;padding:10px;border:1px solid #ddd;border-radius:10px;}
     button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:800;font-size:16px}
     .btn{background:#2563eb;color:#fff}
     .btn2{background:#e5e7eb;color:#111}
-    .dark{background:#111827;color:#fff}
+    .btn3{background:#111827;color:#fff}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
     .ok{color:#0a7a2a;font-weight:900}
     .ng{color:#b00020;font-weight:900}
@@ -39,29 +39,21 @@
   <!-- QR生成ライブラリ（軽量） -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
-  <!-- PDF生成（任意） -->
+  <!-- PDF生成（任意機能） -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
   <h2>QR作成（shopコード + テーブル番号）</h2>
 
   <div class="card noPrint">
-    <div class="row" style="align-items:center;">
-      <div class="mono">
-        shop: <b id="shopText">-</b>
-      </div>
-      <span style="flex:1"></span>
-      <button id="btnBack" class="btn2">← menuへ</button>
-      <button id="btnLogout" class="dark">ログアウト</button>
-    </div>
-    <div class="hint muted" id="loginHint">-</div>
-  </div>
-
-  <div class="card noPrint">
     <div class="row">
-      <div>
-        <label>shopコード</label>
-        <input id="shop" style="width:220px" />
+      <div style="min-width:240px">
+        <label>shopコード（ログインから自動）</label>
+        <input id="shop" class="mono" style="width:220px" readonly />
+        <div class="hint">
+          取得元：<span class="mono">localStorage.shopCode</span><br>
+          <span id="shopState" class="mono muted">-</span>
+        </div>
       </div>
 
       <div>
@@ -79,16 +71,16 @@
         <input id="entryUrl" class="mono" style="width:100%"
                value="https://bpakishizawa-sketch.github.io/izakaya-relay/customer.html" />
         <div class="hint">
-          このURLは「入店処理（セッション再利用→orderへ遷移）」のページにしてください。<br>
           QRには <span class="mono">?shop=SHOP&table=TABLE</span> が付きます。
         </div>
       </div>
     </div>
 
     <div class="row" style="margin-top:12px;">
-      <button id="genBtn" class="btn">QR生成</button>
-      <button id="pdfBtn" class="btn2">PDF作成（ダウンロード）</button>
-      <button id="printBtn" class="btn2">印刷（ブラウザのPDF保存）</button>
+      <button id="genBtn" class="btn" type="button">QR生成</button>
+      <button id="pdfBtn" class="btn2" type="button">PDF作成（ダウンロード）</button>
+      <button id="printBtn" class="btn2" type="button">印刷（ブラウザのPDF保存）</button>
+      <button id="toggleShopBtn" class="btn3" type="button">shop手入力に切替</button>
       <span id="status" class="mono muted"></span>
     </div>
   </div>
@@ -107,21 +99,19 @@
     <div class="grid" id="grid"></div>
   </div>
 
-  <!-- 共通JS（sessionStorage統一） -->
-  <script src="shop_common.js"></script>
-
 <script>
 const $ = (id)=>document.getElementById(id);
 
-function escLocal(s){
+function esc(s){
   return String(s||"").replace(/[&<>"']/g, m => ({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[m]));
 }
 
 function normUrl(u){
-  return String(u||"").trim().replace(/\/+$/,""); // 末尾スラッシュ除去
+  return String(u||"").trim().replace(/\/+$/,"");
 }
+
 function buildLink(entryUrl, shop, table){
   const base = normUrl(entryUrl);
   const qs = `?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(String(table))}`;
@@ -132,6 +122,7 @@ function clearGrid(){
   $("grid").innerHTML = "";
   $("countLine").textContent = "-";
 }
+
 function setStatus(t){
   $("status").textContent = t || "";
 }
@@ -146,13 +137,13 @@ function makeQrCard({shop, table, link}){
   card.innerHTML = `
     <div class="qrTop">
       <div>
-        <div class="qrTitle">Table ${escLocal(String(table))}</div>
-        <div class="qrMeta">shop: <span class="mono">${escLocal(shop)}</span></div>
+        <div class="qrTitle">Table ${esc(String(table))}</div>
+        <div class="qrMeta">shop: <span class="mono">${esc(shop)}</span></div>
       </div>
       <div class="mono muted" style="font-size:12px;">QR</div>
     </div>
     <div class="qrBox"><div class="qrTarget"></div></div>
-    <div class="urlBox mono">${escLocal(link)}</div>
+    <div class="urlBox mono">${esc(link)}</div>
   `;
 
   const target = card.querySelector(".qrTarget");
@@ -182,11 +173,27 @@ function getCanvasFromCard(card){
   return null;
 }
 
-function clampIntFromInput(id, minVal){
-  let n = parseInt(String($(id).value||"").trim(), 10);
-  if(!Number.isFinite(n) || n < minVal) n = minVal;
-  $(id).value = String(n);
-  return n;
+function getShopFromLogin(){
+  return (localStorage.getItem("shopCode") || "").trim();
+}
+
+function applyShopAuto(){
+  const s = getShopFromLogin();
+  if(s){
+    $("shop").value = s;
+    $("shopState").innerHTML = `<span class="ok">OK</span> shopCode=${esc(s)}`;
+  }else{
+    $("shop").value = "";
+    $("shopState").innerHTML = `<span class="ng">NG</span> localStorage.shopCode が空です（先に login.html でログイン）`;
+  }
+}
+
+let shopEditable = false;
+function setShopEditable(on){
+  shopEditable = !!on;
+  $("shop").readOnly = !shopEditable;
+  $("toggleShopBtn").textContent = shopEditable ? "shop自動に戻す" : "shop手入力に切替";
+  if(!shopEditable) applyShopAuto();
 }
 
 async function generate(){
@@ -194,16 +201,16 @@ async function generate(){
   setStatus("");
 
   const shop = ($("shop").value || "").trim();
-  const tFrom = clampIntFromInput("tFrom", 1);
-  const tTo = clampIntFromInput("tTo", 1);
+  const tFrom = Number($("tFrom").value || 1);
+  const tTo = Number($("tTo").value || 1);
   const entryUrl = ($("entryUrl").value || "").trim();
 
   if(!shop || !entryUrl){
     setStatus("shop と 入店ページURL は必須です");
     return;
   }
-  if(tTo < tFrom){
-    setStatus("テーブル範囲が不正です（終了 < 開始）");
+  if(!Number.isFinite(tFrom) || !Number.isFinite(tTo) || tFrom < 1 || tTo < tFrom){
+    setStatus("テーブル範囲が不正です");
     return;
   }
 
@@ -220,9 +227,9 @@ async function generate(){
 }
 
 async function downloadPdf(){
-  const { jsPDF } = window.jspdf || {};
+  const { jsPDF } = (window.jspdf || {});
   if(!jsPDF){
-    setStatus("jsPDF が読み込めませんでした（通信環境を確認）");
+    setStatus("jsPDF が読み込めませんでした");
     return;
   }
 
@@ -237,7 +244,6 @@ async function downloadPdf(){
   const doc = new jsPDF({ unit:"mm", format:"a4", orientation:"portrait" });
   const pageW = 210, pageH = 297;
 
-  // 2列 x 4行 = 8枚/ページ
   const margin = 10;
   const colGap = 6;
   const rowGap = 6;
@@ -247,7 +253,7 @@ async function downloadPdf(){
   const cellW = (pageW - margin*2 - colGap*(cols-1)) / cols;
   const cellH = (pageH - margin*2 - rowGap*(rows-1)) / rows;
 
-  const qrSize = 38; // mm
+  const qrSize = 38;
   const pad = 6;
 
   function cellXY(i){
@@ -294,43 +300,19 @@ async function downloadPdf(){
     doc.text(lines, urlX, urlY);
   }
 
-  const fileName = `QR_${shop || "shop"}_tables.pdf`;
-  doc.save(fileName);
-
+  doc.save(`QR_${shop || "shop"}_tables.pdf`);
   setStatus("PDFを保存しました");
 }
-
-(function init(){
-  // shop_common.js がある前提
-  if(typeof requireLogin !== "function") {
-    setStatus("shop_common.js が読み込めません");
-    return;
-  }
-  // 未ログインなら loginへ
-  if(!requireLogin()) return;
-
-  const shop = getShop();
-  const pin = getPin();
-
-  $("shopText").textContent = shop || "-";
-  $("loginHint").innerHTML = `ログイン中：<span class="mono">${escLocal(shop)}</span> / PIN ****`;
-
-  // 入力初期値：shopは自動セット（手打ちミス防止）
-  $("shop").value = shop || "";
-})();
-
-$("btnBack").addEventListener("click", ()=> location.href = `menu.html?v=${Date.now()}`);
-$("btnLogout").addEventListener("click", ()=>{
-  if(typeof logoutAll === "function") logoutAll();
-  location.href = `login.html?v=${Date.now()}`;
-});
 
 $("genBtn").addEventListener("click", generate);
 $("pdfBtn").addEventListener("click", downloadPdf);
 $("printBtn").addEventListener("click", ()=>window.print());
+$("toggleShopBtn").addEventListener("click", ()=> setShopEditable(!shopEditable));
 
-// 初回は自動生成（不要ならコメントアウト）
+// 起動時：shop自動反映 → 生成
+setShopEditable(false);
 generate();
 </script>
 </body>
 </html>
+

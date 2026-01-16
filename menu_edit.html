@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>メニュー編集（店側）</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap}
+    .tab{padding:10px 12px;border-radius:999px;border:1px solid #ddd;background:#fff;cursor:pointer;font-weight:800}
+    .tab.active{background:#111;color:#fff;border-color:#111}
+    input,select,button{font-size:16px;padding:10px;border-radius:10px}
+    input,select{border:1px solid #ddd}
+    button{cursor:pointer;border:0;font-weight:900}
+    .btn{background:#2563eb;color:#fff}
+    .btn2{background:#e5e7eb;color:#111}
+    .danger{background:#dc2626;color:#fff}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+    .ok{color:#0a7a2a;font-weight:900}
+    .ng{color:#b00020;font-weight:900}
+    small{color:#666}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #eee;padding:10px;vertical-align:top}
+    th{background:#fafafa;text-align:left}
+    .right{margin-left:auto}
+    .muted{color:#777}
+    .pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#111;color:#fff;font-size:12px}
+    .w-id{width:90px}
+    .w-name{width:100%}
+    .w-price{width:130px}
+    .w-actions{width:230px}
+    .stickyTop{position:sticky;top:0;background:#fff;z-index:10;padding-top:8px}
+    .hint{font-size:12px;color:#666;line-height:1.6}
+    .printOnly{display:none}
+
+    @media print{
+      .noPrint{display:none !important;}
+      body{padding:0;}
+      .card{border:0;margin:0;padding:0;}
+      table{font-size:12px}
+      th{background:#fff}
+      .printOnly{display:block}
+      .stickyTop{position:static}
+    }
+  </style>
+</head>
+<body>
+
+  <div class="stickyTop noPrint">
+    <h2 style="margin:0;">メニュー編集（店側）</h2>
+    <div class="row" style="margin-top:6px;">
+      <div class="muted">
+        <small>
+          保存先：<span class="mono">/shops/{shop}/menu/drink</span> と <span class="mono">/shops/{shop}/menu/food</span><br>
+          形式：<span class="mono">{ name: "...", price: 123 }</span>（既存が文字列でも読み込み時に吸収します）
+        </small>
+      </div>
+      <div class="right">
+        <button id="printBtn" class="btn2">一覧を印刷（番号順）</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
+    <div id="status" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="card noPrint">
+    <div class="row">
+      <div class="tabs">
+        <button class="tab active" id="tabFood" data-cat="food">フード</button>
+        <button class="tab" id="tabDrink" data-cat="drink">ドリンク</button>
+      </div>
+      <div class="right">
+        <button id="reloadBtn" class="btn2">再読み込み</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div style="flex:1;min-width:260px">
+        <div class="hint">
+          新規登録は「ID（例: f109 / d12）」を自動提案します。必要なら手入力で変更できます。<br>
+          削除は「削除」ボタン。保存は「保存」ボタン（行ごと）。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新規追加 -->
+  <div class="card noPrint">
+    <div class="row" style="margin-top:0;">
+      <b>新規メニュー追加</b>
+      <span class="pill" id="catPill">food</span>
+    </div>
+
+    <div class="row">
+      <div>
+        <div class="muted"><small>ID</small></div>
+        <input id="newId" class="mono" style="width:130px" placeholder="f109" />
+      </div>
+      <div style="flex:1;min-width:220px;">
+        <div class="muted"><small>メニュー名</small></div>
+        <input id="newName" style="width:100%" placeholder="例：唐揚げ" />
+      </div>
+      <div>
+        <div class="muted"><small>価格</small></div>
+        <input id="newPrice" type="number" min="0" step="1" style="width:140px" placeholder="例：480" />
+      </div>
+      <button id="addBtn" class="btn">追加</button>
+    </div>
+
+    <div id="addStatus"></div>
+  </div>
+
+  <!-- 一覧 -->
+  <div class="card">
+    <div class="row" style="margin-top:0;">
+      <b>メニュー一覧（番号順）</b>
+      <span class="pill" id="countPill">0件</span>
+      <span class="right muted"><small id="lastAt">-</small></span>
+    </div>
+
+    <div class="printOnly" style="margin:8px 0 12px 0;">
+      <div style="font-weight:900;">メニュー一覧（印刷用）</div>
+      <div class="muted"><small>shop: <span id="printShop" class="mono">-</span> / category: <span id="printCat" class="mono">-</span></small></div>
+    </div>
+
+    <div style="overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th class="w-id">ID</th>
+            <th>メニュー名</th>
+            <th class="w-price">価格</th>
+            <th class="w-actions noPrint">操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- shop_common.js を同階層に置く -->
+  <script src="shop_common.js"></script>
+
+<script>
+(() => {
+  const $ = (id)=>document.getElementById(id);
+
+  // ---- shop_common.js 必須関数チェック ----
+  function must(fn){
+    if(typeof window[fn] !== "function"){
+      throw new Error(`shop_common.js の ${fn}() が見つかりません`);
+    }
+  }
+  must("requireLogin");
+  must("getShop");
+  must("rtdbGet");
+  must("rtdbPut");
+  must("rtdbPatch");
+  must("esc");
+
+  // ログイン必須（sessionStorageの shop/pin 前提）
+  if(!requireLogin()) return;
+
+  const shop = getShop();
+  $("shopText").textContent = shop || "(missing)";
+  $("printShop").textContent = shop || "(missing)";
+
+  let currentCat = "food"; // "food" | "drink"
+  let cache = { food: {}, drink: {} }; // raw objects
+  let list = []; // normalized array: [{id, name, price, cat, raw}...]
+
+  function setStatus(html){ $("status").innerHTML = html || ""; }
+  function setAddStatus(html){ $("addStatus").innerHTML = html || ""; }
+  function setLastAt(){ $("lastAt").textContent = "更新: " + new Date().toLocaleTimeString("ja-JP"); }
+
+  function catPrefix(cat){ return cat === "drink" ? "d" : "f"; }
+
+  function idNumber(id){
+    const m = String(id||"").match(/\d+/);
+    return m ? Number(m[0]) : 999999;
+  }
+
+  function sortMenu(a,b){
+    // cat順はここでは固定（同一カテゴリ内のみ表示）だが一応入れておく
+    const catOrder = (c)=> c==="drink" ? 0 : (c==="food" ? 1 : 9);
+    const ca = catOrder(a.cat), cb = catOrder(b.cat);
+    if(ca !== cb) return ca - cb;
+    const na = idNumber(a.id), nb = idNumber(b.id);
+    if(na !== nb) return na - nb;
+    return String(a.name||"").localeCompare(String(b.name||""), "ja");
+  }
+
+  function normalize(cat, obj){
+    // obj: { f1: {name,price} } or { f1: "唐揚げ" } などを吸収
+    const arr = [];
+    if(!obj || typeof obj !== "object") return arr;
+    for(const [id, v] of Object.entries(obj)){
+      let name = "";
+      let price = 0;
+      if(v && typeof v === "object"){
+        name = String(v.name ?? "");
+        price = Number(v.price ?? 0);
+      }else{
+        name = String(v ?? "");
+        price = 0;
+      }
+      arr.push({ cat, id, name, price, raw:v });
+    }
+    arr.sort(sortMenu);
+    return arr;
+  }
+
+  function nextIdSuggestion(cat, arr){
+    const pref = catPrefix(cat);
+    let maxN = 0;
+    for(const x of arr){
+      if(String(x.id||"").startsWith(pref)){
+        const n = idNumber(x.id);
+        if(Number.isFinite(n)) maxN = Math.max(maxN, n);
+      }
+    }
+    return pref + String(maxN + 1);
+  }
+
+  function setCat(cat){
+    currentCat = cat;
+
+    // タブ見た目
+    $("tabFood").classList.toggle("active", cat==="food");
+    $("tabDrink").classList.toggle("active", cat==="drink");
+
+    $("catPill").textContent = cat;
+    $("printCat").textContent = cat;
+
+    // 表示データ更新
+    list = normalize(cat, cache[cat]);
+    $("countPill").textContent = `${list.length}件`;
+
+    // 新規ID提案
+    $("newId").value = nextIdSuggestion(cat, list);
+
+    renderTable();
+    setLastAt();
+  }
+
+  function renderTable(){
+    const tb = $("tbody");
+    tb.innerHTML = "";
+
+    if(list.length === 0){
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="4" class="muted"><small>メニューがありません</small></td>`;
+      tb.appendChild(tr);
+      return;
+    }
+
+    for(const x of list){
+      const tr = document.createElement("tr");
+      tr.dataset.id = x.id;
+
+      tr.innerHTML = `
+        <td class="mono w-id"><b>${esc(x.id)}</b></td>
+        <td>
+          <input class="w-name nameInput" value="${esc(x.name)}" style="width:100%" />
+        </td>
+        <td class="w-price">
+          <input class="w-price priceInput" type="number" min="0" step="1" value="${Number(x.price||0)}" style="width:120px" />
+        </td>
+        <td class="w-actions noPrint">
+          <div class="row" style="margin:0;gap:8px;">
+            <button class="btn2 saveBtn">保存</button>
+            <button class="danger delBtn">削除</button>
+          </div>
+          <div class="muted"><small class="rowStatus"></small></div>
+        </td>
+      `;
+      tb.appendChild(tr);
+    }
+  }
+
+  async function load(){
+    try{
+      setStatus(`<span class="mono">loading...</span>`);
+      setAddStatus("");
+
+      const foodPath  = `shops/${encodeURIComponent(shop)}/menu/food`;
+      const drinkPath = `shops/${encodeURIComponent(shop)}/menu/drink`;
+
+      const [rf, rd] = await Promise.all([
+        rtdbGet(foodPath),
+        rtdbGet(drinkPath),
+      ]);
+
+      if(!rf.ok) throw new Error(`food 読み込み失敗: HTTP ${rf.status}`);
+      if(!rd.ok) throw new Error(`drink 読み込み失敗: HTTP ${rd.status}`);
+
+      cache.food = rf.json || {};
+      cache.drink = rd.json || {};
+
+      setStatus(`<span class="ok">OK</span>`);
+      setCat(currentCat);
+
+    }catch(e){
+      setStatus(`<span class="ng">NG</span> <small>${esc(String(e.message||e))}</small>`);
+    }
+  }
+
+  async function saveOne(id, name, price, rowEl){
+    const rowStatus = rowEl.querySelector(".rowStatus");
+    try{
+      rowStatus.textContent = "saving...";
+
+      const path = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(currentCat)}/${encodeURIComponent(id)}`;
+      const payload = { name: String(name||""), price: Number(price||0) };
+
+      // 既存が文字列でも、ここからは {name,price} に統一
+      const r = await rtdbPut(path, payload);
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+
+      // キャッシュ反映
+      if(!cache[currentCat] || typeof cache[currentCat] !== "object") cache[currentCat] = {};
+      cache[currentCat][id] = payload;
+
+      // listも更新
+      list = normalize(currentCat, cache[currentCat]);
+      $("countPill").textContent = `${list.length}件`;
+      $("newId").value = nextIdSuggestion(currentCat, list);
+
+      rowStatus.innerHTML = `保存OK`;
+      setLastAt();
+
+    }catch(e){
+      rowStatus.innerHTML = `保存失敗: ${String(e.message||e)}`;
+    }
+  }
+
+  async function deleteOne(id, rowEl){
+    const rowStatus = rowEl.querySelector(".rowStatus");
+    try{
+      const ok = confirm(`削除しますか？\n${currentCat}/${id}`);
+      if(!ok) return;
+
+      rowStatus.textContent = "deleting...";
+
+      const path = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(currentCat)}/${encodeURIComponent(id)}`;
+      const r = await rtdbPut(path, null); // ノード削除
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+
+      // キャッシュ反映
+      if(cache[currentCat] && typeof cache[currentCat] === "object"){
+        delete cache[currentCat][id];
+      }
+
+      list = normalize(currentCat, cache[currentCat]);
+      $("countPill").textContent = `${list.length}件`;
+      $("newId").value = nextIdSuggestion(currentCat, list);
+
+      // 表再描画（番号順維持）
+      renderTable();
+      setLastAt();
+
+    }catch(e){
+      rowStatus.innerHTML = `削除失敗: ${String(e.message||e)}`;
+    }
+  }
+
+  async function addNew(){
+    try{
+      setAddStatus("");
+
+      const id = String($("newId").value||"").trim();
+      const name = String($("newName").value||"").trim();
+      const price = Number($("newPrice").value||0);
+
+      if(!id){ setAddStatus(`<span class="ng">NG</span> <small>IDは必須です</small>`); return; }
+      if(!name){ setAddStatus(`<span class="ng">NG</span> <small>メニュー名は必須です</small>`); return; }
+      if(!Number.isFinite(price) || price < 0){ setAddStatus(`<span class="ng">NG</span> <small>価格が不正です</small>`); return; }
+
+      // 重複チェック（ローカル）
+      if(cache[currentCat] && Object.prototype.hasOwnProperty.call(cache[currentCat], id)){
+        setAddStatus(`<span class="ng">NG</span> <small>同じIDが既に存在します</small>`);
+        return;
+      }
+
+      const path = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(currentCat)}/${encodeURIComponent(id)}`;
+      const payload = { name, price };
+
+      const r = await rtdbPut(path, payload);
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+
+      // キャッシュ反映
+      if(!cache[currentCat] || typeof cache[currentCat] !== "object") cache[currentCat] = {};
+      cache[currentCat][id] = payload;
+
+      // UI反映
+      list = normalize(currentCat, cache[currentCat]);
+      $("countPill").textContent = `${list.length}件`;
+      $("newId").value = nextIdSuggestion(currentCat, list);
+      $("newName").value = "";
+      $("newPrice").value = "";
+
+      renderTable();
+      setAddStatus(`<span class="ok">OK</span> <small>追加しました</small>`);
+      setLastAt();
+
+    }catch(e){
+      setAddStatus(`<span class="ng">NG</span> <small>${esc(String(e.message||e))}</small>`);
+    }
+  }
+
+  // ---- イベント ----
+  $("tabFood").addEventListener("click", ()=>setCat("food"));
+  $("tabDrink").addEventListener("click", ()=>setCat("drink"));
+  $("reloadBtn").addEventListener("click", load);
+  $("addBtn").addEventListener("click", addNew);
+
+  $("printBtn").addEventListener("click", ()=>{
+    // 印刷は、現在表示中カテゴリを番号順でそのまま出力
+    $("printShop").textContent = shop || "(missing)";
+    $("printCat").textContent = currentCat;
+    window.print();
+  });
+
+  // 行ボタン（委任）
+  $("tbody").addEventListener("click", async (e)=>{
+    const row = e.target.closest("tr");
+    if(!row) return;
+
+    const id = row.dataset.id;
+    if(!id) return;
+
+    if(e.target.classList.contains("saveBtn")){
+      const name = row.querySelector(".nameInput").value;
+      const price = row.querySelector(".priceInput").value;
+      await saveOne(id, name, price, row);
+    }
+
+    if(e.target.classList.contains("delBtn")){
+      await deleteOne(id, row);
+    }
+  });
+
+  // 初期ロード
+  load();
+
+})();
+</script>
+</body>
+</html>

@@ -5,14 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>お会計（店側）</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
-    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:980px; margin:0 auto;}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
     .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap;}
     input,button{font-size:16px;padding:10px;}
     button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:800}
     .btn{background:#2563eb;color:#fff}
     .btn2{background:#e5e7eb;color:#111}
     .danger{background:#dc2626;color:#fff}
+    .dark{background:#111827;color:#fff}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
     .ok{color:#0a7a2a;font-weight:900}
     .ng{color:#b00020;font-weight:900}
@@ -44,7 +45,11 @@
   <h2>お会計（店側）</h2>
 
   <div class="card" id="shopCard">
-    <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
+    <div class="row" style="margin:0;">
+      <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
+      <span class="right"></span>
+      <button id="btnBack" class="btn2">← menuへ</button>
+    </div>
     <div><small>※ログインは sessionStorage（shop/pin）を使用</small></div>
   </div>
 
@@ -110,21 +115,19 @@
     </div>
   </div>
 
-  <!-- shop_common.js を同階層に置く -->
+  <!-- 共通JS（必須） -->
   <script src="shop_common.js"></script>
 
 <script>
 (() => {
   const $ = (id)=>document.getElementById(id);
 
-  // shop_common.js が無い/読み込み失敗した時の保険
   function must(fnName){
     if(typeof window[fnName] !== "function"){
       throw new Error(`shop_common.js の ${fnName}() が見つかりません`);
     }
   }
 
-  // 必要関数
   must("requireLogin");
   must("getShop");
   must("rtdbGet");
@@ -138,8 +141,18 @@
   const shop = getShop();
   $("shopText").textContent = shop || "(missing)";
 
+  // menuへ戻る
+  $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+
   let autoTimer = null;
-  let lastLoaded = null; // {table, ordersObj, sessionObj, total, orderCount}
+  let lastLoaded = null; // {table, sessObj, ordersObj, total, count}
+
+  function clampTable(){
+    let n = parseInt(String($("tableNo").value || "").trim(), 10);
+    if(!Number.isFinite(n) || n < 1) n = 1;
+    $("tableNo").value = String(n);
+    return String(n);
+  }
 
   function jst(ts){
     try{
@@ -149,13 +162,8 @@
     }
   }
 
-  function setStatus(html){
-    $("status").innerHTML = html || "";
-  }
-
-  function setLastRef(msg){
-    $("lastRef").textContent = msg || "-";
-  }
+  function setStatus(html){ $("status").innerHTML = html || ""; }
+  function setLastRef(msg){ $("lastRef").textContent = msg || "-"; }
 
   function yen(n){
     const x = Number(n||0);
@@ -163,7 +171,6 @@
   }
 
   function calcTotal(ordersObj){
-    // ordersObj: {pushId: {items:[...], total, createdAt...}, ...}
     if(!ordersObj || typeof ordersObj !== "object") return { total:0, count:0, lines:[] };
 
     const lines = [];
@@ -214,7 +221,9 @@
 
   async function loadAll(){
     try{
-      const table = String(Number($("tableNo").value || 1));
+      if(!requireLogin()) return;
+
+      const table = clampTable();
       if(!shop || !table) return;
 
       setStatus(`<span class="mono">loading...</span>`);
@@ -235,8 +244,7 @@
 
       $("sessLine").textContent = sessObj && sessObj.token ? String(sessObj.token) : "(tokenなし)";
       $("sessMeta").innerHTML = `<small class="muted">
-        active: ${esc(String(sessObj && typeof sessObj.active !== "undefined" ? sessObj.active : "(n/a)"))}
-        / updatedAt: ${esc(sessObj && sessObj.updatedAt ? jst(sessObj.updatedAt) : "-")}
+        updatedAt: ${esc(sessObj && sessObj.updatedAt ? jst(sessObj.updatedAt) : "-")}
       </small>`;
 
       $("sumLine").textContent = yen(c.total);
@@ -248,7 +256,7 @@
       lastLoaded = { table, sessObj, ordersObj, total:c.total, count:c.count };
       setLastRef(`更新: ${new Date().toLocaleTimeString("ja-JP")}`);
 
-      // 注文が0でも会計（リセット）したい場合があるので、ボタンはセッション/テーブルが有効なら押せるようにする
+      // 注文0でも「会計リセット」できる方が運用的に便利
       $("checkoutBtn").disabled = false;
       $("holdHint").textContent = "長押しで会計確定（orders削除＋token削除）します。";
 
@@ -285,10 +293,13 @@
 
   async function checkoutReset(){
     try{
+      if(!requireLogin()) return;
+
       if(!lastLoaded){
         setStatus(`<span class="ng">NG</span> <small>先に読み込みしてください</small>`);
         return;
       }
+
       const table = lastLoaded.table;
 
       $("checkoutBtn").disabled = true;
@@ -303,7 +314,7 @@
       const count = Number(lastLoaded.count||0);
       const now = Date.now();
 
-      // 1) レシート保存（アーカイブ）※データ保全
+      // 1) レシート保存（アーカイブ）
       const receipt = {
         shop,
         table: String(table),
@@ -318,19 +329,18 @@
       const rcptPath = `shops/${encodeURIComponent(shop)}/receipts/${encodeURIComponent(String(table))}`;
       const rcptRes = await rtdbPost(rcptPath, receipt);
       if(!rcptRes || rcptRes.ok !== true){
-        // shop_common.js の rtdbPost は {ok,status,json,url} を返す想定
         const info = rcptRes || {};
         throw new Error(`レシート保存失敗: HTTP ${info.status} ${info.url}`);
       }
 
-      // 2) orders削除（PUT null でノード削除）
+      // 2) orders削除
       const ordersPath = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
       const delOrders = await rtdbPut(ordersPath, null);
       if(!delOrders || delOrders.ok !== true){
         throw new Error(`orders削除失敗: HTTP ${delOrders.status} ${delOrders.url}`);
       }
 
-      // 3) token削除（webActiveSessions削除：PUT null）
+      // 3) token削除（webActiveSessions削除）
       const sessPath = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`;
       const delSess = await rtdbPut(sessPath, null);
       if(!delSess || delSess.ok !== true){
@@ -340,7 +350,6 @@
       setStatus(`<span class="ok">OK</span> 会計完了（レシート保存 → orders削除 → token削除）`);
       setHoldBar(0);
 
-      // 表示更新
       await loadAll();
 
     }catch(e){
@@ -364,7 +373,6 @@
       setHoldBar(pct);
 
       if(elapsed >= HOLD_MS){
-        // 完了
         holding = false;
         setHoldBar(100);
         checkoutReset();
@@ -385,8 +393,8 @@
   const btn = $("checkoutBtn");
   btn.addEventListener("pointerdown", (e)=>{ e.preventDefault(); startHold(); });
   btn.addEventListener("pointerup", (e)=>{ e.preventDefault(); endHold(); });
-  btn.addEventListener("pointerleave", (e)=>{ endHold(); });
-  btn.addEventListener("pointercancel", (e)=>{ endHold(); });
+  btn.addEventListener("pointerleave", ()=>{ endHold(); });
+  btn.addEventListener("pointercancel", ()=>{ endHold(); });
 
   // 初期読み込み
   loadAll();

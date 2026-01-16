@@ -64,7 +64,7 @@
   <div class="card">
     <div class="row">
       <div>shop: <b id="shopText" class="mono">-</b></div>
-      <div class="small">（login → menu → kitchen の順でログインしている前提）</div>
+      <div class="small">（login.html でログインして sessionStorage.shop / pin が入っている前提）</div>
     </div>
 
     <div class="topbar">
@@ -126,259 +126,280 @@
     <pre id="debug" class="mono">-</pre>
   </div>
 
-  <!-- ✅ 共通JS（sessionStorage統一） -->
+  <!-- 共通JS（sessionStorage統一） -->
   <script src="shop_common.js"></script>
 
 <script>
-function $(id){ return document.getElementById(id); }
-function now(){ return Date.now(); }
+(() => {
+  const $ = (id)=>document.getElementById(id);
 
-function fmtTime(ts){
-  if(!ts) return "-";
-  const d = new Date(ts);
-  const hh = String(d.getHours()).padStart(2,"0");
-  const mm = String(d.getMinutes()).padStart(2,"0");
-  const ss = String(d.getSeconds()).padStart(2,"0");
-  return `${hh}:${mm}:${ss}`;
-}
-
-function normalizeOrder(pushId, o){
-  const table = String(o.table ?? "");
-  const category = String(o.category ?? o.cat ?? "").toLowerCase();
-  const createdAt = Number(o.createdAt ?? o.updatedAt ?? 0);
-
-  let name = o.name ?? o.itemName ?? "";
-  let qty = Number(o.qty ?? o.count ?? 1);
-  let price = (o.price === undefined ? "" : o.price);
-
-  if((!name || !qty) && Array.isArray(o.items) && o.items.length){
-    name = o.items[0].name ?? name;
-    qty = Number(o.items[0].qty ?? qty);
-  }
-
-  const status = String(o.status ?? "new"); // "new" or "pending"
-  const providedAt = Number(o.providedAt ?? 0);
-  const deleteAt = Number(o.deleteAt ?? 0);
-
-  return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt };
-}
-
-/** 10秒後削除の管理（ローカルタイマー） */
-const deleteTimers = new Map(); // pushId -> timeoutId
-
-function scheduleDelete(shop, pushId, deleteAt){
-  if(deleteTimers.has(pushId)) return;
-  const ms = Math.max(0, Number(deleteAt||0) - now());
-  const t = setTimeout(async ()=>{
-    deleteTimers.delete(pushId);
-    try{
-      // ✅ orderFeed/{shop}/{pushId} を null PUT で削除
-      await rtdbPut(`orderFeed/${encodeURIComponent(shop)}/${encodeURIComponent(pushId)}`, null);
-      await refresh();
-    }catch(e){
-      console.log("delete failed", e);
+  // shop_common.js の必須関数チェック（読み込み事故の見える化）
+  function must(fnName){
+    if(typeof window[fnName] !== "function"){
+      throw new Error(`shop_common.js の ${fnName}() が見つかりません`);
     }
-  }, ms);
-  deleteTimers.set(pushId, t);
-}
-
-function cancelScheduledDelete(pushId){
-  const t = deleteTimers.get(pushId);
-  if(t){
-    clearTimeout(t);
-    deleteTimers.delete(pushId);
   }
-}
+  must("requireLogin");
+  must("getShop");
+  must("getPin");
+  must("rtdbGet");
+  must("rtdbPatch");
+  must("rtdbPut");
+  must("esc");
 
-function sumByTable(list){
-  const m = new Map();
-  for(const o of list){
-    const t = String(o.table||"?");
-    const q = Number(o.qty||0);
-    m.set(t, (m.get(t)||0) + q);
-  }
-  const arr = Array.from(m.entries()).sort((a,b)=>Number(a[0]) - Number(b[0]));
-  if(arr.length===0) return "-";
-  return arr.map(([t,q])=>`T${t}:${q}`).join(" / ");
-}
-
-function renderColumn(rootId, list, shop){
-  const root = $(rootId);
-  root.innerHTML = "";
-
-  const tFilter = $("tableFilter").value.trim();
-  const hidePending = $("hidePending").value === "1";
-
-  let view = list.slice();
-  if(tFilter) view = view.filter(x => String(x.table) === String(tFilter));
-  if(hidePending) view = view.filter(x => !(x.deleteAt && x.deleteAt > now()));
-
-  view.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
-
-  if(view.length === 0){
-    root.innerHTML = `<div class="muted"><small>表示する注文がありません</small></div>`;
-    return;
-  }
-
-  for(const o of view){
-    const isPending = (o.deleteAt && o.deleteAt > now());
-    const left = isPending ? Math.max(0, Math.ceil((o.deleteAt - now())/1000)) : 0;
-
-    if(isPending){
-      scheduleDelete(shop, o.pushId, o.deleteAt);
-    }else if(o.deleteAt && o.deleteAt <= now()){
-      // 取りこぼし防止：過去deleteAtがあれば即削除側へ
-      scheduleDelete(shop, o.pushId, now()+10);
-    }
-
-    const div = document.createElement("div");
-    div.className = "oCard" + (isPending ? " pending" : "");
-
-    div.innerHTML = `
-      <div class="oTop">
-        <span class="pill">T${esc(o.table || "?")}</span>
-        <span class="pill mono">${esc(fmtTime(o.createdAt))}</span>
-        ${
-          isPending
-          ? `<span class="pill pillPending">提供処理中 <span class="countdown">${left}s</span></span>`
-          : `<span class="pill" style="background:#fff7ed;border-color:#f59e0b">未提供</span>`
-        }
-      </div>
-
-      <div class="oName">${esc(o.name || "(no name)")}</div>
-      <div class="oMeta">数量：<b>${esc(o.qty)}</b>${o.price!=="" ? ` / 単価：<b>${esc(o.price)}</b>` : ""}</div>
-
-      <div class="oBtns">
-        ${
-          isPending
-          ? `<button class="cancel" data-act="undo" data-id="${esc(o.pushId)}">取消</button>`
-          : `<button class="done" data-act="done" data-id="${esc(o.pushId)}">提供済み</button>`
-        }
-        <button class="light" data-act="copy" data-id="${esc(o.pushId)}">IDコピー</button>
-      </div>
-
-      <div class="small muted">pushId: <span class="mono">${esc(o.pushId)}</span></div>
-    `;
-
-    div.querySelectorAll("button").forEach(btn=>{
-      btn.onclick = async ()=>{
-        const act = btn.getAttribute("data-act");
-        const id  = btn.getAttribute("data-id");
-
-        if(act === "copy"){
-          try{ await navigator.clipboard.writeText(id); }catch{}
-          return;
-        }
-
-        if(act === "done"){
-          try{
-            const deleteAt = now() + 10000;
-            await rtdbPatch(`orderFeed/${encodeURIComponent(shop)}/${encodeURIComponent(id)}`, {
-              status: "pending",
-              providedAt: now(),
-              deleteAt: deleteAt
-            });
-            scheduleDelete(shop, id, deleteAt);
-            await refresh();
-          }catch(e){
-            $("status").innerHTML = `<span class="ng">更新失敗</span> ${esc(e.message||e)}`;
-          }
-          return;
-        }
-
-        if(act === "undo"){
-          try{
-            cancelScheduledDelete(id);
-            await rtdbPatch(`orderFeed/${encodeURIComponent(shop)}/${encodeURIComponent(id)}`, {
-              status: "new",
-              providedAt: null,
-              deleteAt: null
-            });
-            await refresh();
-          }catch(e){
-            $("status").innerHTML = `<span class="ng">取消失敗</span> ${esc(e.message||e)}`;
-          }
-          return;
-        }
-      };
-    });
-
-    root.appendChild(div);
-  }
-}
-
-let timer = null;
-
-async function refresh(){
-  // ✅ ここが統一ポイント：未ログインなら login.html に飛ばす
+  // ログイン必須
   if(!requireLogin()) return;
 
   const shop = getShop();
-  $("shopText").textContent = shop;
+  $("shopText").textContent = shop || "-";
 
-  try{
-    $("status").textContent = "loading...";
+  function now(){ return Date.now(); }
 
-    const r = await rtdbGet(`orderFeed/${encodeURIComponent(shop)}`);
-    // rtdbGet は {ok,status,json,url}
-    if(!r.ok) throw new Error(`GET failed ${r.status}`);
+  function fmtTime(ts){
+    if(!ts) return "-";
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    const ss = String(d.getSeconds()).padStart(2,"0");
+    return `${hh}:${mm}:${ss}`;
+  }
 
-    const data = r.json;
-    const all = [];
+  function normalizeOrder(pushId, o){
+    const table = String(o.table ?? "");
+    const category = String(o.category ?? o.cat ?? "").toLowerCase();
+    const createdAt = Number(o.createdAt ?? o.updatedAt ?? 0);
 
-    if(data && typeof data === "object"){
-      for(const [pushId, obj] of Object.entries(data)){
-        if(!obj || typeof obj !== "object") continue;
-        all.push(normalizeOrder(pushId, obj));
-      }
+    let name = o.name ?? o.itemName ?? "";
+    let qty = Number(o.qty ?? o.count ?? 1);
+    let price = (o.price === undefined ? "" : o.price);
+
+    if((!name || !qty) && Array.isArray(o.items) && o.items.length){
+      name = o.items[0].name ?? name;
+      qty = Number(o.items[0].qty ?? qty);
     }
 
-    const drinks = all.filter(x => x.category === "drink");
-    const foods  = all.filter(x => x.category === "food");
+    const status = String(o.status ?? "new"); // "new" or "pending"
+    const providedAt = Number(o.providedAt ?? 0);
+    const deleteAt = Number(o.deleteAt ?? 0);
 
-    $("drinkCount").textContent = String(drinks.length);
-    $("foodCount").textContent  = String(foods.length);
-    $("drinkByTable").textContent = "合計: " + sumByTable(drinks);
-    $("foodByTable").textContent  = "合計: " + sumByTable(foods);
-
-    renderColumn("drinkList", drinks, shop);
-    renderColumn("foodList", foods, shop);
-
-    $("status").innerHTML = `<span class="ok">OK</span> ${all.length} 件（${new Date().toLocaleTimeString()}）`;
-
-    $("debug").textContent = JSON.stringify({
-      shop,
-      total: all.length,
-      drink: drinks.length,
-      food: foods.length,
-      filter: { table: $("tableFilter").value.trim(), hidePending: $("hidePending").value },
-      rule: "提供済み = status:pending + deleteAt を付与 → 10秒後に orderFeed から削除"
-    }, null, 2);
-
-  }catch(e){
-    $("status").innerHTML = `<span class="ng">読込失敗</span> ${esc(e.message||e)}`;
-    $("debug").textContent = String(e.stack || e);
-    $("drinkList").innerHTML = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
-    $("foodList").innerHTML  = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
+    return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt };
   }
-}
 
-function setAuto(){
-  const sec = Number($("autoSec").value || 0);
-  if(timer){ clearInterval(timer); timer = null; }
-  if(sec > 0){
-    timer = setInterval(refresh, sec * 1000);
+  /** 10秒後削除の管理（ローカルタイマー） */
+  const deleteTimers = new Map(); // pushId -> timeoutId
+
+  function scheduleDelete(pushId, deleteAt){
+    if(deleteTimers.has(pushId)) return;
+    const ms = Math.max(0, Number(deleteAt||0) - now());
+    const t = setTimeout(async ()=>{
+      deleteTimers.delete(pushId);
+      try{
+        // orderFeed/{shop}/{pushId} を削除（PUT null）
+        await rtdbPut(`orderFeed/${encodeURIComponent(shop)}/${encodeURIComponent(pushId)}`, null);
+        await refresh();
+      }catch(e){
+        console.log("delete failed", e);
+      }
+    }, ms);
+    deleteTimers.set(pushId, t);
   }
-}
 
-$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-$("btnRefresh").onclick = refresh;
-$("autoSec").onchange = setAuto;
-$("tableFilter").onchange = refresh;
-$("hidePending").onchange = refresh;
+  function cancelScheduledDelete(pushId){
+    const t = deleteTimers.get(pushId);
+    if(t){
+      clearTimeout(t);
+      deleteTimers.delete(pushId);
+    }
+  }
 
-(function init(){
-  if(!requireLogin()) return;
+  function sumByTable(list){
+    const m = new Map();
+    for(const o of list){
+      const t = String(o.table||"?");
+      const q = Number(o.qty||0);
+      m.set(t, (m.get(t)||0) + q);
+    }
+    const arr = Array.from(m.entries()).sort((a,b)=>Number(a[0]) - Number(b[0]));
+    if(arr.length===0) return "-";
+    return arr.map(([t,q])=>`T${t}:${q}`).join(" / ");
+  }
+
+  function renderColumn(rootId, list){
+    const root = $(rootId);
+    root.innerHTML = "";
+
+    const tFilter = $("tableFilter").value.trim();
+    const hidePending = $("hidePending").value === "1";
+
+    let view = list.slice();
+    if(tFilter) view = view.filter(x => String(x.table) === String(tFilter));
+    if(hidePending) view = view.filter(x => !(x.deleteAt && x.deleteAt > now()));
+
+    view.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
+
+    if(view.length === 0){
+      root.innerHTML = `<div class="muted"><small>表示する注文がありません</small></div>`;
+      return;
+    }
+
+    for(const o of view){
+      const isPending = (o.deleteAt && o.deleteAt > now());
+      const left = isPending ? Math.max(0, Math.ceil((o.deleteAt - now())/1000)) : 0;
+
+      if(isPending){
+        scheduleDelete(o.pushId, o.deleteAt);
+      }else if(o.deleteAt && o.deleteAt <= now()){
+        // 取りこぼし防止：過去deleteAtが残っていたら即削除側へ（次refreshで消える）
+        scheduleDelete(o.pushId, now()+10);
+      }
+
+      const div = document.createElement("div");
+      div.className = "oCard" + (isPending ? " pending" : "");
+
+      div.innerHTML = `
+        <div class="oTop">
+          <span class="pill">T${esc(o.table || "?")}</span>
+          <span class="pill mono">${esc(fmtTime(o.createdAt))}</span>
+          ${
+            isPending
+            ? `<span class="pill pillPending">提供処理中 <span class="countdown">${left}s</span></span>`
+            : `<span class="pill" style="background:#fff7ed;border-color:#f59e0b">未提供</span>`
+          }
+        </div>
+
+        <div class="oName">${esc(o.name || "(no name)")}</div>
+        <div class="oMeta">数量：<b>${esc(o.qty)}</b>${o.price!=="" ? ` / 単価：<b>${esc(o.price)}</b>` : ""}</div>
+
+        <div class="oBtns">
+          ${
+            isPending
+            ? `<button class="cancel" data-act="undo" data-id="${esc(o.pushId)}">取消</button>`
+            : `<button class="done" data-act="done" data-id="${esc(o.pushId)}">提供済み</button>`
+          }
+          <button class="light" data-act="copy" data-id="${esc(o.pushId)}">IDコピー</button>
+        </div>
+
+        <div class="small muted">pushId: <span class="mono">${esc(o.pushId)}</span></div>
+      `;
+
+      div.querySelectorAll("button").forEach(btn=>{
+        btn.onclick = async ()=>{
+          const act = btn.getAttribute("data-act");
+          const id  = btn.getAttribute("data-id");
+
+          if(act === "copy"){
+            try{ await navigator.clipboard.writeText(id); }catch{}
+            return;
+          }
+
+          if(act === "done"){
+            try{
+              const deleteAt = now() + 10000;
+              await rtdbPatch(`orderFeed/${encodeURIComponent(shop)}/${encodeURIComponent(id)}`, {
+                status: "pending",
+                providedAt: now(),
+                deleteAt: deleteAt
+              });
+              scheduleDelete(id, deleteAt);
+              await refresh();
+            }catch(e){
+              $("status").innerHTML = `<span class="ng">更新失敗</span> ${esc(String(e.message||e))}`;
+            }
+            return;
+          }
+
+          if(act === "undo"){
+            try{
+              cancelScheduledDelete(id);
+              await rtdbPatch(`orderFeed/${encodeURIComponent(shop)}/${encodeURIComponent(id)}`, {
+                status: "new",
+                providedAt: null,
+                deleteAt: null
+              });
+              await refresh();
+            }catch(e){
+              $("status").innerHTML = `<span class="ng">取消失敗</span> ${esc(String(e.message||e))}`;
+            }
+            return;
+          }
+        };
+      });
+
+      root.appendChild(div);
+    }
+  }
+
+  let timer = null;
+
+  async function refresh(){
+    // ここでもログインチェック（万一sessionが消えた場合）
+    if(!getShop() || !getPin()){
+      $("status").innerHTML = `<span class="ng">未ログイン</span> login.html へ戻ります`;
+      setTimeout(()=> location.href = `login.html?v=${Date.now()}`, 400);
+      return;
+    }
+
+    $("shopText").textContent = shop;
+
+    try{
+      $("status").textContent = "loading...";
+
+      // orderFeed/{shop}
+      const dataWrap = await rtdbGet(`orderFeed/${encodeURIComponent(shop)}`);
+      const data = (dataWrap && dataWrap.ok) ? dataWrap.json : null;
+
+      const all = [];
+      if(data && typeof data === "object"){
+        for(const [pushId, obj] of Object.entries(data)){
+          if(!obj || typeof obj !== "object") continue;
+          all.push(normalizeOrder(pushId, obj));
+        }
+      }
+
+      const drinks = all.filter(x => x.category === "drink");
+      const foods  = all.filter(x => x.category === "food");
+
+      $("drinkCount").textContent = String(drinks.length);
+      $("foodCount").textContent  = String(foods.length);
+      $("drinkByTable").textContent = "合計: " + sumByTable(drinks);
+      $("foodByTable").textContent  = "合計: " + sumByTable(foods);
+
+      renderColumn("drinkList", drinks);
+      renderColumn("foodList", foods);
+
+      $("status").innerHTML = `<span class="ok">OK</span> ${all.length} 件（${new Date().toLocaleTimeString("ja-JP")}）`;
+
+      $("debug").textContent = JSON.stringify({
+        shop,
+        total: all.length,
+        drink: drinks.length,
+        food: foods.length,
+        filter: { table: $("tableFilter").value.trim(), hidePending: $("hidePending").value },
+        rule: "提供済み = status:pending + deleteAt を付与 → 10秒後に orderFeed から削除（10秒以内は取消）"
+      }, null, 2);
+
+    }catch(e){
+      $("status").innerHTML = `<span class="ng">読込失敗</span> ${esc(String(e.message||e))}`;
+      $("debug").textContent = String(e.stack || e);
+      $("drinkList").innerHTML = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
+      $("foodList").innerHTML  = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
+    }
+  }
+
+  function setAuto(){
+    const sec = Number($("autoSec").value || 0);
+    if(timer){ clearInterval(timer); timer = null; }
+    if(sec > 0){
+      timer = setInterval(refresh, sec * 1000);
+    }
+  }
+
+  $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+  $("btnRefresh").onclick = refresh;
+  $("autoSec").onchange = setAuto;
+  $("tableFilter").onchange = refresh;
+  $("hidePending").onchange = refresh;
+
   setAuto();
   refresh();
 })();

@@ -3,132 +3,172 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>customer debug</title>
+  <title>入店処理</title>
   <style>
     body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; padding: 18px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin: 12px 0; }
-    .btn { display:inline-block; padding: 12px 14px; border-radius: 10px; border: 0; cursor: pointer; font-weight: 700; }
-    .btn-primary { background: #2563eb; color: white; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; margin: 12px 0; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .ok { color: #16a34a; font-weight: 800; }
     .ng { color: #dc2626; font-weight: 800; }
-    pre { white-space: pre-wrap; word-break: break-word; background: #f7f7f7; padding: 10px; border-radius: 8px; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    small { color:#666; }
+    .spin {
+      display:inline-block; width:14px; height:14px; border:2px solid #bbb; border-top-color:#111;
+      border-radius:50%; animation: rot .8s linear infinite; vertical-align:-2px; margin-right:8px;
+    }
+    @keyframes rot { to { transform: rotate(360deg);} }
+    pre { white-space: pre-wrap; word-break: break-word; background: #f7f7f7; padding: 10px; border-radius: 10px; overflow:auto; }
+    a { color:#2563eb; }
   </style>
 </head>
 <body>
-  <h1>customer debug</h1>
+  <h2>入店処理</h2>
 
   <div class="card">
-    <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
-    <div><b>table:</b> <span id="tableText" class="mono">-</span></div>
-    <div><b>href:</b> <span id="hrefText" class="mono">-</span></div>
+    <div id="line1"><span class="spin"></span>処理中...</div>
+    <div style="margin-top:10px;">
+      <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
+      <div><b>table:</b> <span id="tableText" class="mono">-</span></div>
+      <div><b>token:</b> <span id="tokenText" class="mono">-</span></div>
+      <div style="margin-top:8px;"><small id="hrefText" class="mono">-</small></div>
+    </div>
   </div>
-
-  <button id="btnGo" class="btn btn-primary">Firebaseに書き込み → orderへ</button>
 
   <div class="card" id="resultCard" style="display:none;">
     <div id="resultLine" class="mono"></div>
     <pre id="resultJson" class="mono"></pre>
+    <div id="retryBox" style="margin-top:10px;"></div>
   </div>
 
-  <script>
-    // ====== ここだけ必要なら差し替え ======
-    const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-    // Thunkableへは飛ばさない。注文画面（order.html）へ飛ばす
-    const ORDER_URL = "https://bpakishizawa-sketch.github.io/izakaya-relay/order.html";
-    // =====================================
+<script>
+/** ====== 設定ここだけ ====== */
+const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+const ORDER_URL = "https://bpakishizawa-sketch.github.io/izakaya-relay/order.html";
+/** ======================== */
 
-    const $ = (id) => document.getElementById(id);
+const $ = (id) => document.getElementById(id);
 
-    function getParam(name) {
-      const u = new URL(location.href);
-      return (u.searchParams.get(name) || "").trim();
-    }
+function esc(s){
+  return String(s||"").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
 
-    // token生成（例: daboya-1-7284）
-    function genToken(shop, table) {
-      const n = Math.floor(1000 + Math.random() * 9000);
-      return `${shop}-${table}-${n}`;
-    }
+function getParam(name) {
+  const u = new URL(location.href);
+  return (u.searchParams.get(name) || "").trim();
+}
 
-    function showResult(ok, line, obj) {
-      $("resultCard").style.display = "block";
-      $("resultLine").innerHTML = ok ? `<span class="ok">OK</span> ${line}` : `<span class="ng">NG</span> ${line}`;
-      $("resultJson").textContent = JSON.stringify(obj, null, 2);
-    }
+function genToken(shop, table) {
+  const n = Math.floor(1000 + Math.random() * 9000);
+  return `${shop}-${table}-${n}`;
+}
 
-    async function rtdbPut(path, data) {
-      // Realtime Database REST: .json 必須
-      const url = `${RTDB_BASE}/${path}.json`;
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      const txt = await res.text();
-      let json;
-      try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
-      return { ok: res.ok, status: res.status, json, url };
-    }
+function showResult(ok, line, obj) {
+  $("resultCard").style.display = "block";
+  $("resultLine").innerHTML = ok ? `<span class="ok">OK</span> ${line}` : `<span class="ng">NG</span> ${line}`;
+  $("resultJson").textContent = JSON.stringify(obj, null, 2);
+}
 
-    // 初期表示
-    const shop = getParam("shop");
-    const table = getParam("table");
-    $("shopText").textContent = shop || "(missing)";
-    $("tableText").textContent = table || "(missing)";
-    $("hrefText").textContent = location.href;
+async function rtdbGet(path){
+  const url = `${RTDB_BASE}/${path}.json`;
+  const res = await fetch(url, { method:"GET" });
+  const txt = await res.text();
+  let json; try{ json = txt ? JSON.parse(txt) : null; }catch{ json = null; }
+  return { ok: res.ok, status: res.status, json, url };
+}
 
-    // shop/table 無い場合はここで止める
-    if (!shop || !table) {
-      showResult(false, "missing params: shop / table", {
-        example: `${location.origin}${location.pathname}?shop=daboya&table=1`
-      });
-    }
+async function rtdbPut(path, data) {
+  const url = `${RTDB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  const txt = await res.text();
+  let json;
+  try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
+  return { ok: res.ok, status: res.status, json, url };
+}
 
-    $("btnGo").addEventListener("click", async () => {
-      if (!shop || !table) return;
+function jumpToOrder(shop, table, token){
+  const jump =
+    ORDER_URL +
+    `?shop=${encodeURIComponent(shop)}` +
+    `&table=${encodeURIComponent(String(table))}` +
+    `&token=${encodeURIComponent(token)}` +
+    `&v=${Date.now()}`;
+  setTimeout(() => { location.href = jump; }, 0);
+}
 
+// ---- 初期表示 ----
+const shop = getParam("shop");
+const table = getParam("table");
+
+$("shopText").textContent = shop || "(missing)";
+$("tableText").textContent = table || "(missing)";
+$("hrefText").textContent = location.href;
+
+if (!shop || !table) {
+  $("line1").innerHTML = `<span class="ng">NG</span> URL params が不足です（shop/table）`;
+  showResult(false, "missing params: shop / table", {
+    example: `${location.origin}${location.pathname}?shop=daboya&table=1`
+  });
+  $("retryBox").innerHTML = `<a href="${esc(location.origin + location.pathname)}">戻る</a>`;
+} else {
+  (async ()=>{
+    const now = Date.now();
+    const ua = navigator.userAgent;
+    const sessPath = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`;
+
+    try {
+      // 1) 既存セッションがあるか確認
+      const g = await rtdbGet(sessPath);
+
+      if (g.ok && g.json && g.json.token && g.json.active !== false) {
+        // 既存 token を再利用（会計まで維持）
+        const token = String(g.json.token).trim();
+        $("tokenText").textContent = token;
+        $("line1").innerHTML = `<span class="ok">OK</span> 既存セッションを再利用 → 注文画面へ移動します`;
+        showResult(true, `既存セッション利用: ${g.url}`, g.json);
+        jumpToOrder(shop, table, token);
+        return;
+      }
+
+      // 2) 無ければ新規発行
       const token = genToken(shop, table);
-      const now = Date.now();
-      const ua = navigator.userAgent;
+      $("tokenText").textContent = token;
 
-      // webActiveSessions/{shop}/{table}
       const payload = {
         shop: shop,
         table: String(table),
         token: token,
+        active: true,
+        createdAt: (g.ok && g.json && g.json.createdAt) ? g.json.createdAt : now,
         updatedAt: now,
         ua: ua
       };
 
-      // 書き込み
-      const path = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}`;
+      const p = await rtdbPut(sessPath, payload);
 
-      try {
-        const r = await rtdbPut(path, payload);
-
-        if (!r.ok) {
-          showResult(false, `書き込み失敗: HTTP ${r.status}  ${r.url}`, { payload, response: r.json });
-          return;
-        }
-
-        showResult(true, `書き込み成功: ${r.url}`, payload);
-
-        // ✅ Thunkableへは飛ばさない。order.htmlへ shop/table/token を渡して遷移
-        const jump =
-          ORDER_URL +
-          `?shop=${encodeURIComponent(shop)}` +
-          `&table=${encodeURIComponent(table)}` +
-          `&token=${encodeURIComponent(token)}` +
-          `&v=${Date.now()}`;
-
-        // デバッグ表示を見たいなら 600 などに。不要なら 0 で即遷移。
-        setTimeout(() => { location.href = jump; }, 0);
-
-      } catch (e) {
-        showResult(false, "例外エラー", { message: String(e), payload });
+      if (!p.ok) {
+        $("line1").innerHTML = `<span class="ng">NG</span> セッション作成失敗`;
+        showResult(false, `書き込み失敗: HTTP ${p.status}  ${p.url}`, { payload, response: p.json });
+        $("retryBox").innerHTML = `<a href="${esc(location.href)}">再試行</a>`;
+        return;
       }
-    });
-  </script>
+
+      $("line1").innerHTML = `<span class="ok">OK</span> セッション新規作成 → 注文画面へ移動します`;
+      showResult(true, `新規作成: ${p.url}`, payload);
+      jumpToOrder(shop, table, token);
+
+    } catch (e) {
+      $("line1").innerHTML = `<span class="ng">NG</span> 例外エラー`;
+      showResult(false, "例外エラー", { message: String(e) });
+      $("retryBox").innerHTML = `<a href="${esc(location.href)}">再試行</a>`;
+    }
+  })();
+}
+</script>
 </body>
 </html>
+

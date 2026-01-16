@@ -2,121 +2,137 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>shop login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shop Menu</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:720px;margin:0 auto}
-    input,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #ccc}
-    button{cursor:pointer;border:0;font-weight:800}
-    .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
-    .btn{background:#111827;color:#fff}
-    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0;background:#fff}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:720px; margin:0 auto;}
+    h1{font-size:22px;margin:0 0 10px}
+    .sub{font-size:12px;color:#6b7280;margin-bottom:14px}
+    .card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;background:#fff;}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    a.btn{
+      display:inline-block; padding:12px 14px; border-radius:12px;
+      border:1px solid #ddd; text-decoration:none; color:#111827; font-weight:800;
+      min-width: 180px; text-align:center;
+    }
+    a.btn.primary{background:#111827;color:#fff;border-color:#111827}
+    a.btn.warn{background:#fef3c7;border-color:#f59e0b}
+    a.btn.kitchen{background:#dbeafe;border-color:#3b82f6}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     .ok{color:#16a34a;font-weight:800}
     .ng{color:#dc2626;font-weight:800}
-    .muted{color:#6b7280;font-size:12px;line-height:1.5}
-    label.chk{display:flex;align-items:center;gap:8px;font-size:14px;color:#111827}
-    input[type="checkbox"]{width:18px;height:18px}
+    button{font-size:16px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:800}
+    button.dark{background:#111827;color:#fff}
+    .small{font-size:12px;color:#6b7280}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
   </style>
 </head>
 <body>
-  <h2>店側ログイン</h2>
+  <h1>店側メニュー</h1>
+  <div class="sub">この端末は shopコード＋PIN でログイン済み。ここから各機能ページへ移動します。</div>
 
   <div class="card">
-    <div class="row">
-      <input id="shop" placeholder="shopコード（例：daboya）" style="flex:1;min-width:240px">
-      <input id="pin"  placeholder="PIN（例：1111）" style="width:160px" inputmode="numeric">
-      <button id="btnLogin" class="btn">ログイン</button>
+    <div>shop: <b id="shopText" class="mono">-</b></div>
+    <div>PIN: <b id="pinText" class="mono">-</b> <span class="small">（表示はマスク）</span></div>
+    <div class="small" style="margin-top:8px;">
+      ※端末を厨房・会計で分けてもOK。どの端末も同じログインで操作できます。
     </div>
+    <div id="status" style="margin-top:10px;"></div>
 
-    <div class="row" style="justify-content:space-between">
-      <label class="chk">
-        <input id="remember" type="checkbox" checked>
-        この端末でログインを保持（推奨）
-      </label>
-      <button id="btnLogout" style="background:#ef4444;color:#fff;display:none">ログアウト</button>
+    <div class="row" style="margin-top:12px;">
+      <button id="btnLogout" class="dark">ログアウト</button>
+      <button id="btnCheck" class="dark">接続チェック</button>
     </div>
+  </div>
 
-    <div id="msg" class="muted">端末ごとにログインします（厨房／会計で分けてもOK）。</div>
+  <div class="card">
+    <div class="row" id="navRow"></div>
+    <div class="small" style="margin-top:10px;">
+      まだ作ってないページは 404 になります。
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="small">デバッグ</div>
+    <pre id="debug" class="mono">-</pre>
   </div>
 
   <script src="shop_common.js"></script>
-
   <script>
-    const $ = (id)=>document.getElementById(id);
+    function $(id){ return document.getElementById(id); }
+    function maskPin(pin){
+      if(!pin) return "-";
+      return "*".repeat(Math.min(String(pin).length, 8));
+    }
 
-    function setMsg(html){ $("msg").innerHTML = html; }
-
-    // 起動時：Remember復元があればログイン状態にする
-    if(typeof restoreRememberedLogin === "function"){
-      restoreRememberedLogin();
+    function buildNav(){
+      const nav = [
+        { label:"厨房：オーダーリスト", href:"./kitchen.html", cls:"btn kitchen" },
+        { label:"会計：テーブル別お会計", href:"./checkout.html", cls:"btn warn" },
+        { label:"QR：印刷用", href:"./qr.html", cls:"btn" },
+        { label:"メニュー編集", href:"./menu_edit.html", cls:"btn" },
+      ];
+      const row = $("navRow");
+      row.innerHTML = "";
+      for(const n of nav){
+        const a = document.createElement("a");
+        a.className = n.cls;
+        a.href = `${n.href}?v=${Date.now()}`;
+        a.textContent = n.label;
+        row.appendChild(a);
+      }
     }
 
     (function init(){
+      // ✅ session統一：requireLogin() が login へ飛ばす
+      if(!requireLogin()) return;
+
       const shop = getShop();
       const pin  = getPin();
-      if(shop && pin){
-        $("btnLogout").style.display = "inline-block";
-        setMsg(`<span class="ok">ログイン中：</span>${esc(shop)}（PINは非表示）<br><span class="muted">店側メニューへ移動できます</span>`);
-      }
+
+      $("shopText").textContent = shop;
+      $("pinText").textContent = maskPin(pin);
+      $("status").innerHTML = `<span class="ok">OK</span> ログイン状態`;
+      buildNav();
+
+      $("debug").textContent = JSON.stringify({ shop, pinMasked: maskPin(pin), RTDB_BASE }, null, 2);
     })();
-
-    $("btnLogin").onclick = async () => {
-      const shop = $("shop").value.trim();
-      const pin  = $("pin").value.trim();
-      const remember = $("remember").checked;
-
-      if(!shop || !pin){
-        setMsg(`<span class="ng">shop と PIN を入れてください</span>`);
-        return;
-      }
-
-      try{
-        setMsg(`checking...`);
-
-        // PIN照合：shops/{shop}/staffPin
-        const r = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
-        if(!r.ok){
-          setMsg(`<span class="ng">shopが見つからない/取得失敗</span><br><small>${esc(r.status)} ${esc(r.url)}</small>`);
-          return;
-        }
-
-        const staffPin = String(r.json ?? "").trim();
-        if(!staffPin){
-          setMsg(`<span class="ng">staffPin が未設定です</span>（RTDB: shops/${esc(shop)}/staffPin）`);
-          return;
-        }
-
-        if(String(pin) !== staffPin){
-          setMsg(`<span class="ng">PINが違います</span>`);
-          return;
-        }
-
-        // sessionStorageへ統一保存
-        ssSet("shop", shop);
-        ssSet("pin",  pin);
-
-        // Remember（任意）：localStorageへも保存
-        if(remember){
-          localStorage.setItem("shop", shop);
-          localStorage.setItem("pin",  pin);
-        }else{
-          localStorage.removeItem("shop");
-          localStorage.removeItem("pin");
-        }
-
-        $("btnLogout").style.display = "inline-block";
-        setMsg(`<span class="ok">ログイン成功</span> → 店側メニューへ移動します`);
-
-        setTimeout(()=>{ location.href = `menu.html?v=${Date.now()}`; }, 150);
-
-      }catch(e){
-        setMsg(`<span class="ng">エラー</span> <small>${esc(e.message||e)}</small>`);
-      }
-    };
 
     $("btnLogout").onclick = () => {
       logoutAll();
-      location.reload();
+      location.href = `login.html?v=${Date.now()}`;
+    };
+
+    $("btnCheck").onclick = async () => {
+      try{
+        if(!requireLogin()) return;
+        const shop = getShop();
+        const pin  = getPin();
+
+        const r = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
+        if(!r.ok){
+          $("status").innerHTML = `<span class="ng">NG</span> staffPin取得失敗`;
+          return;
+        }
+        const staffPin = String(r.json ?? "").trim();
+        const okPin = String(pin) === staffPin;
+
+        $("status").innerHTML = okPin
+          ? `<span class="ok">OK</span> FBRD接続OK / PIN一致`
+          : `<span class="ng">NG</span> FBRD接続OK だが PIN不一致`;
+
+        $("debug").textContent = JSON.stringify({
+          shop,
+          pinMasked: maskPin(pin),
+          staffPinMasked: maskPin(staffPin),
+          pinMatched: okPin,
+          checkedAt: Date.now()
+        }, null, 2);
+
+      }catch(e){
+        $("status").innerHTML = `<span class="ng">NG</span> ${esc(e.message||e)}`;
+        $("debug").textContent = String(e.stack || e);
+      }
     };
   </script>
 </body>

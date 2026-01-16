@@ -2,116 +2,130 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Shop Login</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>shop login</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:560px; margin:0 auto;}
-    h1{font-size:22px;margin:0 0 14px}
-    .card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;}
-    label{display:block;font-weight:700;margin:10px 0 6px}
-    input{width:100%;font-size:16px;padding:12px;border:1px solid #ccc;border-radius:10px;box-sizing:border-box}
-    button{width:100%;margin-top:14px;font-size:16px;padding:12px;border:0;border-radius:10px;font-weight:800;cursor:pointer}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:720px;margin:0 auto}
+    input,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #ccc}
+    button{cursor:pointer;border:0;font-weight:800}
+    .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
     .btn{background:#111827;color:#fff}
-    .sub{font-size:12px;color:#6b7280}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0;background:#fff}
     .ok{color:#16a34a;font-weight:800}
     .ng{color:#dc2626;font-weight:800}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    .row{display:flex; gap:10px; align-items:center; justify-content:space-between; margin-top:12px}
-    .linkbtn{display:inline-block; padding:10px 12px; border-radius:10px; border:1px solid #ddd; text-decoration:none; color:#111827; font-weight:700}
+    .muted{color:#6b7280;font-size:12px;line-height:1.5}
+    label.chk{display:flex;align-items:center;gap:8px;font-size:14px;color:#111827}
+    input[type="checkbox"]{width:18px;height:18px}
   </style>
 </head>
 <body>
-  <h1>店側ログイン</h1>
-  <div class="sub">shopコード + PIN で端末ログイン（厨房/会計など端末ごとにOK）</div>
+  <h2>店側ログイン</h2>
 
   <div class="card">
-    <label for="shop">shopコード</label>
-    <input id="shop" placeholder="例：daboya" autocomplete="off" autocapitalize="none" />
+    <div class="row">
+      <input id="shop" placeholder="shopコード（例：daboya）" style="flex:1;min-width:240px">
+      <input id="pin"  placeholder="PIN（例：1111）" style="width:160px" inputmode="numeric">
+      <button id="btnLogin" class="btn">ログイン</button>
+    </div>
 
-    <label for="pin">PIN</label>
-    <input id="pin" placeholder="例：1111" inputmode="numeric" autocomplete="off" />
+    <div class="row" style="justify-content:space-between">
+      <label class="chk">
+        <input id="remember" type="checkbox">
+        この端末でログインを保持（推奨）
+      </label>
+      <button id="btnLogout" style="background:#ef4444;color:#fff;display:none">ログアウト</button>
+    </div>
 
-    <button id="btnLogin" class="btn">ログイン</button>
-
-    <div id="status" style="margin-top:12px;"></div>
-    <div id="debug" class="mono" style="margin-top:10px;font-size:12px;white-space:pre-wrap;"></div>
+    <div id="msg" class="muted">端末ごとにログインします（厨房／会計で分けてもOK）。</div>
   </div>
 
-  <div class="row">
-    <a class="linkbtn" href="./menu.html?v=1">menu.html を開く（テスト）</a>
-    <a class="linkbtn" href="./index.html?v=1">index.html</a>
-  </div>
+  <!-- 共通JS -->
+  <script src="shop_common.js"></script>
 
-<script>
-/** ===== 設定（ここだけあなたの環境に合わせる） ===== */
-const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-/** ===================================================== */
+  <script>
+    const $ = (id)=>document.getElementById(id);
 
-function $(id){ return document.getElementById(id); }
+    function setMsg(html){ $("msg").innerHTML = html; }
 
-async function rtdbGet(path){
-  const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url);
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-  return JSON.parse(txt);
-}
+    // 起動時：Remember があれば session に復元（shop_common.js側で restoreRememberedLogin を後で統一します）
+    // いまの shop_common.js に無ければ、この部分は後で shop_common.js を上書きした時に効きます。
+    try{
+      if(typeof restoreRememberedLogin === "function"){ restoreRememberedLogin(); }
+    }catch{}
 
-function setStatus(html){
-  $("status").innerHTML = html;
-}
-function setDebug(obj){
-  $("debug").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
-}
+    // 既にログイン済みならボタン切り替え
+    (function init(){
+      const shop = getShop();
+      const pin  = getPin();
+      if(shop && pin){
+        $("btnLogout").style.display = "inline-block";
+        setMsg(`<span class="ok">ログイン中：</span>${shop}（PINは非表示）<br><span class="muted">続きは店側メニューへ移動します</span>`);
+      }
+    })();
 
-function esc(s){
-  return String(s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-}
+    $("btnLogin").onclick = async () => {
+      const shop = $("shop").value.trim();
+      const pin  = $("pin").value.trim();
+      const remember = $("remember").checked;
 
-// すでにログイン情報があれば表示（上書き可）
-(function init(){
-  const savedShop = localStorage.getItem("shopCode") || "";
-  const savedPin  = localStorage.getItem("shopPin") || "";
-  if(savedShop) $("shop").value = savedShop;
-  if(savedPin) $("pin").value = savedPin;
-})();
+      if(!shop || !pin){
+        setMsg(`<span class="ng">shop と PIN を入れてください</span>`);
+        return;
+      }
 
-$("btnLogin").onclick = async () => {
-  const shop = $("shop").value.trim();
-  const pin  = $("pin").value.trim();
+      try{
+        setMsg(`checking...`);
 
-  if(!shop || !pin){
-    setStatus(`<span class="ng">shop と pin を入力してください</span>`);
-    return;
-  }
+        // ✅ PIN照合：shops/{shop}/staffPin と一致したらOK
+        const r = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
+        if(!r.ok){
+          setMsg(`<span class="ng">shopが見つからない/取得失敗</span><br><small>${esc(r.status)} ${esc(r.url)}</small>`);
+          return;
+        }
 
-  try{
-    setStatus(`checking...`);
-    setDebug({ shop, pinMasked: "*".repeat(Math.min(pin.length, 8)) });
+        const staffPin = String(r.json ?? "").trim();
+        if(!staffPin){
+          setMsg(`<span class="ng">staffPin が未設定です</span>（RTDB: shops/${esc(shop)}/staffPin）`);
+          return;
+        }
 
-    // 例：shops/{shop}/staffPin が正解PIN
-    const staffPin = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
+        if(String(pin) !== staffPin){
+          setMsg(`<span class="ng">PINが違います</span>`);
+          return;
+        }
 
-    if(String(staffPin || "") !== String(pin)){
-      setStatus(`<span class="ng">PINが違います</span>`);
-      setDebug({ staffPinFromDB: staffPin, inputPin: pin });
-      return;
-    }
+        // ✅ sessionStorage に統一保存
+        ssSet("shop", shop);
+        ssSet("pin",  pin);
 
-    // 保存（端末ログイン方式A）
-    localStorage.setItem("shopCode", shop);
-    localStorage.setItem("shopPin", pin);
+        // ✅ Remember（任意）：localStorageにも保存（後で shop_common.js の restoreRememberedLogin で復元）
+        if(remember){
+          localStorage.setItem("shop", shop);
+          localStorage.setItem("pin",  pin);
+        }else{
+          localStorage.removeItem("shop");
+          localStorage.removeItem("pin");
+        }
 
-    setStatus(`<span class="ok">OK</span> ログイン成功：${esc(shop)}`);
+        $("btnLogout").style.display = "inline-block";
+        setMsg(`<span class="ok">ログイン成功</span> → 店側メニューへ移動します`);
 
-    // 次の画面へ（menu.htmlを作ってから使う）
-    location.href = `menu.html?v=${Date.now()}`;
+        // 店側メニュー入口へ
+        setTimeout(()=>{ location.href = `menu.html?v=${Date.now()}`; }, 200);
 
-  }catch(e){
-    setStatus(`<span class="ng">エラー</span> ${esc(e.message || e)}`);
-    setDebug(String(e.stack || e));
-  }
-};
-</script>
+      }catch(e){
+        setMsg(`<span class="ng">エラー</span> <small>${esc(e.message||e)}</small>`);
+      }
+    };
+
+    $("btnLogout").onclick = () => {
+      // session統一：ログアウトも session を消す
+      ssClear();
+      // Rememberも消す
+      localStorage.removeItem("shop");
+      localStorage.removeItem("pin");
+      location.reload();
+    };
+  </script>
 </body>
 </html>

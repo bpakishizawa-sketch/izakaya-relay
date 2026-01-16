@@ -14,6 +14,7 @@
     .ok{color:#16a34a;font-weight:800}
     .ng{color:#dc2626;font-weight:800}
     .muted{color:#6b7280;font-size:12px;line-height:1.6}
+    small{color:#6b7280}
   </style>
 </head>
 <body>
@@ -22,47 +23,89 @@
   <div class="card">
     <div class="row">
       <input id="shop" placeholder="shopコード（例：daboya）" style="flex:1;min-width:240px">
-      <input id="pin"  placeholder="PIN（例：1111）" style="width:160px" inputmode="numeric">
-      <button id="btnLogin" class="btn">ログイン</button>
+      <input id="pin"  placeholder="PIN（例：1111）" style="width:180px">
+      <button id="btnLogin" class="btn" type="button">ログイン</button>
     </div>
+
     <div id="msg" class="muted">
-      固定端末運用のため、ログイン情報は <b>localStorage（shopCode/shopPin）</b> に保存します。<br>
-      厨房端末・会計端末は、それぞれの端末で1回ログインすればOKです。
+      端末ごとにログインします（厨房／会計で分けてもOK）。<br>
+      保存先：<b>localStorage</b>（shopCode / shopPin）
+    </div>
+
+    <div class="row" style="margin-top:12px">
+      <button id="btnClear" type="button">保存データ削除</button>
+      <button id="btnToMenu" class="btn" type="button">メニューへ</button>
     </div>
   </div>
 
-  <!-- 共通JS -->
-  <script src="shop_common.js"></script>
+  <div class="card">
+    <div class="muted"><small>デバッグ</small></div>
+    <pre id="dbg" style="white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto">-</pre>
+  </div>
 
-  <script>
-    const $ = (id)=>document.getElementById(id);
+<script>
+  const $ = (id)=>document.getElementById(id);
 
-    // すでにログイン済みなら menu.html へ
-    (function(){
-      const shop = getShop();
-      const pin  = getPin();
-      if(shop && pin){
-        location.href = "menu.html?v=" + Date.now();
-      }
-    })();
+  function dbg(obj){
+    $("dbg").textContent = JSON.stringify(obj, null, 2);
+  }
 
-    $("btnLogin").onclick = async ()=>{
-      const shop = $("shop").value.trim();
-      const pin  = $("pin").value.trim();
+  function setMsg(html){
+    $("msg").innerHTML = html;
+  }
 
-      if(!shop || !pin){
-        $("msg").innerHTML = `<span class="ng">shop と PIN を入れてください</span>`;
-        return;
-      }
+  function saveLogin(shop, pin){
+    localStorage.setItem("shopCode", String(shop||"").trim());
+    localStorage.setItem("shopPin",  String(pin||"").trim());
+  }
 
-      // 必要ならここでPIN照合を入れる（今回は保存のみ）
-      setShop(shop);
-      setPin(pin);
-
-      $("msg").innerHTML = `<span class="ok">ログインしました</span> menu.html へ移動します`;
-      setTimeout(()=> location.href = "menu.html?v=" + Date.now(), 200);
+  function readLogin(){
+    return {
+      shopCode: (localStorage.getItem("shopCode") || "").trim(),
+      shopPin:  (localStorage.getItem("shopPin")  || "").trim(),
     };
-  </script>
+  }
+
+  function toMenu(){
+    location.href = `menu.html?v=${Date.now()}`;
+  }
+
+  // 初期表示
+  dbg({
+    href: location.href,
+    stored: readLogin(),
+    note: "ここでログインできれば、shop_common.js が原因です"
+  });
+
+  $("btnLogin").addEventListener("click", ()=>{
+    const shop = $("shop").value.trim();
+    const pin  = $("pin").value.trim();
+
+    if(!shop || !pin){
+      setMsg(`<span class="ng">shop と PIN を入れてください</span>`);
+      return;
+    }
+
+    saveLogin(shop, pin);
+    const st = readLogin();
+    setMsg(`<span class="ok">ログイン保存OK</span> shop=${st.shopCode}`);
+    dbg({ action:"login", stored: st, time: Date.now() });
+
+    // すぐメニューへ
+    toMenu();
+  });
+
+  $("btnClear").addEventListener("click", ()=>{
+    localStorage.removeItem("shopCode");
+    localStorage.removeItem("shopPin");
+    setMsg(`<span class="ok">保存データを削除しました</span>`);
+    dbg({ action:"clear", stored: readLogin(), time: Date.now() });
+  });
+
+  $("btnToMenu").addEventListener("click", ()=>{
+    toMenu();
+  });
+</script>
 </body>
 </html>
 

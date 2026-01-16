@@ -77,7 +77,7 @@ async function postJson(path, obj){
   });
   const text = await res.text();
   if(!res.ok) throw new Error(`POST HTTP ${res.status} ${text}`);
-  return JSON.parse(text);
+  return text ? JSON.parse(text) : null;
 }
 
 // id: d1 / f103 などを数字として取り出す
@@ -202,23 +202,47 @@ $("sendBtn").onclick = async ()=>{
     const ua = navigator.userAgent;
     const total = cart.reduce((s,x)=>s + (Number(x.price)||0) * (Number(x.qty)||0), 0);
 
-    const payload = {
+    // 注文本体（ordersに保存する“正”のデータ）
+    const orderObj = {
       shop,
       table: String(table),
       token,
       createdAt,
       ua,
       items: cart,
-      total
+      total,
+      status: "new"
     };
 
     $("status").textContent = "sending...";
 
-    // 1) orderFeed/{shop}/{pushId}
-    await postJson(`/orderFeed/${encodeURIComponent(shop)}`, payload);
+    // 1) shops/{shop}/orders/{table} にPOSTして pushId を取得（必須）
+    const ordersPath =
+      `/shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
+    const ordersRes = await postJson(ordersPath, orderObj);
 
-    // 2) shops/{shop}/orders/{table}/{pushId}
-    await postJson(`/shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`, payload);
+    // Firebase REST POST の戻りは { name: "-OqX..." } が基本
+    const orderKey = (ordersRes && ordersRes.name) ? String(ordersRes.name) : "";
+
+    // フィード（店側の一覧用：軽量＋ordersへの参照を持つ）
+    const feedObj = {
+      shop,
+      table: String(table),
+      token,
+      createdAt,
+      status: "new",
+      total,
+      itemsCount: cart.reduce((n,x)=>n + (Number(x.qty)||0), 0),
+      orderKey,
+      orderPath: orderKey ? `${ordersPath}/${orderKey}` : ordersPath
+    };
+
+    // 2) shops/{shop}/orderFeed にPOST（必須：方式A）
+    const feedPath = `/shops/${encodeURIComponent(shop)}/orderFeed`;
+    await postJson(feedPath, feedObj);
+
+    // 3) 全店集約（任意：必要になったらコメントアウト解除）
+    // await postJson(`/orderFeedAll`, feedObj);
 
     $("status").innerHTML = `<span class="ok">送信OK</span>`;
     cart = [];

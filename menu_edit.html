@@ -5,618 +5,524 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>メニュー編集</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:1200px; margin:0 auto; background:#fafafa;}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:980px; margin:0 auto; background:#fafafa;}
     h1{font-size:22px;margin:0 0 10px}
     .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     .muted{color:#6b7280}
     .small{font-size:12px;color:#6b7280}
-    input,select,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db}
-    button{cursor:pointer;border:0;font-weight:900}
-    button.dark{background:#111827;color:#fff}
-    button.light{background:#f3f4f6;color:#111827;border:1px solid #d1d5db}
-    button.ok{background:#16a34a;color:#fff}
-    button.ng{background:#dc2626;color:#fff}
-    button.warn{background:#f59e0b;color:#111827}
+    button{cursor:pointer;border:0;border-radius:10px;padding:10px 12px;font-weight:900}
+    .dark{background:#111827;color:#fff}
+    .light{background:#f3f4f6;color:#111827;border:1px solid #e5e7eb}
+    .ok{color:#16a34a;font-weight:900}
+    .ng{color:#dc2626;font-weight:900}
+    input,select{font-size:16px;padding:10px;border:1px solid #d1d5db;border-radius:10px}
     .tabs{display:flex;gap:10px;flex-wrap:wrap}
-    .tab{padding:10px 12px;border-radius:999px;border:1px solid #d1d5db;background:#fff;font-weight:900;cursor:pointer}
-    .tab.active{background:#111827;color:#fff;border-color:#111827}
+    .tab{padding:10px 14px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;font-weight:900}
+    .tab.on{background:#111827;color:#fff;border-color:#111827}
+    .grid{display:grid;grid-template-columns:1fr; gap:12px}
+    @media(min-width:900px){ .grid{grid-template-columns: 1.2fr .8fr;} }
 
-    /* layout */
-    .grid{display:grid;grid-template-columns:1fr;gap:12px;align-items:start}
-    @media(min-width:920px){
-      .grid{grid-template-columns: 1.2fr .8fr;}
-    }
-
-    /* list */
     .list{display:flex;flex-direction:column;gap:8px}
-    .itemRow{
-      border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff;
-      display:flex;gap:10px;align-items:center;justify-content:space-between; cursor:pointer;
-      user-select:none; -webkit-user-select:none;
-    }
-    .itemRow:hover{background:#f9fafb}
-    .itemRow.active{border-color:#2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.15);}
-    .left{min-width:0; flex:1}
-    .idPill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #d1d5db;font-weight:900;font-size:12px}
-    .name{font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-    .meta{font-size:12px;color:#6b7280; margin-top:2px}
-    .price{font-weight:900}
-    .empty{border-style:dashed; background:#fcfcfc}
-    .empty .name{color:#6b7280}
+    .item{border:1px solid #e5e7eb;border-radius:12px;padding:10px;display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+    .item:hover{background:#f9fafb}
+    .itemId{font-weight:900;min-width:70px}
+    .itemName{font-weight:900}
+    .itemMeta{font-size:12px;color:#6b7280;margin-top:4px}
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:900;border:1px solid #e5e7eb}
+    .badgeDrink{background:#dbeafe;border-color:#3b82f6}
+    .badgeFood{background:#dcfce7;border-color:#16a34a}
 
-    /* editor */
-    .field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
-    .field label{font-size:12px;color:#6b7280}
-    .btnRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+    .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .chip{border:1px dashed #d1d5db;border-radius:999px;padding:8px 10px;background:#fff;font-weight:900;cursor:pointer}
+    .chip:hover{background:#f9fafb}
 
-    /* debug */
-    pre{white-space:pre-wrap;word-break:break-word;background:#0b1220;color:#d1d5db;padding:10px;border-radius:12px;overflow:auto;font-size:12px}
-
-    /* print */
-    @media print{
-      .noPrint{display:none !important;}
-      body{background:#fff;padding:0;max-width:none}
-      .card{border:0;margin:0;padding:0}
-    }
+    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
   </style>
 </head>
 <body>
   <h1>メニュー編集</h1>
 
-  <div class="card noPrint">
+  <div class="card">
     <div class="row">
       <div>shop: <b id="shopText" class="mono">-</b></div>
-      <div class="small muted" id="shopFrom">-</div>
+      <span id="status" class="small muted">-</span>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button id="btnBack" class="light">← menuへ</button>
+      <button id="btnReload" class="dark">再読み込み</button>
+      <button id="btnPrintDrink" class="light">ドリンク印刷</button>
+      <button id="btnPrintFood" class="light">フード印刷</button>
     </div>
 
-    <div class="row" style="margin-top:10px">
-      <button id="btnBack" class="light" type="button">← menuへ</button>
-      <button id="btnReload" class="dark" type="button">再読み込み</button>
-
-      <div style="flex:1"></div>
-
-      <button id="btnPrintDrink" class="light" type="button">ドリンク印刷</button>
-      <button id="btnPrintFood" class="light" type="button">フード印刷</button>
-    </div>
-
-    <div class="row" style="margin-top:10px">
+    <div class="row" style="margin-top:10px;">
       <div class="tabs">
-        <div id="tabDrink" class="tab active">ドリンク</div>
-        <div id="tabFood" class="tab">フード</div>
+        <button id="tabDrink" class="tab on" type="button">ドリンク</button>
+        <button id="tabFood" class="tab" type="button">フード</button>
       </div>
-
-      <div style="flex:1; min-width:220px">
-        <input id="q" placeholder="検索（メニュー名 / ID）" style="width:100%" />
-      </div>
-
-      <div class="small muted" id="status">-</div>
+      <input id="q" placeholder="検索（メニュー名 / ID）" style="flex:1;min-width:240px" />
     </div>
   </div>
 
   <div class="grid">
-    <!-- left: list -->
+    <!-- 左：一覧 -->
     <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <b id="listTitle">一覧（ドリンク）</b>
-        <span class="small muted">タップで編集</span>
+      <div class="row" style="justify-content:space-between;">
+        <div>
+          <b id="listTitle">一覧（ドリンク）</b>
+          <span class="small muted" id="countText">-</span>
+        </div>
+        <div class="small muted">行タップで編集</div>
       </div>
+
+      <div class="chips" id="emptyChips" style="display:none;"></div>
+
       <div class="list" id="list"></div>
     </div>
 
-    <!-- right: editor -->
+    <!-- 右：編集 -->
     <div class="card">
-      <div class="row" style="justify-content:space-between">
+      <div class="row" style="justify-content:space-between;">
         <b>編集</b>
-        <span class="small muted" id="selHint">行をタップしてください</span>
+        <span class="small muted" id="savePath">保存先：-</span>
       </div>
 
-      <div class="field">
-        <label>対象（プルダウンでも選択可）</label>
-        <select id="sel">
-          <option value="">（未選択）</option>
-        </select>
+      <div class="row" style="margin-top:10px;">
+        <div style="flex:1;min-width:220px">
+          <div class="small muted">対象（プルダウンでも選択可）</div>
+          <select id="sel" style="width:100%">
+            <option value="">(未選択)</option>
+          </select>
+        </div>
       </div>
 
-      <div class="field">
-        <label>ID</label>
-        <input id="id" class="mono" placeholder="例：d12 / f101" />
-        <div class="small muted">※既存IDを入れれば上書き更新、新規IDなら追加になります。</div>
+      <div class="row" style="margin-top:10px;">
+        <div style="flex:1;min-width:220px">
+          <div class="small muted">ID</div>
+          <input id="id" placeholder="例：d12 / f101" style="width:100%" />
+        </div>
       </div>
 
-      <div class="field">
-        <label>メニュー名</label>
-        <input id="name" placeholder="例：レモンサワー" />
+      <div class="row" style="margin-top:10px;">
+        <div style="flex:1;min-width:220px">
+          <div class="small muted">メニュー名</div>
+          <input id="name" placeholder="例：レモンサワー" style="width:100%" />
+        </div>
       </div>
 
-      <div class="field">
-        <label>価格</label>
-        <input id="price" inputmode="numeric" placeholder="例：550" />
+      <div class="row" style="margin-top:10px;">
+        <div style="flex:1;min-width:220px">
+          <div class="small muted">価格</div>
+          <input id="price" placeholder="例：480" inputmode="numeric" style="width:100%" />
+        </div>
       </div>
 
-      <div class="btnRow noPrint">
+      <div class="row" style="margin-top:12px;">
         <button id="btnSuggest" class="light" type="button">空き番号を提案</button>
-        <button id="btnSave" class="ok" type="button">保存</button>
-        <button id="btnDelete" class="ng" type="button" disabled>削除</button>
+        <button id="btnSave" class="dark" type="button">保存</button>
+        <button id="btnDelete" class="light" type="button" disabled>削除</button>
       </div>
 
-      <div class="small muted" style="margin-top:10px">
-        保存先：<span class="mono" id="savePath">-</span>
-      </div>
+      <div class="small muted" id="hint" style="margin-top:10px;">-</div>
     </div>
   </div>
 
   <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <b class="small muted">デバッグ（エラーが出たらここに表示）</b>
-      <button id="btnClearDbg" class="light noPrint" type="button">クリア</button>
+    <div class="row" style="justify-content:space-between;">
+      <div class="small muted">デバッグ</div>
+      <button id="btnClearDbg" class="light" type="button">クリア</button>
     </div>
-    <pre id="dbg">-</pre>
+    <pre id="dbg" class="mono">-</pre>
   </div>
 
-<script>
-/** ===== 設定 ===== */
-const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-/** ============== */
+  <!-- 共通JS（localStorage 統一版） -->
+  <script src="shop_common.js"></script>
 
-const $ = (id)=>document.getElementById(id);
+  <script>
+  (function(){
+    const $ = (id)=>document.getElementById(id);
 
-function esc(s){
-  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-}
-function logDbg(obj){
-  const pre = $("dbg");
-  const txt = (typeof obj === "string") ? obj : JSON.stringify(obj, null, 2);
-  pre.textContent = (pre.textContent === "-" ? "" : pre.textContent + "\n") + txt;
-}
-function setStatus(s){ $("status").textContent = s || "-"; }
-
-window.addEventListener("error", (e)=>{
-  logDbg("[window.error] " + (e && e.message ? e.message : String(e)));
-});
-window.addEventListener("unhandledrejection", (e)=>{
-  logDbg("[unhandledrejection] " + (e && e.reason ? (e.reason.message || String(e.reason)) : "unknown"));
-});
-
-async function rtdbGet(path){
-  const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url);
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`GET ${res.status} ${txt}`);
-  return JSON.parse(txt || "null");
-}
-async function rtdbPut(path, data){
-  const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url, {
-    method:"PUT",
-    headers:{"Content-Type":"application/json"},
-    body: JSON.stringify(data)
-  });
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`PUT ${res.status} ${txt}`);
-  return JSON.parse(txt || "null");
-}
-
-function getShop(){
-  // 互換：shopCode/shopPin と shop/pin どちらでも拾う
-  const a = (localStorage.getItem("shopCode") || "").trim();
-  const b = (localStorage.getItem("shop") || "").trim();
-  return a || b;
-}
-function getPin(){
-  const a = (localStorage.getItem("shopPin") || "").trim();
-  const b = (localStorage.getItem("pin") || "").trim();
-  return a || b;
-}
-function requireLogin(){
-  const shop = getShop();
-  const pin  = getPin();
-  if(!shop || !pin){
-    // ログイン画面へ
-    location.href = `login.html?v=${Date.now()}`;
-    return false;
-  }
-  return true;
-}
-
-let state = {
-  cat: "drink",        // "drink" | "food"
-  map: new Map(),      // id -> {id,name,price,raw}
-  selectedId: "",      // id
-};
-
-function idToNum(id){
-  // d12 -> 12, f101 -> 101, それ以外は大きめ
-  const m = String(id||"").match(/(\d+)/);
-  return m ? Number(m[1]) : 999999;
-}
-function sortIds(ids){
-  return ids.slice().sort((a,b)=>{
-    const pa = String(a||"").charAt(0);
-    const pb = String(b||"").charAt(0);
-    if(pa !== pb) return pa.localeCompare(pb);
-    return idToNum(a) - idToNum(b);
-  });
-}
-
-function normalizeVal(v){
-  // 既存が文字列でも吸収
-  if(v == null) return { name:"", price:"", raw:v };
-  if(typeof v === "string"){
-    return { name:v, price:"", raw:v };
-  }
-  if(typeof v === "object"){
-    const name = (v.name ?? v.menuName ?? v.title ?? "");
-    const price = (typeof v.price !== "undefined") ? v.price : "";
-    return { name:String(name ?? ""), price:(price===null? "" : price), raw:v };
-  }
-  return { name:String(v), price:"", raw:v };
-}
-
-function makeEmptyIdSuggestion(){
-  // cat別：drink は d1..、food は f1.. を基本
-  const prefix = (state.cat === "drink") ? "d" : "f";
-  const used = new Set();
-  for(const id of state.map.keys()){
-    if(String(id).startsWith(prefix)){
-      used.add(idToNum(id));
+    function logDbg(msg){
+      const cur = $("dbg").textContent === "-" ? "" : $("dbg").textContent + "\n";
+      $("dbg").textContent = (cur + String(msg||"")).slice(0, 20000);
     }
-  }
-  // 1から探して最小の空きを提案
-  for(let n=1; n<2000; n++){
-    if(!used.has(n)) return prefix + String(n);
-  }
-  return prefix + String(used.size + 1);
-}
+    function setStatus(html){
+      $("status").innerHTML = html || "-";
+    }
 
-function setSelected(id){
-  state.selectedId = id || "";
-  // list highlight
-  document.querySelectorAll(".itemRow").forEach(el=>{
-    el.classList.toggle("active", el.dataset.id === state.selectedId);
-  });
+    function must(fnName){
+      if(typeof window[fnName] !== "function"){
+        throw new Error("shop_common.js の " + fnName + "() が見つかりません");
+      }
+    }
 
-  // dropdown sync
-  $("sel").value = state.selectedId;
+    must("requireLogin");
+    must("getShop");
+    must("getPin");
+    must("rtdbGet");
+    must("rtdbPut");
+    must("esc");
 
-  const it = state.map.get(state.selectedId);
-  if(it){
-    $("id").value = it.id;
-    $("name").value = it.name || "";
-    $("price").value = (it.price === "" || it.price === null || typeof it.price === "undefined") ? "" : String(it.price);
-    $("btnDelete").disabled = false;
-    $("selHint").textContent = "編集中";
-  }else{
-    $("id").value = "";
-    $("name").value = "";
-    $("price").value = "";
-    $("btnDelete").disabled = true;
-    $("selHint").textContent = "行をタップしてください";
-  }
-  updateSavePath();
-}
+    // ログイン必須
+    if(!requireLogin()) return;
 
-function updateSavePath(){
-  const shop = getShop();
-  const id = ($("id").value || "").trim();
-  $("savePath").textContent = shop ? `/shops/${shop}/menu/${state.cat}/${id || "(id未入力)"}` : "-";
-}
+    const shop = getShop();
+    $("shopText").textContent = shop || "-";
 
-function renderSelect(){
-  const sel = $("sel");
-  const ids = sortIds(Array.from(state.map.keys()));
-  const cur = state.selectedId;
+    const state = {
+      cat: "drink",      // drink | food
+      data: { drink:{}, food:{} }, // {id:{name,price}}
+      selectedId: ""
+    };
 
-  sel.innerHTML = `<option value="">（未選択）</option>` + ids.map(id=>{
-    const it = state.map.get(id);
-    const label = `${id}｜${(it && it.name) ? it.name : ""}`;
-    return `<option value="${esc(id)}">${esc(label)}</option>`;
-  }).join("");
+    function catLabel(cat){ return cat === "drink" ? "ドリンク" : "フード"; }
+    function catBadge(cat){
+      return cat === "drink"
+        ? '<span class="badge badgeDrink">ドリンク</span>'
+        : '<span class="badge badgeFood">フード</span>';
+    }
+    function prefix(cat){ return cat === "drink" ? "d" : "f"; }
 
-  sel.value = cur || "";
-}
+    function normalizeValue(v){
+      // v が {name,price} / 文字列 / 数値など混在しても吸収
+      if(v && typeof v === "object"){
+        const name = (v.name ?? "").toString();
+        const price = (v.price === undefined || v.price === null) ? "" : Number(v.price);
+        return { name, price: (Number.isFinite(price) ? price : "") };
+      }
+      if(typeof v === "string"){
+        return { name: v, price: "" };
+      }
+      return { name: "", price: "" };
+    }
 
-function renderList(){
-  const list = $("list");
-  list.innerHTML = "";
+    function sortId(a,b){
+      // d12,f101 等の数値部分でソート
+      const ra = String(a).match(/(\d+)/);
+      const rb = String(b).match(/(\d+)/);
+      const na = ra ? Number(ra[1]) : Number.POSITIVE_INFINITY;
+      const nb = rb ? Number(rb[1]) : Number.POSITIVE_INFINITY;
+      if(na !== nb) return na - nb;
+      return String(a).localeCompare(String(b));
+    }
 
-  const q = ($("q").value || "").trim().toLowerCase();
-  const ids = sortIds(Array.from(state.map.keys()));
+    function currentMap(){
+      return state.cat === "drink" ? state.data.drink : state.data.food;
+    }
 
-  // フィルタ
-  const filtered = ids.filter(id=>{
-    if(!q) return true;
-    const it = state.map.get(id);
-    const name = (it && it.name) ? String(it.name).toLowerCase() : "";
-    return String(id).toLowerCase().includes(q) || name.includes(q);
-  });
+    function updateTitles(){
+      $("listTitle").textContent = "一覧（" + catLabel(state.cat) + "）";
+      $("tabDrink").classList.toggle("on", state.cat === "drink");
+      $("tabFood").classList.toggle("on", state.cat === "food");
+    }
 
-  // 「空き番号枠」も出す（タップで新規編集）
-  const emptyId = makeEmptyIdSuggestion();
-  const emptyDiv = document.createElement("div");
-  emptyDiv.className = "itemRow empty";
-  emptyDiv.dataset.id = "__NEW__";
-  emptyDiv.innerHTML = `
-    <div class="left">
-      <div class="row" style="gap:8px;margin:0;">
-        <span class="idPill mono">${esc(emptyId)}</span>
-        <div class="name">（空き番号：新規追加）</div>
-      </div>
-      <div class="meta">タップするとこのIDで編集フォームに入ります</div>
-    </div>
-    <div class="price muted">+</div>
-  `;
-  emptyDiv.addEventListener("click", ()=>{
-    state.selectedId = "";
-    document.querySelectorAll(".itemRow").forEach(el=>el.classList.remove("active"));
-    $("sel").value = "";
-    $("id").value = emptyId;
-    $("name").value = "";
-    $("price").value = "";
-    $("btnDelete").disabled = true;
-    $("selHint").textContent = "新規追加";
-    updateSavePath();
-  });
-  list.appendChild(emptyDiv);
+    function setSelected(id){
+      state.selectedId = id || "";
+      $("sel").value = state.selectedId || "";
+      if(!state.selectedId){
+        $("id").value = "";
+        $("name").value = "";
+        $("price").value = "";
+        $("btnDelete").disabled = true;
+        $("hint").textContent = "一覧からタップ、または空き番号を選んでください。";
+        updateSavePath();
+        return;
+      }
+      const m = currentMap();
+      const v = m[state.selectedId];
+      $("id").value = state.selectedId;
+      $("name").value = v ? (v.name || "") : "";
+      $("price").value = (v && v.price !== "") ? String(v.price) : "";
+      $("btnDelete").disabled = !v; // 既存だけ削除可
+      $("hint").textContent = v ? "編集中（既存）" : "新規追加";
+      updateSavePath();
+    }
 
-  if(filtered.length === 0){
-    const d = document.createElement("div");
-    d.className = "small muted";
-    d.textContent = "該当するメニューがありません";
-    list.appendChild(d);
-    return;
-  }
+    function updateSavePath(){
+      const id = ($("id").value || "").trim();
+      const p = "shops/" + encodeURIComponent(shop) + "/menu/" + state.cat + (id ? ("/" + encodeURIComponent(id)) : "");
+      $("savePath").textContent = "保存先：/" + p;
+    }
 
-  for(const id of filtered){
-    const it = state.map.get(id);
-    const div = document.createElement("div");
-    div.className = "itemRow" + (id === state.selectedId ? " active" : "");
-    div.dataset.id = id;
+    function buildEmptySuggestions(){
+      // 既存IDを避けて、空き候補を10個表示
+      const m = currentMap();
+      const used = new Set(Object.keys(m));
+      const pre = prefix(state.cat);
+      const out = [];
+      let n = (state.cat === "drink") ? 1 : 101; // food を f101 起点にしたい運用ならここ
+      while(out.length < 10 && n < 9999){
+        const id = pre + String(n);
+        if(!used.has(id)) out.push(id);
+        n++;
+      }
+      return out;
+    }
 
-    const price = (it && it.price !== "" && it.price !== null && typeof it.price !== "undefined") ? String(it.price) : "-";
-    div.innerHTML = `
-      <div class="left">
-        <div class="row" style="gap:8px;margin:0;">
-          <span class="idPill mono">${esc(id)}</span>
-          <div class="name">${esc((it && it.name) ? it.name : "(no name)")}</div>
-        </div>
-        <div class="meta">タップして編集</div>
-      </div>
-      <div class="price mono">${esc(price)}</div>
-    `;
-    div.addEventListener("click", ()=>{
+    function renderList(){
+      updateTitles();
+
+      const m = currentMap();
+      const q = ($("q").value || "").trim().toLowerCase();
+
+      // select options
+      const ids = Object.keys(m).sort(sortId);
+      $("sel").innerHTML = '<option value="">(未選択)</option>' +
+        ids.map(id => '<option value="'+ esc(id) +'">' + esc(id) + " / " + esc(m[id].name || "") + "</option>").join("");
+
+      // empty chips
+      const empties = buildEmptySuggestions();
+      const chipWrap = $("emptyChips");
+      chipWrap.style.display = "flex";
+      chipWrap.innerHTML = empties.map(id => '<div class="chip" data-id="'+esc(id)+'">＋ '+esc(id)+'</div>').join("");
+      chipWrap.querySelectorAll(".chip").forEach(el=>{
+        el.onclick = ()=>{
+          const id = el.getAttribute("data-id");
+          // 新規枠
+          setSelected("");
+          state.selectedId = "";
+          $("sel").value = "";
+          $("id").value = id;
+          $("name").value = "";
+          $("price").value = "";
+          $("btnDelete").disabled = true;
+          $("hint").textContent = "新規追加";
+          updateSavePath();
+        };
+      });
+
+      // list
+      const list = $("list");
+      list.innerHTML = "";
+
+      let view = ids.map(id => ({ id, ...m[id] }));
+      if(q){
+        view = view.filter(x =>
+          String(x.id).toLowerCase().includes(q) ||
+          String(x.name||"").toLowerCase().includes(q)
+        );
+      }
+
+      $("countText").textContent = "（" + view.length + "件）";
+
+      if(view.length === 0){
+        list.innerHTML = '<div class="muted"><small>該当なし</small></div>';
+        return;
+      }
+
+      for(const x of view){
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = '' +
+          '<div class="itemId">'+ esc(x.id) +'</div>' +
+          '<div style="flex:1">' +
+            '<div class="itemName">'+ catBadge(state.cat) +' ' + esc(x.name || "(no name)") + '</div>' +
+            '<div class="itemMeta">価格：' + esc(x.price === "" ? "-" : String(x.price)) + '</div>' +
+          '</div>';
+        div.onclick = ()=>{
+          setSelected(x.id);
+        };
+        list.appendChild(div);
+      }
+    }
+
+    async function loadMenu(){
+      setStatus('<span class="mono">loading...</span>');
+      $("hint").textContent = "-";
+      try{
+        const d = await rtdbGet("shops/" + encodeURIComponent(shop) + "/menu/drink");
+        const f = await rtdbGet("shops/" + encodeURIComponent(shop) + "/menu/food");
+
+        const drinkRaw = (d && d.ok) ? (d.json || {}) : {};
+        const foodRaw  = (f && f.ok) ? (f.json || {}) : {};
+
+        state.data.drink = {};
+        state.data.food  = {};
+
+        if(drinkRaw && typeof drinkRaw === "object"){
+          for(const [id,v] of Object.entries(drinkRaw)){
+            state.data.drink[String(id)] = normalizeValue(v);
+          }
+        }
+        if(foodRaw && typeof foodRaw === "object"){
+          for(const [id,v] of Object.entries(foodRaw)){
+            state.data.food[String(id)] = normalizeValue(v);
+          }
+        }
+
+        setStatus('<span class="ok">OK</span> ' + new Date().toLocaleTimeString("ja-JP"));
+        renderList();
+        if(!state.selectedId){
+          $("hint").textContent = "一覧からタップ、または空き番号を選んでください。";
+        }
+      }catch(e){
+        setStatus('<span class="ng">読込失敗</span>');
+        logDbg(e && e.stack ? e.stack : (e.message || String(e)));
+      }
+    }
+
+    function validateId(id){
+      if(!id) return "IDが空です";
+      // 英数字と _- のみ許可（RTDBパス安全）
+      if(!/^[a-zA-Z0-9_-]+$/.test(id)) return "IDは英数字・_・- のみ使用できます";
+      // カテゴリに合うprefix推奨（強制ではないがミス防止）
+      const p = prefix(state.cat);
+      if(!id.startsWith(p)) return "IDは " + p + " から始めるのを推奨します（例：" + p + "1）";
+      return "";
+    }
+
+    async function saveItem(){
+      const id = ($("id").value || "").trim();
+      const name = ($("name").value || "").trim();
+      const priceStr = ($("price").value || "").trim();
+
+      const warn = validateId(id);
+      if(warn && !confirm(warn + "\nこのまま保存しますか？")) return;
+
+      if(!name){
+        alert("メニュー名を入力してください");
+        return;
+      }
+
+      let price = "";
+      if(priceStr !== ""){
+        const p = Number(priceStr);
+        if(!Number.isFinite(p) || p < 0){
+          alert("価格が不正です");
+          return;
+        }
+        price = p;
+      }
+
+      setStatus('<span class="mono">saving...</span>');
+      const path = "shops/" + encodeURIComponent(shop) + "/menu/" + state.cat + "/" + encodeURIComponent(id);
+      const payload = { name, price: (price === "" ? null : price) };
+
+      const res = await rtdbPut(path, payload);
+      if(!res.ok){
+        throw new Error("保存失敗: HTTP " + res.status);
+      }
+
+      // ローカル反映
+      const m = currentMap();
+      m[id] = { name, price: (price === "" ? "" : price) };
+
       setSelected(id);
-    });
-    list.appendChild(div);
-  }
-}
-
-async function loadMenu(){
-  const shop = getShop();
-  if(!shop) return;
-
-  setStatus("loading...");
-  $("listTitle").textContent = `一覧（${state.cat === "drink" ? "ドリンク" : "フード"}）`;
-
-  const path = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(state.cat)}`;
-  const data = await rtdbGet(path);
-
-  state.map = new Map();
-  if(data && typeof data === "object"){
-    for(const [id, v] of Object.entries(data)){
-      const nv = normalizeVal(v);
-      state.map.set(id, { id, name:nv.name, price:nv.price, raw:nv.raw });
+      setStatus('<span class="ok">保存OK</span>');
+      renderList();
     }
-  }
 
-  // UI
-  renderSelect();
-  renderList();
+    async function deleteItem(){
+      const id = ($("id").value || "").trim();
+      if(!id) return;
 
-  setStatus(`OK（${state.map.size}件）`);
-  logDbg({ loadedAt:new Date().toISOString(), cat:state.cat, count:state.map.size, path });
+      setStatus('<span class="mono">deleting...</span>');
+      const path = "shops/" + encodeURIComponent(shop) + "/menu/" + state.cat + "/" + encodeURIComponent(id);
 
-  // 選択が消えた場合は解除
-  if(state.selectedId && !state.map.has(state.selectedId)){
+      const res = await rtdbPut(path, null);
+      if(!res.ok){
+        throw new Error("削除失敗: HTTP " + res.status);
+      }
+
+      const m = currentMap();
+      delete m[id];
+
+      setSelected("");
+      setStatus('<span class="ok">削除OK</span>');
+      renderList();
+    }
+
+    function makeEmptyIdSuggestion(){
+      const arr = buildEmptySuggestions();
+      return arr[0] || (prefix(state.cat) + "1");
+    }
+
+    function switchCat(cat){
+      state.cat = cat;
+      state.selectedId = "";
+      $("q").value = "";
+      setSelected("");
+      renderList();
+    }
+
+    function printCategory(cat){
+      // cat の一覧を簡易印刷（別窓→印刷）
+      const map = (cat === "drink") ? state.data.drink : state.data.food;
+      const ids = Object.keys(map).sort(sortId);
+
+      const title = "メニュー（" + catLabel(cat) + "）";
+      const rows = ids.map(id=>{
+        const v = map[id] || {name:"",price:""};
+        const price = (v.price === "" || v.price === null || v.price === undefined) ? "" : String(v.price);
+        return "<tr><td>"+esc(id)+"</td><td>"+esc(v.name||"")+"</td><td style='text-align:right'>"+esc(price)+"</td></tr>";
+      }).join("");
+
+      const html =
+        "<!doctype html><html><head><meta charset='utf-8'/>" +
+        "<meta name='viewport' content='width=device-width,initial-scale=1'/>" +
+        "<title>"+esc(title)+"</title>" +
+        "<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px}" +
+        "h1{font-size:20px;margin:0 0 10px} .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace}" +
+        "table{width:100%;border-collapse:collapse} th,td{border:1px solid #ddd;padding:8px} th{background:#f3f4f6;text-align:left}" +
+        "</style></head><body>" +
+        "<h1>"+esc(title)+"</h1>" +
+        "<div class='mono'>shop: "+esc(shop)+" / "+new Date().toLocaleString("ja-JP")+"</div>" +
+        "<table style='margin-top:10px'><thead><tr><th style='width:90px'>ID</th><th>名前</th><th style='width:90px;text-align:right'>価格</th></tr></thead>" +
+        "<tbody>"+rows+"</tbody></table>" +
+        "<script>window.onload=function(){ setTimeout(function(){ window.print(); }, 200); }<\/script>" +
+        "</body></html>";
+
+      const w = window.open("", "_blank");
+      if(!w){
+        alert("ポップアップがブロックされました。印刷のため許可してください。");
+        return;
+      }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+    }
+
+    // events
+    $("btnBack").addEventListener("click", ()=> location.href = "menu.html?v=" + Date.now());
+    $("btnReload").addEventListener("click", ()=> loadMenu().catch(e=>logDbg(e.message||String(e))));
+    $("tabDrink").addEventListener("click", ()=> switchCat("drink"));
+    $("tabFood").addEventListener("click", ()=> switchCat("food"));
+    $("q").addEventListener("input", ()=> renderList());
+    $("sel").addEventListener("change", ()=>{
+      const v = ($("sel").value || "").trim();
+      setSelected(v);
+    });
+    $("id").addEventListener("input", updateSavePath);
+    $("btnSuggest").addEventListener("click", ()=>{
+      const s = makeEmptyIdSuggestion();
+      setSelected("");
+      $("id").value = s;
+      $("name").value = "";
+      $("price").value = "";
+      $("btnDelete").disabled = true;
+      $("hint").textContent = "新規追加";
+      updateSavePath();
+    });
+    $("btnSave").addEventListener("click", ()=> saveItem().catch(e=>{ setStatus('<span class="ng">保存失敗</span>'); logDbg(e.message||String(e)); }));
+    $("btnDelete").addEventListener("click", ()=>{
+      const id = ($("id").value || "").trim();
+      if(!id) return;
+      if(!confirm("削除しますか？\n" + id)) return;
+      deleteItem().catch(e=>{ setStatus('<span class="ng">削除失敗</span>'); logDbg(e.message||String(e)); });
+    });
+    $("btnPrintDrink").addEventListener("click", ()=> printCategory("drink"));
+    $("btnPrintFood").addEventListener("click", ()=> printCategory("food"));
+    $("btnClearDbg").addEventListener("click", ()=> $("dbg").textContent = "-");
+
+    // init
+    updateTitles();
     setSelected("");
-  }
-  updateSavePath();
-}
-
-function switchCat(cat){
-  state.cat = cat;
-  $("tabDrink").classList.toggle("active", cat === "drink");
-  $("tabFood").classList.toggle("active", cat === "food");
-  state.selectedId = "";
-  $("sel").value = "";
-  $("id").value = "";
-  $("name").value = "";
-  $("price").value = "";
-  $("btnDelete").disabled = true;
-  $("selHint").textContent = "行をタップしてください";
-  updateSavePath();
-  loadMenu().catch(e=>logDbg(e.message||String(e)));
-}
-
-function parsePrice(v){
-  const s = String(v||"").trim();
-  if(!s) return "";
-  const n = Number(s);
-  if(Number.isFinite(n)) return n; // 数字なら number で保存
-  return s; // 数字でなければ文字で保存（保険）
-}
-
-async function saveItem(){
-  const shop = getShop();
-  if(!shop) return;
-
-  const id = ($("id").value || "").trim();
-  const name = ($("name").value || "").trim();
-  const priceRaw = ($("price").value || "").trim();
-
-  if(!id){
-    setStatus("IDが空です");
-    return;
-  }
-  if(!name){
-    setStatus("メニュー名が空です");
-    return;
-  }
-
-  const price = parsePrice(priceRaw);
-  const body = { name, price };
-
-  const path = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(state.cat)}/${encodeURIComponent(id)}`;
-  setStatus("saving...");
-  await rtdbPut(path, body);
-
-  setStatus("保存しました");
-  // 再読込して選択維持
-  state.selectedId = id;
-  await loadMenu();
-  setSelected(id);
-}
-
-async function deleteItem(){
-  const shop = getShop();
-  if(!shop) return;
-
-  const id = ($("id").value || "").trim();
-  if(!id){
-    setStatus("IDが空です");
-    return;
-  }
-
-  const path = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(state.cat)}/${encodeURIComponent(id)}`;
-  setStatus("deleting...");
-  await rtdbPut(path, null);
-
-  setStatus("削除しました");
-  state.selectedId = "";
-  await loadMenu();
-  setSelected("");
-}
-
-function printCategory(cat){
-  const shop = getShop();
-  const title = (cat === "drink") ? "ドリンク" : "フード";
-
-  // そのカテゴリのデータを抽出
-  const ids = sortIds(Array.from(state.map.keys()));
-  const rows = ids.map(id=>{
-    const it = state.map.get(id);
-    const price = (it && it.price !== "" && it.price !== null && typeof it.price !== "undefined") ? String(it.price) : "";
-    const name = (it && it.name) ? it.name : "";
-    return { id, name, price };
-  });
-
-  const html = `
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>${esc(shop)} ${esc(title)} 一覧</title>
-<style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px}
-  h1{font-size:18px;margin:0 0 10px}
-  .muted{color:#6b7280;font-size:12px;margin-bottom:12px}
-  table{width:100%;border-collapse:collapse}
-  th,td{border:1px solid #e5e7eb;padding:8px;font-size:14px}
-  th{background:#f3f4f6;text-align:left}
-  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
-</style>
-</head>
-<body>
-  <h1>${esc(shop)} / ${esc(title)} 一覧（番号順）</h1>
-  <div class="muted">${new Date().toLocaleString("ja-JP")}</div>
-  <table>
-    <thead><tr><th style="width:90px">ID</th><th>メニュー名</th><th style="width:110px">価格</th></tr></thead>
-    <tbody>
-      ${rows.map(r=>`<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.name)}</td><td class="mono">${esc(r.price)}</td></tr>`).join("")}
-    </tbody>
-  </table>
-  <script>window.onload=()=>{ setTimeout(()=>window.print(), 200); };</script>
+    loadMenu();
+  })();
+  </script>
 </body>
 </html>
-  `.trim();
 
-  const w = window.open("", "_blank");
-  if(!w){
-    alert("ポップアップがブロックされました（印刷のため許可してください）");
-    return;
-  }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-}
 
-/** init */
-(function init(){
-  // ログイン必須
-  if(!requireLogin()) return;
 
-  const shop = getShop();
-  const pin = getPin();
-
-  $("shopText").textContent = shop || "-";
-  // どっちのキーで入ってるか表示（デバッグ用）
-  const from =
-    localStorage.getItem("shopCode") ? "localStorage.shopCode/shopPin" :
-    localStorage.getItem("shop") ? "localStorage.shop/pin" : "(none)";
-  $("shopFrom").textContent = `login: ${from} / PIN: ${pin ? "OK" : "NG"}`;
-
-  // events
-  $("btnBack").addEventListener("click", ()=> location.href = `menu.html?v=${Date.now()}`);
-  $("btnReload").addEventListener("click", ()=> loadMenu().catch(e=>logDbg(e.message||String(e))));
-  $("tabDrink").addEventListener("click", ()=> switchCat("drink"));
-  $("tabFood").addEventListener("click", ()=> switchCat("food"));
-  $("q").addEventListener("input", ()=> renderList());
-
-  $("sel").addEventListener("change", ()=>{
-    const v = ($("sel").value || "").trim();
-    if(!v){ setSelected(""); return; }
-    setSelected(v);
-  });
-
-  $("id").addEventListener("input", updateSavePath);
-  $("btnSuggest").addEventListener("click", ()=>{
-    const s = makeEmptyIdSuggestion();
-    $("id").value = s;
-    $("name").value = "";
-    $("price").value = "";
-    $("btnDelete").disabled = true;
-    $("selHint").textContent = "新規追加";
-    updateSavePath();
-  });
-
-  $("btnSave").addEventListener("click", ()=>{
-    saveItem().catch(e=>{ setStatus("保存失敗"); logDbg(e.message||String(e)); });
-  });
-
-  $("btnDelete").addEventListener("click", ()=>{
-    const id = ($("id").value || "").trim();
-    if(!id) return;
-    if(!confirm(`削除しますか？\n${id}`)) return;
-    deleteItem().catch(e=>{ setStatus("削除失敗"); logDbg(e.message||String(e)); });
-  });
-
-  $("btnPrintDrink").addEventListener("click", async ()=>{
-    if(state.cat !== "drink") switchCat("drink");
-    // 切替後のロードがまだなら少し待つ
-    setTimeout(()=> printCategory("drink"), 200);
-  });
-  $("btnPrintFood").addEventListener("click", async ()=>{
-    if(state.cat !== "food") switchCat("food");
-    setTimeout(()=> printCategory("food"), 200);
-  });
-
-  $("btnClearDbg").addEventListener("click", ()=> $("dbg").textContent = "-");
-
-  // first load
-  loadMenu().catch(e=>{ setStatus("読込失敗"); logDbg(e.message||String(e)); });
-})();
-</script>
-</body>
-</html>

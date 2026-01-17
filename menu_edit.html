@@ -5,57 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>メニュー編集</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:980px; margin:0 auto; background:#fff}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:1200px; margin:0 auto; background:#fafafa;}
     h1{font-size:22px;margin:0 0 10px}
-    .card{border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin:12px 0;background:#fff}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
     .muted{color:#6b7280}
     .small{font-size:12px;color:#6b7280}
-    input,select{font-size:16px;padding:10px;border:1px solid #d1d5db;border-radius:12px}
-    button{font-size:14px;padding:10px 12px;border-radius:12px;border:0;cursor:pointer;font-weight:900}
-    .btnDark{background:#111827;color:#fff}
-    .btnLight{background:#f3f4f6;color:#111827;border:1px solid #e5e7eb}
-    .btnGreen{background:#16a34a;color:#fff}
-    .btnRed{background:#ef4444;color:#fff}
-    .ok{color:#16a34a;font-weight:900}
-    .ng{color:#dc2626;font-weight:900}
-
-    /* tabs */
-    .tabs{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .tab{padding:10px 14px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;font-weight:900;cursor:pointer}
+    input,select,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db}
+    button{cursor:pointer;border:0;font-weight:900}
+    button.dark{background:#111827;color:#fff}
+    button.light{background:#f3f4f6;color:#111827;border:1px solid #d1d5db}
+    button.ok{background:#16a34a;color:#fff}
+    button.ng{background:#dc2626;color:#fff}
+    button.warn{background:#f59e0b;color:#111827}
+    .tabs{display:flex;gap:10px;flex-wrap:wrap}
+    .tab{padding:10px 12px;border-radius:999px;border:1px solid #d1d5db;background:#fff;font-weight:900;cursor:pointer}
     .tab.active{background:#111827;color:#fff;border-color:#111827}
 
     /* layout */
-    .grid{display:grid;grid-template-columns:1fr;gap:12px}
-    @media(min-width:900px){
+    .grid{display:grid;grid-template-columns:1fr;gap:12px;align-items:start}
+    @media(min-width:920px){
       .grid{grid-template-columns: 1.2fr .8fr;}
     }
 
     /* list */
     .list{display:flex;flex-direction:column;gap:8px}
-    .item{
-      border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;
-      display:flex;gap:10px;align-items:center;justify-content:space-between;
-      cursor:pointer; user-select:none;
+    .itemRow{
+      border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff;
+      display:flex;gap:10px;align-items:center;justify-content:space-between; cursor:pointer;
+      user-select:none; -webkit-user-select:none;
     }
-    .item:hover{background:#f9fafb}
-    .item.active{border-color:#111827; box-shadow:0 0 0 2px rgba(17,24,39,.08) inset}
-    .left{display:flex;gap:10px;align-items:center;min-width:0}
-    .idPill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #e5e7eb;font-weight:900}
-    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px}
+    .itemRow:hover{background:#f9fafb}
+    .itemRow.active{border-color:#2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.15);}
+    .left{min-width:0; flex:1}
+    .idPill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #d1d5db;font-weight:900;font-size:12px}
+    .name{font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .meta{font-size:12px;color:#6b7280; margin-top:2px}
     .price{font-weight:900}
-    .empty{background:#fefce8;border-color:#fde68a}
-    .empty .name{font-weight:800;color:#6b7280}
-    .right{display:flex;gap:8px;align-items:center}
-    .hint{font-size:12px;color:#6b7280;line-height:1.6}
+    .empty{border-style:dashed; background:#fcfcfc}
+    .empty .name{color:#6b7280}
+
+    /* editor */
+    .field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+    .field label{font-size:12px;color:#6b7280}
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+
+    /* debug */
+    pre{white-space:pre-wrap;word-break:break-word;background:#0b1220;color:#d1d5db;padding:10px;border-radius:12px;overflow:auto;font-size:12px}
 
     /* print */
     @media print{
       .noPrint{display:none !important;}
-      body{padding:0;max-width:none}
-      .card{border:0}
-      .item{break-inside:avoid}
+      body{background:#fff;padding:0;max-width:none}
+      .card{border:0;margin:0;padding:0}
     }
   </style>
 </head>
@@ -63,25 +66,32 @@
   <h1>メニュー編集</h1>
 
   <div class="card noPrint">
-    <div class="row" style="justify-content:space-between">
-      <div class="row">
-        <div>shop: <b id="shopText" class="mono">-</b></div>
-        <div id="status" class="small muted">-</div>
-      </div>
-      <div class="row">
-        <button id="btnBack" class="btnLight">← menuへ</button>
-        <button id="btnReload" class="btnDark">再読み込み</button>
-        <button id="btnPrint" class="btnLight">番号順で印刷</button>
-      </div>
+    <div class="row">
+      <div>shop: <b id="shopText" class="mono">-</b></div>
+      <div class="small muted" id="shopFrom">-</div>
     </div>
 
-    <div class="tabs" style="margin-top:12px">
-      <div id="tabDrink" class="tab active">ドリンク</div>
-      <div id="tabFood" class="tab">フード</div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnBack" class="light" type="button">← menuへ</button>
+      <button id="btnReload" class="dark" type="button">再読み込み</button>
 
-      <span class="small muted" style="margin-left:auto">
-        行をタップすると右側で編集できます（空き番号もタップ可）
-      </span>
+      <div style="flex:1"></div>
+
+      <button id="btnPrintDrink" class="light" type="button">ドリンク印刷</button>
+      <button id="btnPrintFood" class="light" type="button">フード印刷</button>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <div class="tabs">
+        <div id="tabDrink" class="tab active">ドリンク</div>
+        <div id="tabFood" class="tab">フード</div>
+      </div>
+
+      <div style="flex:1; min-width:220px">
+        <input id="q" placeholder="検索（メニュー名 / ID）" style="width:100%" />
+      </div>
+
+      <div class="small muted" id="status">-</div>
     </div>
   </div>
 
@@ -89,20 +99,9 @@
     <!-- left: list -->
     <div class="card">
       <div class="row" style="justify-content:space-between">
-        <div class="row">
-          <b id="listTitle">ドリンク一覧</b>
-          <span class="small muted" id="listMeta">-</span>
-        </div>
-        <div class="row noPrint">
-          <button id="btnNew" class="btnGreen">空き番号で新規</button>
-        </div>
+        <b id="listTitle">一覧（ドリンク）</b>
+        <span class="small muted">タップで編集</span>
       </div>
-
-      <div class="hint noPrint" style="margin-top:8px">
-        ・黄色は「空き番号」です（タップするとその番号で新規登録できます）<br>
-        ・番号順で並びます（d1,d2… / f101,f102…）
-      </div>
-
       <div class="list" id="list"></div>
     </div>
 
@@ -110,41 +109,50 @@
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <b>編集</b>
-        <span class="small muted" id="editHint">一覧から選択してください</span>
+        <span class="small muted" id="selHint">行をタップしてください</span>
       </div>
 
-      <div class="row" style="margin-top:10px">
-        <div style="flex:1;min-width:180px">
-          <div class="small muted">ID</div>
-          <input id="editId" class="mono" style="width:100%" placeholder="例: d12 / f101" />
-        </div>
-        <div style="flex:1;min-width:200px">
-          <div class="small muted">メニュー名</div>
-          <input id="editName" style="width:100%" placeholder="例: 唐揚げ" />
-        </div>
+      <div class="field">
+        <label>対象（プルダウンでも選択可）</label>
+        <select id="sel">
+          <option value="">（未選択）</option>
+        </select>
       </div>
 
-      <div class="row" style="margin-top:10px">
-        <div style="flex:1;min-width:200px">
-          <div class="small muted">価格</div>
-          <input id="editPrice" inputmode="numeric" style="width:100%" placeholder="例: 550" />
-        </div>
+      <div class="field">
+        <label>ID</label>
+        <input id="id" class="mono" placeholder="例：d12 / f101" />
+        <div class="small muted">※既存IDを入れれば上書き更新、新規IDなら追加になります。</div>
       </div>
 
-      <div class="row noPrint" style="margin-top:12px">
-        <button id="btnSave" class="btnDark" style="flex:1;min-width:180px">保存</button>
-        <button id="btnDelete" class="btnRed" style="flex:1;min-width:180px">削除</button>
+      <div class="field">
+        <label>メニュー名</label>
+        <input id="name" placeholder="例：レモンサワー" />
+      </div>
+
+      <div class="field">
+        <label>価格</label>
+        <input id="price" inputmode="numeric" placeholder="例：550" />
+      </div>
+
+      <div class="btnRow noPrint">
+        <button id="btnSuggest" class="light" type="button">空き番号を提案</button>
+        <button id="btnSave" class="ok" type="button">保存</button>
+        <button id="btnDelete" class="ng" type="button" disabled>削除</button>
       </div>
 
       <div class="small muted" style="margin-top:10px">
-        <span class="mono" id="pathText">-</span>
-      </div>
-
-      <div class="card" style="background:#f9fafb;border-color:#eef2f7;margin-top:12px">
-        <div class="small muted">デバッグ</div>
-        <pre id="debug" class="mono" style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0 0">-</pre>
+        保存先：<span class="mono" id="savePath">-</span>
       </div>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <b class="small muted">デバッグ（エラーが出たらここに表示）</b>
+      <button id="btnClearDbg" class="light noPrint" type="button">クリア</button>
+    </div>
+    <pre id="dbg">-</pre>
   </div>
 
 <script>
@@ -153,23 +161,29 @@ const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 /** ============== */
 
 const $ = (id)=>document.getElementById(id);
-const esc = (s)=>String(s??"").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
 
-function requireLogin(){
-  const shop = (localStorage.getItem("shopCode") || "").trim();
-  const pin  = (localStorage.getItem("shopPin")  || "").trim();
-  if(!shop || !pin){
-    location.replace(`login.html?v=${Date.now()}`);
-    return null;
-  }
-  return { shop, pin };
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
 }
+function logDbg(obj){
+  const pre = $("dbg");
+  const txt = (typeof obj === "string") ? obj : JSON.stringify(obj, null, 2);
+  pre.textContent = (pre.textContent === "-" ? "" : pre.textContent + "\n") + txt;
+}
+function setStatus(s){ $("status").textContent = s || "-"; }
+
+window.addEventListener("error", (e)=>{
+  logDbg("[window.error] " + (e && e.message ? e.message : String(e)));
+});
+window.addEventListener("unhandledrejection", (e)=>{
+  logDbg("[unhandledrejection] " + (e && e.reason ? (e.reason.message || String(e.reason)) : "unknown"));
+});
 
 async function rtdbGet(path){
   const url = `${DB_BASE}/${path}.json`;
   const res = await fetch(url);
   const txt = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  if(!res.ok) throw new Error(`GET ${res.status} ${txt}`);
   return JSON.parse(txt || "null");
 }
 async function rtdbPut(path, data){
@@ -180,337 +194,429 @@ async function rtdbPut(path, data){
     body: JSON.stringify(data)
   });
   const txt = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  if(!res.ok) throw new Error(`PUT ${res.status} ${txt}`);
   return JSON.parse(txt || "null");
 }
 
-function parseIdNum(id){
-  // d12 -> 12, f101 -> 101
+function getShop(){
+  // 互換：shopCode/shopPin と shop/pin どちらでも拾う
+  const a = (localStorage.getItem("shopCode") || "").trim();
+  const b = (localStorage.getItem("shop") || "").trim();
+  return a || b;
+}
+function getPin(){
+  const a = (localStorage.getItem("shopPin") || "").trim();
+  const b = (localStorage.getItem("pin") || "").trim();
+  return a || b;
+}
+function requireLogin(){
+  const shop = getShop();
+  const pin  = getPin();
+  if(!shop || !pin){
+    // ログイン画面へ
+    location.href = `login.html?v=${Date.now()}`;
+    return false;
+  }
+  return true;
+}
+
+let state = {
+  cat: "drink",        // "drink" | "food"
+  map: new Map(),      // id -> {id,name,price,raw}
+  selectedId: "",      // id
+};
+
+function idToNum(id){
+  // d12 -> 12, f101 -> 101, それ以外は大きめ
   const m = String(id||"").match(/(\d+)/);
-  return m ? Number(m[1]) : NaN;
+  return m ? Number(m[1]) : 999999;
 }
-function normalizeValue(v){
+function sortIds(ids){
+  return ids.slice().sort((a,b)=>{
+    const pa = String(a||"").charAt(0);
+    const pb = String(b||"").charAt(0);
+    if(pa !== pb) return pa.localeCompare(pb);
+    return idToNum(a) - idToNum(b);
+  });
+}
+
+function normalizeVal(v){
   // 既存が文字列でも吸収
-  if(v == null) return { name:"", price:"" };
-  if(typeof v === "string") return { name:v, price:"" };
+  if(v == null) return { name:"", price:"", raw:v };
+  if(typeof v === "string"){
+    return { name:v, price:"", raw:v };
+  }
   if(typeof v === "object"){
-    return {
-      name: (v.name ?? v.title ?? v.label ?? "") + "",
-      price: (v.price ?? v.cost ?? "") + ""
-    };
+    const name = (v.name ?? v.menuName ?? v.title ?? "");
+    const price = (typeof v.price !== "undefined") ? v.price : "";
+    return { name:String(name ?? ""), price:(price===null? "" : price), raw:v };
   }
-  return { name:String(v), price:"" };
-}
-function isValidId(cat, id){
-  id = String(id||"").trim();
-  if(cat === "drink") return /^d\d+$/.test(id);
-  if(cat === "food")  return /^f\d+$/.test(id);
-  return false;
-}
-function suggestPrefix(cat){ return cat==="drink" ? "d" : "f"; }
-
-/** 状態 */
-let AUTH = null;
-let CAT = "drink";  // "drink" | "food"
-let MENU = { drink:{}, food:{} }; // raw object
-let ACTIVE_ID = ""; // currently selected id
-
-function setStatusOk(msg){ $("status").innerHTML = `<span class="ok">OK</span> ${esc(msg||"")}`; }
-function setStatusNg(msg){ $("status").innerHTML = `<span class="ng">NG</span> ${esc(msg||"")}`; }
-function setPathText(){
-  const shop = AUTH.shop;
-  $("pathText").textContent = `/shops/${shop}/menu/${CAT}/${ACTIVE_ID || "(id未選択)"}`;
-}
-function setActiveTab(){
-  $("tabDrink").classList.toggle("active", CAT==="drink");
-  $("tabFood").classList.toggle("active", CAT==="food");
-  $("listTitle").textContent = CAT==="drink" ? "ドリンク一覧" : "フード一覧";
+  return { name:String(v), price:"", raw:v };
 }
 
-/** 空き番号生成（見せる用） */
-function buildHoles(sortedIds, maxShow=30){
-  // sortedIds: ["d1","d2","d4"...] のように番号順
-  const prefix = suggestPrefix(CAT);
-  const nums = sortedIds.map(parseIdNum).filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
-  if(nums.length === 0){
-    // 何もない場合の開始値（drink=1, food=101）
-    const start = (CAT==="drink") ? 1 : 101;
-    return Array.from({length: Math.min(maxShow, 10)}, (_,i)=>`${prefix}${start+i}`);
-  }
-  const min = nums[0];
-  const max = nums[nums.length-1];
-
-  const holes = [];
-  const exists = new Set(nums);
-
-  // 範囲内の穴
-  for(let n=min; n<=max; n++){
-    if(!exists.has(n)){
-      holes.push(`${prefix}${n}`);
-      if(holes.length>=maxShow) break;
+function makeEmptyIdSuggestion(){
+  // cat別：drink は d1..、food は f1.. を基本
+  const prefix = (state.cat === "drink") ? "d" : "f";
+  const used = new Set();
+  for(const id of state.map.keys()){
+    if(String(id).startsWith(prefix)){
+      used.add(idToNum(id));
     }
   }
-  // まだ足りない分は max+1 以降
-  let next = max+1;
-  while(holes.length < Math.min(maxShow, 15)){
-    holes.push(`${prefix}${next++}`);
+  // 1から探して最小の空きを提案
+  for(let n=1; n<2000; n++){
+    if(!used.has(n)) return prefix + String(n);
   }
-  return holes;
+  return prefix + String(used.size + 1);
 }
 
-function currentMap(){
-  return (CAT==="drink") ? (MENU.drink||{}) : (MENU.food||{});
+function setSelected(id){
+  state.selectedId = id || "";
+  // list highlight
+  document.querySelectorAll(".itemRow").forEach(el=>{
+    el.classList.toggle("active", el.dataset.id === state.selectedId);
+  });
+
+  // dropdown sync
+  $("sel").value = state.selectedId;
+
+  const it = state.map.get(state.selectedId);
+  if(it){
+    $("id").value = it.id;
+    $("name").value = it.name || "";
+    $("price").value = (it.price === "" || it.price === null || typeof it.price === "undefined") ? "" : String(it.price);
+    $("btnDelete").disabled = false;
+    $("selHint").textContent = "編集中";
+  }else{
+    $("id").value = "";
+    $("name").value = "";
+    $("price").value = "";
+    $("btnDelete").disabled = true;
+    $("selHint").textContent = "行をタップしてください";
+  }
+  updateSavePath();
 }
-function getItem(id){
-  const m = currentMap();
-  return (m && typeof m==="object") ? m[id] : null;
+
+function updateSavePath(){
+  const shop = getShop();
+  const id = ($("id").value || "").trim();
+  $("savePath").textContent = shop ? `/shops/${shop}/menu/${state.cat}/${id || "(id未入力)"}` : "-";
+}
+
+function renderSelect(){
+  const sel = $("sel");
+  const ids = sortIds(Array.from(state.map.keys()));
+  const cur = state.selectedId;
+
+  sel.innerHTML = `<option value="">（未選択）</option>` + ids.map(id=>{
+    const it = state.map.get(id);
+    const label = `${id}｜${(it && it.name) ? it.name : ""}`;
+    return `<option value="${esc(id)}">${esc(label)}</option>`;
+  }).join("");
+
+  sel.value = cur || "";
 }
 
 function renderList(){
-  const m = currentMap();
-  const ids = Object.keys(m||{}).filter(k=>k && typeof k==="string");
+  const list = $("list");
+  list.innerHTML = "";
 
-  ids.sort((a,b)=> parseIdNum(a) - parseIdNum(b));
+  const q = ($("q").value || "").trim().toLowerCase();
+  const ids = sortIds(Array.from(state.map.keys()));
 
-  const holes = buildHoles(ids, 30);
+  // フィルタ
+  const filtered = ids.filter(id=>{
+    if(!q) return true;
+    const it = state.map.get(id);
+    const name = (it && it.name) ? String(it.name).toLowerCase() : "";
+    return String(id).toLowerCase().includes(q) || name.includes(q);
+  });
 
-  $("listMeta").textContent = `件数: ${ids.length}`;
+  // 「空き番号枠」も出す（タップで新規編集）
+  const emptyId = makeEmptyIdSuggestion();
+  const emptyDiv = document.createElement("div");
+  emptyDiv.className = "itemRow empty";
+  emptyDiv.dataset.id = "__NEW__";
+  emptyDiv.innerHTML = `
+    <div class="left">
+      <div class="row" style="gap:8px;margin:0;">
+        <span class="idPill mono">${esc(emptyId)}</span>
+        <div class="name">（空き番号：新規追加）</div>
+      </div>
+      <div class="meta">タップするとこのIDで編集フォームに入ります</div>
+    </div>
+    <div class="price muted">+</div>
+  `;
+  emptyDiv.addEventListener("click", ()=>{
+    state.selectedId = "";
+    document.querySelectorAll(".itemRow").forEach(el=>el.classList.remove("active"));
+    $("sel").value = "";
+    $("id").value = emptyId;
+    $("name").value = "";
+    $("price").value = "";
+    $("btnDelete").disabled = true;
+    $("selHint").textContent = "新規追加";
+    updateSavePath();
+  });
+  list.appendChild(emptyDiv);
 
-  const root = $("list");
-  root.innerHTML = "";
+  if(filtered.length === 0){
+    const d = document.createElement("div");
+    d.className = "small muted";
+    d.textContent = "該当するメニューがありません";
+    list.appendChild(d);
+    return;
+  }
 
-  // 既存
-  for(const id of ids){
-    const v = normalizeValue(m[id]);
+  for(const id of filtered){
+    const it = state.map.get(id);
     const div = document.createElement("div");
-    div.className = "item" + (id===ACTIVE_ID ? " active" : "");
+    div.className = "itemRow" + (id === state.selectedId ? " active" : "");
     div.dataset.id = id;
+
+    const price = (it && it.price !== "" && it.price !== null && typeof it.price !== "undefined") ? String(it.price) : "-";
     div.innerHTML = `
       <div class="left">
-        <span class="idPill mono">${esc(id)}</span>
-        <div style="min-width:0">
-          <div class="name">${esc(v.name || "(名称なし)")}</div>
-          <div class="small muted">価格: ${esc(v.price || "-")}</div>
+        <div class="row" style="gap:8px;margin:0;">
+          <span class="idPill mono">${esc(id)}</span>
+          <div class="name">${esc((it && it.name) ? it.name : "(no name)")}</div>
         </div>
+        <div class="meta">タップして編集</div>
       </div>
-      <div class="right">
-        <span class="price mono">${esc(v.price || "")}</span>
-      </div>
+      <div class="price mono">${esc(price)}</div>
     `;
-    div.onclick = ()=> selectId(id);
-    root.appendChild(div);
-  }
-
-  // 空き番号（見せる）
-  for(const id of holes){
-    if(m && Object.prototype.hasOwnProperty.call(m, id)) continue;
-    const div = document.createElement("div");
-    div.className = "item empty" + (id===ACTIVE_ID ? " active" : "");
-    div.dataset.id = id;
-    div.innerHTML = `
-      <div class="left">
-        <span class="idPill mono">${esc(id)}</span>
-        <div style="min-width:0">
-          <div class="name">空き番号（タップで新規）</div>
-          <div class="small muted">-</div>
-        </div>
-      </div>
-      <div class="right"><span class="small muted">NEW</span></div>
-    `;
-    div.onclick = ()=> selectId(id, true);
-    root.appendChild(div);
+    div.addEventListener("click", ()=>{
+      setSelected(id);
+    });
+    list.appendChild(div);
   }
 }
 
-function selectId(id, isEmpty=false){
-  ACTIVE_ID = id;
+async function loadMenu(){
+  const shop = getShop();
+  if(!shop) return;
 
-  const v = normalizeValue(getItem(id));
-  $("editId").value = id;
-  $("editName").value = isEmpty ? "" : (v.name||"");
-  $("editPrice").value = isEmpty ? "" : (v.price||"");
+  setStatus("loading...");
+  $("listTitle").textContent = `一覧（${state.cat === "drink" ? "ドリンク" : "フード"}）`;
 
-  $("editHint").textContent = isEmpty ? "空き番号を編集中（保存で新規登録）" : "既存メニューを編集中";
-  setPathText();
+  const path = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(state.cat)}`;
+  const data = await rtdbGet(path);
+
+  state.map = new Map();
+  if(data && typeof data === "object"){
+    for(const [id, v] of Object.entries(data)){
+      const nv = normalizeVal(v);
+      state.map.set(id, { id, name:nv.name, price:nv.price, raw:nv.raw });
+    }
+  }
+
+  // UI
+  renderSelect();
   renderList();
-}
 
-function clearEditor(){
-  ACTIVE_ID = "";
-  $("editId").value = "";
-  $("editName").value = "";
-  $("editPrice").value = "";
-  $("editHint").textContent = "一覧から選択してください";
-  setPathText();
-  renderList();
-}
+  setStatus(`OK（${state.map.size}件）`);
+  logDbg({ loadedAt:new Date().toISOString(), cat:state.cat, count:state.map.size, path });
 
-async function loadMenus(){
-  const shop = AUTH.shop;
-  try{
-    setStatusOk("読み込み中...");
-    const drink = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/drink`);
-    const food  = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/food`);
-    MENU.drink = (drink && typeof drink==="object") ? drink : {};
-    MENU.food  = (food  && typeof food==="object")  ? food  : {};
-
-    setStatusOk(`読み込み完了 (${new Date().toLocaleTimeString("ja-JP")})`);
-    setActiveTab();
-    renderList();
-    setPathText();
-
-    $("debug").textContent = JSON.stringify({
-      shop,
-      cat: CAT,
-      counts: { drink: Object.keys(MENU.drink||{}).length, food: Object.keys(MENU.food||{}).length }
-    }, null, 2);
-
-  }catch(e){
-    setStatusNg(e.message || e);
-    $("debug").textContent = String(e.stack || e);
+  // 選択が消えた場合は解除
+  if(state.selectedId && !state.map.has(state.selectedId)){
+    setSelected("");
   }
+  updateSavePath();
 }
 
-async function saveCurrent(){
-  const shop = AUTH.shop;
-  const id = ($("editId").value || "").trim();
-  const name = ($("editName").value || "").trim();
-  const priceRaw = ($("editPrice").value || "").trim();
+function switchCat(cat){
+  state.cat = cat;
+  $("tabDrink").classList.toggle("active", cat === "drink");
+  $("tabFood").classList.toggle("active", cat === "food");
+  state.selectedId = "";
+  $("sel").value = "";
+  $("id").value = "";
+  $("name").value = "";
+  $("price").value = "";
+  $("btnDelete").disabled = true;
+  $("selHint").textContent = "行をタップしてください";
+  updateSavePath();
+  loadMenu().catch(e=>logDbg(e.message||String(e)));
+}
 
-  if(!isValidId(CAT, id)){
-    setStatusNg(`IDが不正です（${CAT==="drink" ? "d数字" : "f数字"}）`);
+function parsePrice(v){
+  const s = String(v||"").trim();
+  if(!s) return "";
+  const n = Number(s);
+  if(Number.isFinite(n)) return n; // 数字なら number で保存
+  return s; // 数字でなければ文字で保存（保険）
+}
+
+async function saveItem(){
+  const shop = getShop();
+  if(!shop) return;
+
+  const id = ($("id").value || "").trim();
+  const name = ($("name").value || "").trim();
+  const priceRaw = ($("price").value || "").trim();
+
+  if(!id){
+    setStatus("IDが空です");
     return;
   }
   if(!name){
-    setStatusNg("メニュー名を入力してください");
-    return;
-  }
-  // 価格は空OK / 数字っぽく整形
-  const price = priceRaw === "" ? "" : String(Number(priceRaw));
-  if(priceRaw !== "" && (!Number.isFinite(Number(priceRaw)) || Number(priceRaw) < 0)){
-    setStatusNg("価格が不正です");
+    setStatus("メニュー名が空です");
     return;
   }
 
-  const path = `shops/${encodeURIComponent(shop)}/menu/${CAT}/${encodeURIComponent(id)}`;
-  try{
-    setStatusOk("保存中...");
-    await rtdbPut(path, { name, price: priceRaw==="" ? "" : Number(priceRaw) });
-    // ローカル反映
-    currentMap()[id] = { name, price: priceRaw==="" ? "" : Number(priceRaw) };
-    ACTIVE_ID = id;
-    setStatusOk("保存しました");
-    selectId(id, false);
-  }catch(e){
-    setStatusNg(e.message || e);
-  }
+  const price = parsePrice(priceRaw);
+  const body = { name, price };
+
+  const path = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(state.cat)}/${encodeURIComponent(id)}`;
+  setStatus("saving...");
+  await rtdbPut(path, body);
+
+  setStatus("保存しました");
+  // 再読込して選択維持
+  state.selectedId = id;
+  await loadMenu();
+  setSelected(id);
 }
 
-async function deleteCurrent(){
-  const shop = AUTH.shop;
-  const id = ($("editId").value || "").trim();
-  if(!isValidId(CAT, id)){
-    setStatusNg("削除するIDが不正です");
-    return;
-  }
-  const existed = getItem(id) != null;
-  if(!existed){
-    setStatusNg("このIDは未登録です（空き番号）");
+async function deleteItem(){
+  const shop = getShop();
+  if(!shop) return;
+
+  const id = ($("id").value || "").trim();
+  if(!id){
+    setStatus("IDが空です");
     return;
   }
 
-  const path = `shops/${encodeURIComponent(shop)}/menu/${CAT}/${encodeURIComponent(id)}`;
-  try{
-    setStatusOk("削除中...");
-    await rtdbPut(path, null);
-    // ローカル反映
-    delete currentMap()[id];
-    setStatusOk("削除しました");
-    clearEditor();
-  }catch(e){
-    setStatusNg(e.message || e);
-  }
+  const path = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(state.cat)}/${encodeURIComponent(id)}`;
+  setStatus("deleting...");
+  await rtdbPut(path, null);
+
+  setStatus("削除しました");
+  state.selectedId = "";
+  await loadMenu();
+  setSelected("");
 }
 
-function newFromFirstHole(){
-  // 空き番号の先頭を選択
-  const m = currentMap();
-  const ids = Object.keys(m||{}).sort((a,b)=> parseIdNum(a)-parseIdNum(b));
-  const holes = buildHoles(ids, 30);
-  const id = holes.find(x => !(m && Object.prototype.hasOwnProperty.call(m, x))) || "";
-  if(id) selectId(id, true);
-}
+function printCategory(cat){
+  const shop = getShop();
+  const title = (cat === "drink") ? "ドリンク" : "フード";
 
-function openPrint(){
-  // 現在カテゴリを番号順で印刷
-  const title = CAT==="drink" ? "ドリンク一覧" : "フード一覧";
-  const m = currentMap();
-  const ids = Object.keys(m||{}).sort((a,b)=> parseIdNum(a)-parseIdNum(b));
+  // そのカテゴリのデータを抽出
+  const ids = sortIds(Array.from(state.map.keys()));
   const rows = ids.map(id=>{
-    const v = normalizeValue(m[id]);
-    return { id, name: v.name||"", price: v.price==="" ? "" : v.price };
+    const it = state.map.get(id);
+    const price = (it && it.price !== "" && it.price !== null && typeof it.price !== "undefined") ? String(it.price) : "";
+    const name = (it && it.name) ? it.name : "";
+    return { id, name, price };
   });
 
-  const w = window.open("", "_blank");
-  const shop = AUTH.shop;
-
-  w.document.open();
-  w.document.write(`
-<!doctype html><html lang="ja"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title>
+  const html = `
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(shop)} ${esc(title)} 一覧</title>
 <style>
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px}
-  h1{font-size:20px;margin:0 0 8px}
+  h1{font-size:18px;margin:0 0 10px}
   .muted{color:#6b7280;font-size:12px;margin-bottom:12px}
   table{width:100%;border-collapse:collapse}
   th,td{border:1px solid #e5e7eb;padding:8px;font-size:14px}
   th{background:#f3f4f6;text-align:left}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
 </style>
-</head><body>
-<h1>${esc(title)}</h1>
-<div class="muted">shop: <span class="mono">${esc(shop)}</span> / 印刷日時: ${esc(new Date().toLocaleString("ja-JP"))}</div>
-<table>
-<thead><tr><th style="width:120px">ID</th><th>名前</th><th style="width:120px">価格</th></tr></thead>
-<tbody>
-${rows.map(r=>`<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.name)}</td><td class="mono">${esc(r.price)}</td></tr>`).join("")}
-</tbody>
-</table>
-<script>window.onload=()=>window.print();</script>
-</body></html>
-  `);
+</head>
+<body>
+  <h1>${esc(shop)} / ${esc(title)} 一覧（番号順）</h1>
+  <div class="muted">${new Date().toLocaleString("ja-JP")}</div>
+  <table>
+    <thead><tr><th style="width:90px">ID</th><th>メニュー名</th><th style="width:110px">価格</th></tr></thead>
+    <tbody>
+      ${rows.map(r=>`<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.name)}</td><td class="mono">${esc(r.price)}</td></tr>`).join("")}
+    </tbody>
+  </table>
+  <script>window.onload=()=>{ setTimeout(()=>window.print(), 200); };</script>
+</body>
+</html>
+  `.trim();
+
+  const w = window.open("", "_blank");
+  if(!w){
+    alert("ポップアップがブロックされました（印刷のため許可してください）");
+    return;
+  }
+  w.document.open();
+  w.document.write(html);
   w.document.close();
 }
 
-/** events */
-$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-$("btnReload").onclick = loadMenus;
-$("btnPrint").onclick = openPrint;
-
-$("tabDrink").onclick = ()=>{
-  CAT="drink";
-  setActiveTab();
-  clearEditor();
-};
-$("tabFood").onclick = ()=>{
-  CAT="food";
-  setActiveTab();
-  clearEditor();
-};
-
-$("btnNew").onclick = newFromFirstHole;
-
-$("btnSave").onclick = saveCurrent;
-$("btnDelete").onclick = deleteCurrent;
-
 /** init */
-AUTH = requireLogin();
-if(!AUTH) throw new Error("redirecting");
-$("shopText").textContent = AUTH.shop;
-setActiveTab();
-setPathText();
-loadMenus();
+(function init(){
+  // ログイン必須
+  if(!requireLogin()) return;
+
+  const shop = getShop();
+  const pin = getPin();
+
+  $("shopText").textContent = shop || "-";
+  // どっちのキーで入ってるか表示（デバッグ用）
+  const from =
+    localStorage.getItem("shopCode") ? "localStorage.shopCode/shopPin" :
+    localStorage.getItem("shop") ? "localStorage.shop/pin" : "(none)";
+  $("shopFrom").textContent = `login: ${from} / PIN: ${pin ? "OK" : "NG"}`;
+
+  // events
+  $("btnBack").addEventListener("click", ()=> location.href = `menu.html?v=${Date.now()}`);
+  $("btnReload").addEventListener("click", ()=> loadMenu().catch(e=>logDbg(e.message||String(e))));
+  $("tabDrink").addEventListener("click", ()=> switchCat("drink"));
+  $("tabFood").addEventListener("click", ()=> switchCat("food"));
+  $("q").addEventListener("input", ()=> renderList());
+
+  $("sel").addEventListener("change", ()=>{
+    const v = ($("sel").value || "").trim();
+    if(!v){ setSelected(""); return; }
+    setSelected(v);
+  });
+
+  $("id").addEventListener("input", updateSavePath);
+  $("btnSuggest").addEventListener("click", ()=>{
+    const s = makeEmptyIdSuggestion();
+    $("id").value = s;
+    $("name").value = "";
+    $("price").value = "";
+    $("btnDelete").disabled = true;
+    $("selHint").textContent = "新規追加";
+    updateSavePath();
+  });
+
+  $("btnSave").addEventListener("click", ()=>{
+    saveItem().catch(e=>{ setStatus("保存失敗"); logDbg(e.message||String(e)); });
+  });
+
+  $("btnDelete").addEventListener("click", ()=>{
+    const id = ($("id").value || "").trim();
+    if(!id) return;
+    if(!confirm(`削除しますか？\n${id}`)) return;
+    deleteItem().catch(e=>{ setStatus("削除失敗"); logDbg(e.message||String(e)); });
+  });
+
+  $("btnPrintDrink").addEventListener("click", async ()=>{
+    if(state.cat !== "drink") switchCat("drink");
+    // 切替後のロードがまだなら少し待つ
+    setTimeout(()=> printCategory("drink"), 200);
+  });
+  $("btnPrintFood").addEventListener("click", async ()=>{
+    if(state.cat !== "food") switchCat("food");
+    setTimeout(()=> printCategory("food"), 200);
+  });
+
+  $("btnClearDbg").addEventListener("click", ()=> $("dbg").textContent = "-");
+
+  // first load
+  loadMenu().catch(e=>{ setStatus("読込失敗"); logDbg(e.message||String(e)); });
+})();
 </script>
 </body>
 </html>

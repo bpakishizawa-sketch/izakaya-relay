@@ -50,33 +50,51 @@
     .price{font-weight:900}
     .hint{font-size:12px;color:#6b7280;line-height:1.6}
 
+    /* 編集欄は「既存選択 or ID手入力で新規」両対応 */
     .editBox{display:grid;grid-template-columns:1fr;gap:10px}
     @media(min-width:860px){
-      .editBox{grid-template-columns:260px 1fr 220px 140px}
+      .editBox{grid-template-columns:260px 240px 1fr 180px 140px}
     }
 
     /* デバッグは通常非表示 */
     details{margin-top:10px}
     details summary{cursor:pointer;color:#374151;font-weight:900}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
     /* ===== 印刷最適化 =====
-       - ドリンク印刷/フード印刷は、選択カテゴリだけ表示
-       - 1カラム化 + 余白削減 + 小さく詰める
+       - 選択カテゴリのみ表示
+       - 2列で詰める
+       - 行高/余白/フォントを少し詰める
     */
     @media print{
       body{background:#fff;padding:0;max-width:none;margin:0}
       .noPrint{display:none !important;}
       .card{border:0;border-radius:0;margin:0;padding:0}
-      .grid2{grid-template-columns:1fr !important;gap:8px}
-      .item{break-inside:avoid;page-break-inside:avoid;border:1px solid #ddd;border-radius:10px;padding:8px}
-      .name{max-width:520px}
-      h1{margin:0 0 6px;font-size:16px}
-      .printTitle{display:block !important;margin:0 0 8px}
-      .printTitle .subLine{font-size:11px;color:#555;margin-top:2px}
-      /* 印刷時に「非表示フラグ」が付いた側は表示しない */
-      .printHide{display:none !important;}
+
+      h1{margin:0 0 6px;font-size:14px}
+      .printTitle{display:block !important;margin:0 0 6px}
+      .printTitle .subLine{font-size:10px;color:#555;margin-top:1px}
+
+      /* 重要：印刷時の一覧は2列 */
+      .printGrid{
+        display:grid !important;
+        grid-template-columns:1fr 1fr !important;
+        gap:6px !important;
+        align-items:start;
+      }
+
+      .item{
+        break-inside:avoid;page-break-inside:avoid;
+        border:1px solid #ddd;border-radius:10px;padding:6px;
+      }
+      .pill{height:20px;min-width:24px;font-size:10px;padding:0 8px}
+      .id{font-size:11px}
+      .name{font-size:11px;max-width:220px}
+      .price{font-size:11px}
+      .left{gap:6px}
     }
     .printTitle{display:none}
+    .printHide{display:none !important;}
   </style>
 </head>
 <body>
@@ -97,46 +115,57 @@
     <div class="tabs">
       <button class="tab on" id="tabDrink">ドリンク</button>
       <button class="tab" id="tabFood">フード</button>
-      <span class="muted">（一覧をタップすると下の編集欄に入ります）</span>
+      <span class="muted">（一覧タップ → 編集欄に入ります）</span>
     </div>
   </div>
 
-  <!-- 印刷時のタイトル（どちらを印刷中か分かるように） -->
   <div class="printTitle" id="printHeader">
-    <div style="font-weight:900;font-size:14px">メニュー一覧（<span id="printCat">-</span>）</div>
+    <div style="font-weight:900;font-size:13px">メニュー一覧（<span id="printCat">-</span>）</div>
     <div class="subLine"><span id="printShop">-</span> / <span id="printTime">-</span></div>
   </div>
 
   <div class="card noPrint">
     <div style="font-weight:900;margin-bottom:10px">編集</div>
+
     <div class="editBox">
       <div>
-        <div class="muted">対象（プルダウン or 一覧タップ）</div>
+        <div class="muted">既存を選択（プルダウン）</div>
         <select id="selTarget">
           <option value="">（未選択）</option>
         </select>
       </div>
+
+      <div>
+        <div class="muted">ID（新規追加はここに入力）</div>
+        <input id="inpId" placeholder="例：d12 / f101" />
+      </div>
+
       <div>
         <div class="muted">メニュー名</div>
         <input id="inpName" placeholder="例：レモンサワー" />
       </div>
+
       <div>
         <div class="muted">価格</div>
         <input id="inpPrice" placeholder="例：450" inputmode="numeric" />
       </div>
+
       <div class="row" style="align-items:end">
         <button id="btnSave" class="btn">保存</button>
         <button id="btnDelete" class="btn2">削除</button>
+        <button id="btnClear" class="btn2">クリア</button>
       </div>
     </div>
+
     <div class="hint" style="margin-top:8px">
-      ・一覧 or プルダウンで選択 → 編集 → 保存。<br>
-      ・未登録ID（空き番号）を作りたい場合は、プルダウンで空き候補を選んで保存してください。
+      ・既存編集：プルダウン or 一覧タップ → 編集 → 保存。<br>
+      ・新規追加：ID欄に <b>dXX / fXXX</b> を入力 → 名前/価格 → 保存。<br>
+      ・空き番号の提案表示はやめました（混乱の元なので）。
     </div>
 
     <details>
       <summary>デバッグ（必要な時だけ開く）</summary>
-      <pre id="debug" class="mono" style="white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto">-</pre>
+      <pre id="debug" class="mono">-</pre>
     </details>
   </div>
 
@@ -175,7 +204,7 @@ async function rtdbGet(path){
   const txt = await res.text();
   let json = null;
   try{ json = JSON.parse(txt || "null"); }catch{ json = null; }
-  return { ok: res.ok, status: res.status, json, url, text: txt };
+  return { ok: res.ok, status: res.status, json, url };
 }
 async function rtdbPut(path, data){
   const url = `${RTDB_BASE}/${path}.json`;
@@ -183,46 +212,27 @@ async function rtdbPut(path, data){
   const txt = await res.text();
   let json = null;
   try{ json = JSON.parse(txt || "null"); }catch{ json = null; }
-  return { ok: res.ok, status: res.status, json, url, text: txt };
+  return { ok: res.ok, status: res.status, json, url };
 }
 
 function parseMenuValue(v){
-  // 既存が文字列でも吸収
   if(v && typeof v === "object"){
     return { name: String(v.name ?? ""), price: Number(v.price ?? 0) };
   }
   if(typeof v === "string"){
-    // "name|price" みたいなのがあっても吸収できるように緩く
     return { name: v, price: 0 };
   }
   return { name:"", price:0 };
 }
 
 function idNum(id){
-  // d12 -> 12 / f101 -> 101 / それ以外 -> 큰値
   const m = String(id||"").match(/\d+/);
   return m ? Number(m[0]) : 999999;
 }
 
-function makeIdList(prefix, keys){
-  // 既存 keys から「次の空き」候補も少し作る（+20）
-  const nums = keys.map(k=>idNum(k)).filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
-  const max = nums.length ? nums[nums.length-1] : (prefix==="d"?0:100);
-  const set = new Set(keys);
-  const out = [];
-  // 既存を先に
-  keys.slice().sort((a,b)=>idNum(a)-idNum(b)).forEach(k=>out.push({ id:k, exists:true }));
-  // 空きを作る（max+1〜max+20）
-  for(let n=max+1; n<=max+20; n++){
-    const id = prefix + String(n);
-    if(!set.has(id)) out.push({ id, exists:false });
-  }
-  return out;
-}
-
 let state = {
   shop: "",
-  cat: "drink", // "drink" | "food"
+  cat: "drink",
   drink: {}, food: {},
   drinkKeys: [], foodKeys: []
 };
@@ -233,23 +243,20 @@ function setTab(cat){
   state.cat = cat;
   $("tabDrink").classList.toggle("on", cat==="drink");
   $("tabFood").classList.toggle("on", cat==="food");
-  // プルダウンを作り直す
   rebuildSelect();
+  // クリアはしない（切替えても編集途中が消えない方が事故が少ない）
 }
 
 function rebuildSelect(){
+  // ★ここが修正点：プルダウンは「既存のみ」
   const sel = $("selTarget");
   sel.innerHTML = `<option value="">（未選択）</option>`;
-
   const keys = (state.cat === "drink") ? state.drinkKeys : state.foodKeys;
-  const prefix = (state.cat === "drink") ? "d" : "f";
 
-  const list = makeIdList(prefix, keys);
-  for(const x of list){
-    const label = x.exists ? `${x.id}（既存）` : `${x.id}（空き）`;
+  for(const id of keys){
     const opt = document.createElement("option");
-    opt.value = x.id;
-    opt.textContent = label;
+    opt.value = id;
+    opt.textContent = id; // 余計な（既存）表示をやめる
     sel.appendChild(opt);
   }
 }
@@ -259,18 +266,19 @@ function fillEditor(id){
   const src = (state.cat === "drink") ? state.drink : state.food;
   const v = parseMenuValue(src[id]);
   $("selTarget").value = id;
+  $("inpId").value = id;
   $("inpName").value = v.name || "";
-  $("inpPrice").value = (v.price || v.price===0) ? String(v.price) : "";
+  $("inpPrice").value = String(v.price ?? 0);
 }
 
 function clearEditor(){
   $("selTarget").value = "";
+  $("inpId").value = "";
   $("inpName").value = "";
   $("inpPrice").value = "";
 }
 
 function renderList(){
-  // ドリンク
   $("drinkCount").textContent = String(state.drinkKeys.length);
   const dWrap = $("drinkList");
   dWrap.innerHTML = "";
@@ -299,7 +307,6 @@ function renderList(){
     dWrap.innerHTML = `<div class="muted"><small>ドリンクがありません</small></div>`;
   }
 
-  // フード
   $("foodCount").textContent = String(state.foodKeys.length);
   const fWrap = $("foodList");
   fWrap.innerHTML = "";
@@ -328,7 +335,6 @@ function renderList(){
     fWrap.innerHTML = `<div class="muted"><small>フードがありません</small></div>`;
   }
 
-  // debug
   $("debug").textContent = JSON.stringify({
     shop: state.shop,
     drinkKeys: state.drinkKeys.length,
@@ -347,7 +353,6 @@ async function loadAll(){
   $("shopText").textContent = shop;
 
   setStatus(`<span class="mono">loading...</span>`);
-
   const d = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/drink`);
   const f = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/food`);
 
@@ -364,16 +369,25 @@ async function loadAll(){
 
   rebuildSelect();
   renderList();
-
   setStatus(`<span class="ok">OK</span>`);
 }
 
+function normalizeId(idRaw){
+  const id = String(idRaw||"").trim();
+  if(!id) return "";
+  const low = id.toLowerCase();
+  // d / f 以外は弾く（事故防止）
+  if(!(low.startsWith("d") || low.startsWith("f"))) return "";
+  return low;
+}
+
 async function saveCurrent(){
-  const id = ($("selTarget").value || "").trim();
+  const id = normalizeId($("inpId").value);
   if(!id){
-    setStatus(`<span class="ng">ID未選択</span>`);
+    setStatus(`<span class="ng">IDが不正です（d12 / f101 の形式）</span>`);
     return;
   }
+
   const name = ($("inpName").value || "").trim();
   const price = Number(($("inpPrice").value || "0").trim());
   if(!name){
@@ -384,11 +398,12 @@ async function saveCurrent(){
     setStatus(`<span class="ng">価格が不正です</span>`);
     return;
   }
-  const shop = state.shop;
-  const cat = state.cat;
+
+  // IDの先頭でカテゴリを決める（編集タブと食い違っても安全）
+  const cat = id.startsWith("d") ? "drink" : "food";
 
   setStatus(`<span class="mono">saving...</span>`);
-  const path = `shops/${encodeURIComponent(shop)}/menu/${cat}/${encodeURIComponent(id)}`;
+  const path = `shops/${encodeURIComponent(state.shop)}/menu/${cat}/${encodeURIComponent(id)}`;
   const res = await rtdbPut(path, { name, price });
   if(!res.ok){
     setStatus(`<span class="ng">保存失敗</span> <span class="muted">(${res.status})</span>`);
@@ -396,24 +411,23 @@ async function saveCurrent(){
   }
 
   await loadAll();
+  setTab(cat);
   fillEditor(id);
   setStatus(`<span class="ok">保存OK</span>`);
 }
 
 async function deleteCurrent(){
-  const id = ($("selTarget").value || "").trim();
+  const id = normalizeId($("inpId").value);
   if(!id){
-    setStatus(`<span class="ng">ID未選択</span>`);
+    setStatus(`<span class="ng">ID未指定</span>`);
     return;
   }
-  if(!confirm(`${state.cat} の ${id} を削除しますか？`)) return;
-
-  const shop = state.shop;
-  const cat = state.cat;
+  const cat = id.startsWith("d") ? "drink" : "food";
+  if(!confirm(`${cat} の ${id} を削除しますか？`)) return;
 
   setStatus(`<span class="mono">deleting...</span>`);
-  const path = `shops/${encodeURIComponent(shop)}/menu/${cat}/${encodeURIComponent(id)}`;
-  const res = await rtdbPut(path, null); // delete
+  const path = `shops/${encodeURIComponent(state.shop)}/menu/${cat}/${encodeURIComponent(id)}`;
+  const res = await rtdbPut(path, null);
   if(!res.ok){
     setStatus(`<span class="ng">削除失敗</span> <span class="muted">(${res.status})</span>`);
     return;
@@ -424,31 +438,37 @@ async function deleteCurrent(){
   setStatus(`<span class="ok">削除OK</span>`);
 }
 
-/** 印刷：選択カテゴリだけを表示して印刷 */
+/* 印刷：選択カテゴリだけ表示 + 2列（printGrid） */
 function printOnly(cat){
-  // 印刷ヘッダ
   $("printCat").textContent = (cat==="drink") ? "ドリンク" : "フード";
   $("printShop").textContent = state.shop || "-";
   $("printTime").textContent = new Date().toLocaleString("ja-JP");
 
-  // 片側を印刷時だけ非表示にする
   const drinkPanel = $("drinkPanel");
   const foodPanel = $("foodPanel");
-  drinkPanel.classList.remove("printHide");
-  foodPanel.classList.remove("printHide");
+
+  // パネルの中の list を印刷時だけ2列にする
+  $("drinkList").classList.remove("printGrid");
+  $("foodList").classList.remove("printGrid");
   if(cat==="drink"){
-    foodPanel.classList.add("printHide");
+    $("drinkList").classList.add("printGrid");
   }else{
-    drinkPanel.classList.add("printHide");
+    $("foodList").classList.add("printGrid");
   }
 
-  // 印刷
+  drinkPanel.classList.remove("printHide");
+  foodPanel.classList.remove("printHide");
+  if(cat==="drink") foodPanel.classList.add("printHide");
+  else drinkPanel.classList.add("printHide");
+
   setTimeout(()=>window.print(), 50);
 
-  // 印刷後に戻す（Safari対策で遅延）
+  // 戻す（Safari対策）
   setTimeout(()=>{
     drinkPanel.classList.remove("printHide");
     foodPanel.classList.remove("printHide");
+    $("drinkList").classList.remove("printGrid");
+    $("foodList").classList.remove("printGrid");
   }, 800);
 }
 
@@ -462,12 +482,14 @@ $("tabFood").onclick  = ()=> setTab("food");
 $("selTarget").onchange = ()=>{
   const id = $("selTarget").value;
   if(id){
+    // タブで選択されたカテゴリ内の既存なので、そのまま反映
     fillEditor(id);
   }
 };
 
 $("btnSave").onclick = saveCurrent;
 $("btnDelete").onclick = deleteCurrent;
+$("btnClear").onclick = clearEditor;
 
 $("btnPrintDrink").onclick = ()=> printOnly("drink");
 $("btnPrintFood").onclick  = ()=> printOnly("food");
@@ -478,6 +500,7 @@ loadAll();
 </script>
 </body>
 </html>
+
 
 
 

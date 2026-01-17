@@ -2,516 +2,482 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>メニュー編集</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>メニュー編集（店側）</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:1100px; margin:0 auto;}
-    h2{margin:0 0 10px;}
-    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0;background:#fff;}
-    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:980px;margin:0 auto;background:#f6f7f9}
+    h1{font-size:22px;margin:0 0 10px}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0;background:#fff}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .muted{color:#6b7280;font-size:12px}
     .ok{color:#16a34a;font-weight:900}
     .ng{color:#dc2626;font-weight:900}
-    .muted{color:#6b7280}
-    input,select,button{font-size:16px;padding:10px;border-radius:10px}
-    input,select{border:1px solid #cbd5e1}
-    button{border:0;cursor:pointer;font-weight:900}
-    .dark{background:#111827;color:#fff}
-    .light{background:#f3f4f6;color:#111827;border:1px solid #ddd}
-    .danger{background:#ef4444;color:#fff}
-    .grid{display:grid;grid-template-columns:1fr; gap:12px; align-items:start}
-    @media(min-width:900px){ .grid{grid-template-columns: 1fr 1fr;} }
-    .list{display:flex;flex-direction:column;gap:8px}
-    .item{border:1px solid #e5e7eb;border-radius:10px;padding:10px;cursor:pointer}
-    .item:hover{background:#f8fafc}
-    .itemActive{border-color:#2563eb;background:#eff6ff}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
-    .pillDrink{background:#dbeafe;border-color:#3b82f6}
-    .pillFood{background:#dcfce7;border-color:#16a34a}
-    .small{font-size:12px;color:#6b7280}
-    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
-    /* 印刷用セクションは通常は非表示 */
-    #printArea{display:none;}
+    button{cursor:pointer;border:0;border-radius:10px;padding:10px 12px;font-weight:900}
+    .btn{background:#111827;color:#fff}
+    .btn2{background:#e5e7eb;color:#111827}
+    .btnBlue{background:#2563eb;color:#fff}
+    .btnGreen{background:#16a34a;color:#fff}
 
-    /* ===== 印刷（PDF保存）向け ===== */
-    @media print{
-      /* 画面用は全て隠す */
-      .noPrint{display:none !important;}
-      #printArea{display:block !important;}
+    input,select{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
+    input{width:100%;box-sizing:border-box}
+    .w160{width:160px}
+    .w220{width:220px}
+    .w260{width:260px}
 
-      /* 余白とフォントを詰める（2枚前後に収める） */
-      @page { size: A4; margin: 8mm; }
-      body{padding:0; max-width:none; margin:0;}
-      .pWrap{font-size:10px; line-height:1.15;}
-      .pTitle{font-size:14px; font-weight:900; margin:0 0 6px;}
-      .pMeta{font-size:10px; color:#111; margin:0 0 8px;}
-      .pGrid{display:grid; grid-template-columns:1fr 1fr; gap:6mm; align-items:start;}
-      .pCol{border:1px solid #ddd; border-radius:8px; padding:6mm;}
-      .pHead{display:flex; align-items:center; justify-content:space-between; margin:0 0 6px;}
-      .pHead b{font-size:12px;}
-      .pList{display:flex; flex-direction:column; gap:2mm;}
-      .pItem{
-        border:1px solid #e5e7eb; border-radius:6px; padding:2.5mm 3mm;
-        break-inside: avoid; page-break-inside: avoid;
-      }
-      .pItemTop{display:flex; gap:6px; align-items:center;}
-      .pId{font-weight:900;}
-      .pName{margin-top:2px; font-weight:700;}
-      .pPrice{margin-left:auto; font-weight:900;}
-      .pill{font-size:10px; padding:2px 8px;}
+    .tabs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+    .tab{padding:10px 14px;border-radius:999px;border:1px solid #d1d5db;background:#fff;font-weight:900}
+    .tab.on{background:#111827;color:#fff;border-color:#111827}
+
+    .grid2{display:grid;grid-template-columns:1fr;gap:12px}
+    @media(min-width:860px){
+      .grid2{grid-template-columns:1fr 1fr;}
     }
+
+    .list{display:flex;flex-direction:column;gap:10px}
+    .item{
+      border:1px solid #e5e7eb;border-radius:12px;padding:10px;
+      display:flex;gap:10px;align-items:center;justify-content:space-between;
+      background:#fff;
+    }
+    .left{display:flex;gap:10px;align-items:center;min-width:0}
+    .pill{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;padding:0 10px;border-radius:999px;border:1px solid #d1d5db;font-weight:900;font-size:12px}
+    .pillD{background:#dbeafe;border-color:#3b82f6}
+    .pillF{background:#dcfce7;border-color:#16a34a}
+    .id{font-weight:900}
+    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+    .price{font-weight:900}
+    .hint{font-size:12px;color:#6b7280;line-height:1.6}
+
+    .editBox{display:grid;grid-template-columns:1fr;gap:10px}
+    @media(min-width:860px){
+      .editBox{grid-template-columns:260px 1fr 220px 140px}
+    }
+
+    /* デバッグは通常非表示 */
+    details{margin-top:10px}
+    details summary{cursor:pointer;color:#374151;font-weight:900}
+
+    /* ===== 印刷最適化 =====
+       - ドリンク印刷/フード印刷は、選択カテゴリだけ表示
+       - 1カラム化 + 余白削減 + 小さく詰める
+    */
+    @media print{
+      body{background:#fff;padding:0;max-width:none;margin:0}
+      .noPrint{display:none !important;}
+      .card{border:0;border-radius:0;margin:0;padding:0}
+      .grid2{grid-template-columns:1fr !important;gap:8px}
+      .item{break-inside:avoid;page-break-inside:avoid;border:1px solid #ddd;border-radius:10px;padding:8px}
+      .name{max-width:520px}
+      h1{margin:0 0 6px;font-size:16px}
+      .printTitle{display:block !important;margin:0 0 8px}
+      .printTitle .subLine{font-size:11px;color:#555;margin-top:2px}
+      /* 印刷時に「非表示フラグ」が付いた側は表示しない */
+      .printHide{display:none !important;}
+    }
+    .printTitle{display:none}
   </style>
 </head>
 <body>
-  <h2>メニュー編集</h2>
+  <h1>メニュー編集（店側）</h1>
 
   <div class="card noPrint">
     <div class="row">
       <div>shop: <b id="shopText" class="mono">-</b></div>
-      <div class="muted small" id="pinText">-</div>
-      <span style="margin-left:auto" class="muted small" id="lastLine">-</span>
+      <div id="status" class="muted">-</div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="btnBack" class="btn2">← menuへ</button>
+      <button id="btnReload" class="btn">再読み込み</button>
+      <button id="btnPrintDrink" class="btnBlue">ドリンク印刷</button>
+      <button id="btnPrintFood" class="btnGreen">フード印刷</button>
     </div>
 
-    <div class="row" style="margin-top:10px;">
-      <button id="btnBack" class="light">← メニューへ</button>
-      <button id="btnReload" class="dark">再読み込み</button>
-      <button id="btnFixKeys" class="light">キー修復</button>
-      <button id="btnPrintDrink" class="light">ドリンク印刷</button>
-      <button id="btnPrintFood" class="light">フード印刷</button>
-      <button id="btnPrintAll" class="light">全部印刷</button>
+    <div class="tabs">
+      <button class="tab on" id="tabDrink">ドリンク</button>
+      <button class="tab" id="tabFood">フード</button>
+      <span class="muted">（一覧をタップすると下の編集欄に入ります）</span>
     </div>
-
-    <div id="status" style="margin-top:10px;" class="muted">-</div>
   </div>
 
-  <div class="grid noPrint">
-    <div class="card">
-      <div class="row">
-        <b>選択</b>
-        <select id="pickCat" style="width:160px">
-          <option value="drink">ドリンク</option>
-          <option value="food">フード</option>
-        </select>
-        <select id="pickId" style="flex:1; min-width:220px">
+  <!-- 印刷時のタイトル（どちらを印刷中か分かるように） -->
+  <div class="printTitle" id="printHeader">
+    <div style="font-weight:900;font-size:14px">メニュー一覧（<span id="printCat">-</span>）</div>
+    <div class="subLine"><span id="printShop">-</span> / <span id="printTime">-</span></div>
+  </div>
+
+  <div class="card noPrint">
+    <div style="font-weight:900;margin-bottom:10px">編集</div>
+    <div class="editBox">
+      <div>
+        <div class="muted">対象（プルダウン or 一覧タップ）</div>
+        <select id="selTarget">
           <option value="">（未選択）</option>
         </select>
       </div>
-
-      <div class="row" style="margin-top:10px;">
-        <div style="flex:1; min-width:220px;">
-          <div class="small">番号（例：d1 / f12）</div>
-          <input id="editId" placeholder="例：d1 または f12" style="width:100%" />
-        </div>
-        <div style="flex:2; min-width:260px;">
-          <div class="small">メニュー名</div>
-          <input id="editName" placeholder="メニュー名" style="width:100%" />
-        </div>
-        <div style="width:160px;">
-          <div class="small">価格</div>
-          <input id="editPrice" type="number" min="0" step="1" value="0" style="width:100%" />
-        </div>
+      <div>
+        <div class="muted">メニュー名</div>
+        <input id="inpName" placeholder="例：レモンサワー" />
       </div>
-
-      <div class="row" style="margin-top:10px;">
-        <button id="btnSave" class="dark" style="flex:1; min-width:200px;">保存</button>
-        <button id="btnDelete" class="danger" style="flex:1; min-width:200px;">削除</button>
-        <button id="btnClear" class="light" style="flex:1; min-width:200px;">クリア</button>
+      <div>
+        <div class="muted">価格</div>
+        <input id="inpPrice" placeholder="例：450" inputmode="numeric" />
       </div>
-
-      <div class="card">
-        <div class="muted small">デバッグ</div>
-        <pre id="dbg" class="mono">-</pre>
+      <div class="row" style="align-items:end">
+        <button id="btnSave" class="btn">保存</button>
+        <button id="btnDelete" class="btn2">削除</button>
       </div>
     </div>
+    <div class="hint" style="margin-top:8px">
+      ・一覧 or プルダウンで選択 → 編集 → 保存。<br>
+      ・未登録ID（空き番号）を作りたい場合は、プルダウンで空き候補を選んで保存してください。
+    </div>
 
-    <div class="card">
-      <div class="row">
-        <b>ドリンク一覧</b>
-        <span class="mono muted" id="countLine" style="margin-left:auto">-</span>
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <span class="pill pillDrink">ドリンク</span> <span class="mono" id="drinkCount">0</span>
-      </div>
-      <div class="list" id="drinkList" style="margin-top:8px;"></div>
+    <details>
+      <summary>デバッグ（必要な時だけ開く）</summary>
+      <pre id="debug" class="mono" style="white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto">-</pre>
+    </details>
+  </div>
 
-      <div class="row" style="margin-top:16px;">
-        <b>フード一覧</b>
-        <span class="pill pillFood">フード</span> <span class="mono" id="foodCount">0</span>
+  <div class="grid2">
+    <div class="card" id="drinkPanel">
+      <div class="row" style="justify-content:space-between">
+        <div style="font-weight:900">一覧（ドリンク）</div>
+        <div class="muted">件数: <span id="drinkCount" class="mono">0</span></div>
       </div>
-      <div class="list" id="foodList" style="margin-top:8px;"></div>
+      <div class="list" id="drinkList"></div>
+    </div>
+
+    <div class="card" id="foodPanel">
+      <div class="row" style="justify-content:space-between">
+        <div style="font-weight:900">一覧（フード）</div>
+        <div class="muted">件数: <span id="foodCount" class="mono">0</span></div>
+      </div>
+      <div class="list" id="foodList"></div>
     </div>
   </div>
 
-  <!-- ===== 印刷専用（ここだけ印刷される） ===== -->
-  <div id="printArea">
-    <div class="pWrap">
-      <div class="pTitle" id="pTitle">メニュー一覧</div>
-      <div class="pMeta" id="pMeta">-</div>
+<script>
+/** ====== 設定ここだけ ====== */
+const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ========================= */
 
-      <div class="pGrid">
-        <div class="pCol" id="pDrinkCol">
-          <div class="pHead">
-            <b>ドリンク</b>
-            <span class="mono" id="pDrinkCount">0</span>
-          </div>
-          <div class="pList" id="pDrinkList"></div>
-        </div>
+const KEY_SHOP = "shopCode"; // localStorage
+function lsGet(k){ return (localStorage.getItem(k) || "").trim(); }
 
-        <div class="pCol" id="pFoodCol">
-          <div class="pHead">
-            <b>フード</b>
-            <span class="mono" id="pFoodCount">0</span>
-          </div>
-          <div class="pList" id="pFoodList"></div>
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
+
+async function rtdbGet(path){
+  const url = `${RTDB_BASE}/${path}.json`;
+  const res = await fetch(url);
+  const txt = await res.text();
+  let json = null;
+  try{ json = JSON.parse(txt || "null"); }catch{ json = null; }
+  return { ok: res.ok, status: res.status, json, url, text: txt };
+}
+async function rtdbPut(path, data){
+  const url = `${RTDB_BASE}/${path}.json`;
+  const res = await fetch(url, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(data) });
+  const txt = await res.text();
+  let json = null;
+  try{ json = JSON.parse(txt || "null"); }catch{ json = null; }
+  return { ok: res.ok, status: res.status, json, url, text: txt };
+}
+
+function parseMenuValue(v){
+  // 既存が文字列でも吸収
+  if(v && typeof v === "object"){
+    return { name: String(v.name ?? ""), price: Number(v.price ?? 0) };
+  }
+  if(typeof v === "string"){
+    // "name|price" みたいなのがあっても吸収できるように緩く
+    return { name: v, price: 0 };
+  }
+  return { name:"", price:0 };
+}
+
+function idNum(id){
+  // d12 -> 12 / f101 -> 101 / それ以外 -> 큰値
+  const m = String(id||"").match(/\d+/);
+  return m ? Number(m[0]) : 999999;
+}
+
+function makeIdList(prefix, keys){
+  // 既存 keys から「次の空き」候補も少し作る（+20）
+  const nums = keys.map(k=>idNum(k)).filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
+  const max = nums.length ? nums[nums.length-1] : (prefix==="d"?0:100);
+  const set = new Set(keys);
+  const out = [];
+  // 既存を先に
+  keys.slice().sort((a,b)=>idNum(a)-idNum(b)).forEach(k=>out.push({ id:k, exists:true }));
+  // 空きを作る（max+1〜max+20）
+  for(let n=max+1; n<=max+20; n++){
+    const id = prefix + String(n);
+    if(!set.has(id)) out.push({ id, exists:false });
+  }
+  return out;
+}
+
+let state = {
+  shop: "",
+  cat: "drink", // "drink" | "food"
+  drink: {}, food: {},
+  drinkKeys: [], foodKeys: []
+};
+
+function setStatus(html){ $("status").innerHTML = html || ""; }
+
+function setTab(cat){
+  state.cat = cat;
+  $("tabDrink").classList.toggle("on", cat==="drink");
+  $("tabFood").classList.toggle("on", cat==="food");
+  // プルダウンを作り直す
+  rebuildSelect();
+}
+
+function rebuildSelect(){
+  const sel = $("selTarget");
+  sel.innerHTML = `<option value="">（未選択）</option>`;
+
+  const keys = (state.cat === "drink") ? state.drinkKeys : state.foodKeys;
+  const prefix = (state.cat === "drink") ? "d" : "f";
+
+  const list = makeIdList(prefix, keys);
+  for(const x of list){
+    const label = x.exists ? `${x.id}（既存）` : `${x.id}（空き）`;
+    const opt = document.createElement("option");
+    opt.value = x.id;
+    opt.textContent = label;
+    sel.appendChild(opt);
+  }
+}
+
+function fillEditor(id){
+  if(!id) return;
+  const src = (state.cat === "drink") ? state.drink : state.food;
+  const v = parseMenuValue(src[id]);
+  $("selTarget").value = id;
+  $("inpName").value = v.name || "";
+  $("inpPrice").value = (v.price || v.price===0) ? String(v.price) : "";
+}
+
+function clearEditor(){
+  $("selTarget").value = "";
+  $("inpName").value = "";
+  $("inpPrice").value = "";
+}
+
+function renderList(){
+  // ドリンク
+  $("drinkCount").textContent = String(state.drinkKeys.length);
+  const dWrap = $("drinkList");
+  dWrap.innerHTML = "";
+  for(const id of state.drinkKeys){
+    const v = parseMenuValue(state.drink[id]);
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="left">
+        <span class="pill pillD">D</span>
+        <div style="min-width:0">
+          <div class="id mono">${esc(id)}</div>
+          <div class="name">${esc(v.name || "-")}</div>
         </div>
       </div>
-    </div>
-  </div>
+      <div class="price mono">${esc(String(v.price||0))}</div>
+    `;
+    div.onclick = ()=>{
+      setTab("drink");
+      fillEditor(id);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+    dWrap.appendChild(div);
+  }
+  if(state.drinkKeys.length === 0){
+    dWrap.innerHTML = `<div class="muted"><small>ドリンクがありません</small></div>`;
+  }
 
-  <script src="./shop_common.js?v=20260117"></script>
-  <script>
-    const $ = (id)=>document.getElementById(id);
-
-    function setStatus(html){ $("status").innerHTML = html || ""; }
-    function setDbg(obj){ $("dbg").textContent = typeof obj==="string" ? obj : JSON.stringify(obj, null, 2); }
-    function maskPin(pin){ if(!pin) return "-"; return "*".repeat(Math.min(String(pin).length, 8)); }
-
-    function fixKeysIfNeeded(){
-      const shopCode = (localStorage.getItem("shopCode") || "").trim();
-      const shop     = (localStorage.getItem("shop") || "").trim();
-      if(!shopCode && shop) localStorage.setItem("shopCode", shop);
-
-      const shopPin = (localStorage.getItem("shopPin") || "").trim();
-      const pin     = (localStorage.getItem("pin") || "").trim();
-      if(!shopPin && pin) localStorage.setItem("shopPin", pin);
-    }
-
-    function requireShop(){
-      fixKeysIfNeeded();
-      if(typeof requireLogin === "function"){
-        if(!requireLogin()) return null;
-      }else{
-        const s = (localStorage.getItem("shopCode")||"").trim();
-        const p = (localStorage.getItem("shopPin")||"").trim();
-        if(!s || !p){
-          location.href = "login.html?v=" + Date.now();
-          return null;
-        }
-      }
-      const shop = (localStorage.getItem("shopCode")||"").trim();
-      const pin  = (localStorage.getItem("shopPin")||"").trim();
-      return { shop, pin };
-    }
-
-    function idNumber(id){
-      const m = String(id||"").match(/\d+/);
-      return m ? Number(m[0]) : 999999;
-    }
-
-    function sortId(a,b){
-      const na = idNumber(a.id), nb = idNumber(b.id);
-      if(na !== nb) return na - nb;
-      return String(a.id||"").localeCompare(String(b.id||""), "ja");
-    }
-
-    let auth = null;
-    let menu = { drink: {}, food: {} };
-    let activeKey = "";
-
-    function normalizeValue(v){
-      if(v && typeof v === "object"){
-        return { name: String(v.name ?? ""), price: Number(v.price ?? 0) };
-      }
-      return { name: String(v ?? ""), price: 0 };
-    }
-
-    function setActive(cat, id){
-      activeKey = `${cat}:${id}`;
-      $("pickCat").value = cat;
-      $("editId").value = id;
-      const val = normalizeValue((menu[cat]||{})[id]);
-      $("editName").value = val.name || "";
-      $("editPrice").value = String(Number(val.price||0));
-      $("pickId").value = id;
-
-      document.querySelectorAll(".item").forEach(el=> el.classList.remove("itemActive"));
-      const target = document.querySelector(`.item[data-key="${cat}:${id}"]`);
-      if(target) target.classList.add("itemActive");
-    }
-
-    function clearEditor(){
-      activeKey = "";
-      $("editId").value = "";
-      $("editName").value = "";
-      $("editPrice").value = "0";
-      $("pickId").value = "";
-      document.querySelectorAll(".item").forEach(el=> el.classList.remove("itemActive"));
-    }
-
-    function rebuildPick(){
-      const cat = $("pickCat").value;
-      const sel = $("pickId");
-      sel.innerHTML = `<option value="">（未選択）</option>`;
-
-      const obj = menu[cat] || {};
-      const arr = Object.keys(obj).map(id=>({id, ...normalizeValue(obj[id])})).sort(sortId);
-      for(const x of arr){
-        const opt = document.createElement("option");
-        opt.value = x.id;
-        opt.textContent = `${x.id} / ${x.name} (${x.price})`;
-        sel.appendChild(opt);
-      }
-    }
-
-    function makeItemDiv(cat, x){
-      const div = document.createElement("div");
-      div.className = "item";
-      div.dataset.key = `${cat}:${x.id}`;
-      div.innerHTML = `
-        <div class="row" style="margin:0;">
-          <span class="pill ${cat==="drink" ? "pillDrink" : "pillFood"}">${cat==="drink" ? "D" : "F"}</span>
-          <b class="mono">${esc(x.id)}</b>
-          <span class="mono" style="margin-left:auto">${esc(String(x.price))}</span>
+  // フード
+  $("foodCount").textContent = String(state.foodKeys.length);
+  const fWrap = $("foodList");
+  fWrap.innerHTML = "";
+  for(const id of state.foodKeys){
+    const v = parseMenuValue(state.food[id]);
+    const div = document.createElement("div");
+    div.className = "item";
+    div.innerHTML = `
+      <div class="left">
+        <span class="pill pillF">F</span>
+        <div style="min-width:0">
+          <div class="id mono">${esc(id)}</div>
+          <div class="name">${esc(v.name || "-")}</div>
         </div>
-        <div style="margin-top:6px; font-weight:900;">${esc(x.name||"")}</div>
-      `;
-      div.onclick = ()=> setActive(cat, x.id);
-      return div;
-    }
-
-    function rebuildLists(){
-      const dRoot = $("drinkList");
-      const fRoot = $("foodList");
-      dRoot.innerHTML = "";
-      fRoot.innerHTML = "";
-
-      const drinkArr = Object.keys(menu.drink||{}).map(id=>({id, ...normalizeValue(menu.drink[id])})).sort(sortId);
-      const foodArr  = Object.keys(menu.food||{}).map(id=>({id, ...normalizeValue(menu.food[id])})).sort(sortId);
-
-      $("drinkCount").textContent = String(drinkArr.length);
-      $("foodCount").textContent  = String(foodArr.length);
-      $("countLine").textContent  = `合計 ${drinkArr.length + foodArr.length} 件`;
-
-      for(const x of drinkArr) dRoot.appendChild(makeItemDiv("drink", x));
-      for(const x of foodArr)  fRoot.appendChild(makeItemDiv("food", x));
-
-      if(activeKey){
-        const target = document.querySelector(`.item[data-key="${activeKey}"]`);
-        if(target) target.classList.add("itemActive");
-      }
-
-      // 印刷用DOMも更新
-      rebuildPrintArea(drinkArr, foodArr);
-    }
-
-    function rebuildPrintArea(drinkArr, foodArr){
-      $("pMeta").textContent = `${auth ? auth.shop : "-"} / ${new Date().toLocaleString("ja-JP")}`;
-      $("pDrinkCount").textContent = String(drinkArr.length);
-      $("pFoodCount").textContent  = String(foodArr.length);
-
-      const pd = $("pDrinkList");
-      const pf = $("pFoodList");
-      pd.innerHTML = "";
-      pf.innerHTML = "";
-
-      const makeP = (cat, x)=>{
-        const div = document.createElement("div");
-        div.className = "pItem";
-        div.innerHTML = `
-          <div class="pItemTop">
-            <span class="pill ${cat==="drink" ? "pillDrink" : "pillFood"}">${cat==="drink" ? "D" : "F"}</span>
-            <span class="mono pId">${esc(x.id)}</span>
-            <span class="mono pPrice">${esc(String(x.price))}</span>
-          </div>
-          <div class="pName">${esc(x.name||"")}</div>
-        `;
-        return div;
-      };
-
-      for(const x of drinkArr) pd.appendChild(makeP("drink", x));
-      for(const x of foodArr)  pf.appendChild(makeP("food", x));
-    }
-
-    async function loadMenu(){
-      try{
-        auth = requireShop();
-        if(!auth) return;
-
-        $("shopText").textContent = auth.shop;
-        $("pinText").textContent  = "PIN: " + maskPin(auth.pin);
-
-        setStatus("loading...");
-        $("lastLine").textContent = "-";
-
-        const base = `shops/${encodeURIComponent(auth.shop)}/menu`;
-        const r1 = await rtdbGet(`${base}/drink`);
-        const r2 = await rtdbGet(`${base}/food`);
-
-        if(!r1.ok || !r2.ok){
-          setStatus(`<span class="ng">読込失敗</span> drink:${r1.status} / food:${r2.status}`);
-          setDbg({ drink: r1, food: r2 });
-          return;
-        }
-
-        menu.drink = (r1.json && typeof r1.json==="object") ? r1.json : {};
-        menu.food  = (r2.json && typeof r2.json==="object") ? r2.json : {};
-
-        rebuildLists();
-        rebuildPick();
-
-        $("lastLine").textContent = "更新: " + new Date().toLocaleTimeString("ja-JP");
-        setStatus(`<span class="ok">OK</span>`);
-        setDbg({
-          shop: auth.shop,
-          drinkKeys: Object.keys(menu.drink||{}).length,
-          foodKeys: Object.keys(menu.food||{}).length
-        });
-      }catch(e){
-        setStatus(`<span class="ng">エラー</span> ${esc(String(e.message||e))}`);
-        setDbg(String(e.stack || e));
-      }
-    }
-
-    async function saveItem(){
-      try{
-        auth = requireShop();
-        if(!auth) return;
-
-        const cat = $("pickCat").value;
-        const id  = ($("editId").value || "").trim();
-        const name= ($("editName").value || "").trim();
-        const price = Number($("editPrice").value || 0);
-
-        if(!cat || !id){ setStatus(`<span class="ng">カテゴリと番号が必要</span>`); return; }
-        if(!name){ setStatus(`<span class="ng">メニュー名が必要</span>`); return; }
-
-        setStatus("saving...");
-
-        const path = `shops/${encodeURIComponent(auth.shop)}/menu/${encodeURIComponent(cat)}/${encodeURIComponent(id)}`;
-        const payload = { name, price: Number.isFinite(price) ? price : 0 };
-
-        const r = await rtdbPut(path, payload);
-        if(!r.ok){
-          setStatus(`<span class="ng">保存失敗</span> HTTP ${r.status}`);
-          setDbg(r);
-          return;
-        }
-
-        menu[cat] = menu[cat] || {};
-        menu[cat][id] = payload;
-
-        rebuildLists();
-        rebuildPick();
-        setActive(cat, id);
-
-        setStatus(`<span class="ok">保存OK</span>`);
-        $("lastLine").textContent = "更新: " + new Date().toLocaleTimeString("ja-JP");
-      }catch(e){
-        setStatus(`<span class="ng">保存エラー</span> ${esc(String(e.message||e))}`);
-        setDbg(String(e.stack || e));
-      }
-    }
-
-    async function deleteItem(){
-      try{
-        auth = requireShop();
-        if(!auth) return;
-
-        const cat = $("pickCat").value;
-        const id  = ($("editId").value || "").trim();
-        if(!cat || !id){ setStatus(`<span class="ng">削除する番号が必要</span>`); return; }
-
-        setStatus("deleting...");
-
-        const path = `shops/${encodeURIComponent(auth.shop)}/menu/${encodeURIComponent(cat)}/${encodeURIComponent(id)}`;
-        const r = await rtdbPut(path, null);
-        if(!r.ok){
-          setStatus(`<span class="ng">削除失敗</span> HTTP ${r.status}`);
-          setDbg(r);
-          return;
-        }
-
-        if(menu[cat] && menu[cat][id]) delete menu[cat][id];
-        clearEditor();
-        rebuildLists();
-        rebuildPick();
-
-        setStatus(`<span class="ok">削除OK</span>`);
-        $("lastLine").textContent = "更新: " + new Date().toLocaleTimeString("ja-JP");
-      }catch(e){
-        setStatus(`<span class="ng">削除エラー</span> ${esc(String(e.message||e))}`);
-        setDbg(String(e.stack || e));
-      }
-    }
-
-    function preparePrint(mode){
-      // mode: "drink" | "food" | "all"
-      const drinkCol = document.getElementById("pDrinkCol");
-      const foodCol  = document.getElementById("pFoodCol");
-
-      if(mode === "drink"){
-        drinkCol.style.display = "";
-        foodCol.style.display = "none";
-        $("pTitle").textContent = "メニュー一覧（ドリンク）";
-      }else if(mode === "food"){
-        drinkCol.style.display = "none";
-        foodCol.style.display = "";
-        $("pTitle").textContent = "メニュー一覧（フード）";
-      }else{
-        drinkCol.style.display = "";
-        foodCol.style.display = "";
-        $("pTitle").textContent = "メニュー一覧（全部）";
-      }
-    }
-
-    // ---- events ----
-    $("btnBack").onclick = ()=> location.href = "menu.html?v=" + Date.now();
-    $("btnReload").onclick = loadMenu;
-    $("btnFixKeys").onclick = ()=>{
-      fixKeysIfNeeded();
-      setStatus(`<span class="ok">OK</span> キー修復しました（再読み込みしてください）`);
-      setDbg({
-        shopCode: localStorage.getItem("shopCode"),
-        shop: localStorage.getItem("shop"),
-        shopPin: localStorage.getItem("shopPin"),
-        pin: localStorage.getItem("pin")
-      });
+      </div>
+      <div class="price mono">${esc(String(v.price||0))}</div>
+    `;
+    div.onclick = ()=>{
+      setTab("food");
+      fillEditor(id);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     };
+    fWrap.appendChild(div);
+  }
+  if(state.foodKeys.length === 0){
+    fWrap.innerHTML = `<div class="muted"><small>フードがありません</small></div>`;
+  }
 
-    $("pickCat").onchange = ()=>{
-      rebuildPick();
-      clearEditor();
-    };
-    $("pickId").onchange = ()=>{
-      const cat = $("pickCat").value;
-      const id  = $("pickId").value;
-      if(id) setActive(cat, id);
-    };
+  // debug
+  $("debug").textContent = JSON.stringify({
+    shop: state.shop,
+    drinkKeys: state.drinkKeys.length,
+    foodKeys: state.foodKeys.length
+  }, null, 2);
+}
 
-    $("btnSave").onclick = saveItem;
-    $("btnDelete").onclick = deleteItem;
-    $("btnClear").onclick = clearEditor;
+async function loadAll(){
+  const shop = lsGet(KEY_SHOP);
+  if(!shop){
+    setStatus(`<span class="ng">未ログイン</span> menu.html へ戻ります`);
+    setTimeout(()=>location.href=`menu.html?v=${Date.now()}`, 300);
+    return;
+  }
+  state.shop = shop;
+  $("shopText").textContent = shop;
 
-    $("btnPrintDrink").onclick = ()=>{
-      preparePrint("drink");
-      window.print();
-      preparePrint("all");
-    };
-    $("btnPrintFood").onclick = ()=>{
-      preparePrint("food");
-      window.print();
-      preparePrint("all");
-    };
-    $("btnPrintAll").onclick = ()=>{
-      preparePrint("all");
-      window.print();
-    };
+  setStatus(`<span class="mono">loading...</span>`);
 
-    // 初期
-    loadMenu();
-  </script>
+  const d = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/drink`);
+  const f = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/food`);
+
+  if(!d.ok || !f.ok){
+    setStatus(`<span class="ng">読み込み失敗</span> <span class="muted">(${d.status}/${f.status})</span>`);
+    return;
+  }
+
+  state.drink = d.json && typeof d.json === "object" ? d.json : {};
+  state.food  = f.json && typeof f.json === "object" ? f.json : {};
+
+  state.drinkKeys = Object.keys(state.drink).sort((a,b)=>idNum(a)-idNum(b));
+  state.foodKeys  = Object.keys(state.food).sort((a,b)=>idNum(a)-idNum(b));
+
+  rebuildSelect();
+  renderList();
+
+  setStatus(`<span class="ok">OK</span>`);
+}
+
+async function saveCurrent(){
+  const id = ($("selTarget").value || "").trim();
+  if(!id){
+    setStatus(`<span class="ng">ID未選択</span>`);
+    return;
+  }
+  const name = ($("inpName").value || "").trim();
+  const price = Number(($("inpPrice").value || "0").trim());
+  if(!name){
+    setStatus(`<span class="ng">メニュー名が空です</span>`);
+    return;
+  }
+  if(!Number.isFinite(price) || price < 0){
+    setStatus(`<span class="ng">価格が不正です</span>`);
+    return;
+  }
+  const shop = state.shop;
+  const cat = state.cat;
+
+  setStatus(`<span class="mono">saving...</span>`);
+  const path = `shops/${encodeURIComponent(shop)}/menu/${cat}/${encodeURIComponent(id)}`;
+  const res = await rtdbPut(path, { name, price });
+  if(!res.ok){
+    setStatus(`<span class="ng">保存失敗</span> <span class="muted">(${res.status})</span>`);
+    return;
+  }
+
+  await loadAll();
+  fillEditor(id);
+  setStatus(`<span class="ok">保存OK</span>`);
+}
+
+async function deleteCurrent(){
+  const id = ($("selTarget").value || "").trim();
+  if(!id){
+    setStatus(`<span class="ng">ID未選択</span>`);
+    return;
+  }
+  if(!confirm(`${state.cat} の ${id} を削除しますか？`)) return;
+
+  const shop = state.shop;
+  const cat = state.cat;
+
+  setStatus(`<span class="mono">deleting...</span>`);
+  const path = `shops/${encodeURIComponent(shop)}/menu/${cat}/${encodeURIComponent(id)}`;
+  const res = await rtdbPut(path, null); // delete
+  if(!res.ok){
+    setStatus(`<span class="ng">削除失敗</span> <span class="muted">(${res.status})</span>`);
+    return;
+  }
+
+  clearEditor();
+  await loadAll();
+  setStatus(`<span class="ok">削除OK</span>`);
+}
+
+/** 印刷：選択カテゴリだけを表示して印刷 */
+function printOnly(cat){
+  // 印刷ヘッダ
+  $("printCat").textContent = (cat==="drink") ? "ドリンク" : "フード";
+  $("printShop").textContent = state.shop || "-";
+  $("printTime").textContent = new Date().toLocaleString("ja-JP");
+
+  // 片側を印刷時だけ非表示にする
+  const drinkPanel = $("drinkPanel");
+  const foodPanel = $("foodPanel");
+  drinkPanel.classList.remove("printHide");
+  foodPanel.classList.remove("printHide");
+  if(cat==="drink"){
+    foodPanel.classList.add("printHide");
+  }else{
+    drinkPanel.classList.add("printHide");
+  }
+
+  // 印刷
+  setTimeout(()=>window.print(), 50);
+
+  // 印刷後に戻す（Safari対策で遅延）
+  setTimeout(()=>{
+    drinkPanel.classList.remove("printHide");
+    foodPanel.classList.remove("printHide");
+  }, 800);
+}
+
+/* ---- event ---- */
+$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+$("btnReload").onclick = loadAll;
+
+$("tabDrink").onclick = ()=> setTab("drink");
+$("tabFood").onclick  = ()=> setTab("food");
+
+$("selTarget").onchange = ()=>{
+  const id = $("selTarget").value;
+  if(id){
+    fillEditor(id);
+  }
+};
+
+$("btnSave").onclick = saveCurrent;
+$("btnDelete").onclick = deleteCurrent;
+
+$("btnPrintDrink").onclick = ()=> printOnly("drink");
+$("btnPrintFood").onclick  = ()=> printOnly("food");
+
+/* init */
+setTab("drink");
+loadAll();
+</script>
 </body>
 </html>
+
 
 

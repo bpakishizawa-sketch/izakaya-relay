@@ -6,7 +6,7 @@
   <title>QR作成（shop + table）</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
-    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;}
+    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
     .row{display:flex;gap:10px;align-items:end;flex-wrap:wrap;}
     label{display:block;font-size:12px;color:#666;margin-bottom:6px}
     input{font-size:16px;padding:10px;border:1px solid #ddd;border-radius:10px;}
@@ -44,6 +44,14 @@
 </head>
 <body>
   <h2>QR作成（shopコード + テーブル番号）</h2>
+
+  <!-- ここが「戻るボタン」 -->
+  <div class="card noPrint" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <button type="button" id="backMenuBtn" class="btn2">← メニューへ戻る</button>
+    <button type="button" id="backLoginBtn" class="btn3">ログインへ</button>
+    <span class="muted mono" id="whoLine">-</span>
+    <span class="muted mono" id="statusTop" style="margin-left:auto">-</span>
+  </div>
 
   <div class="card noPrint">
     <div class="row">
@@ -126,6 +134,9 @@ function clearGrid(){
 function setStatus(t){
   $("status").textContent = t || "";
 }
+function setTopStatus(t){
+  $("statusTop").textContent = t || "";
+}
 
 function makeQrCard({shop, table, link}){
   const card = document.createElement("div");
@@ -176,6 +187,9 @@ function getCanvasFromCard(card){
 function getShopFromLogin(){
   return (localStorage.getItem("shopCode") || "").trim();
 }
+function getPinFromLogin(){
+  return (localStorage.getItem("shopPin") || "").trim();
+}
 
 function applyShopAuto(){
   const s = getShopFromLogin();
@@ -184,7 +198,7 @@ function applyShopAuto(){
     $("shopState").innerHTML = `<span class="ok">OK</span> shopCode=${esc(s)}`;
   }else{
     $("shop").value = "";
-    $("shopState").innerHTML = `<span class="ng">NG</span> localStorage.shopCode が空です（先に login.html でログイン）`;
+    $("shopState").innerHTML = `<span class="ng">NG</span> 未ログイン（先に login.html でログイン）`;
   }
 }
 
@@ -304,15 +318,37 @@ async function downloadPdf(){
   setStatus("PDFを保存しました");
 }
 
+/** ====== ここが「戻る」 ====== */
+$("backMenuBtn").addEventListener("click", ()=>{
+  location.href = `menu.html?v=${Date.now()}`;
+});
+$("backLoginBtn").addEventListener("click", ()=>{
+  location.href = `login.html?v=${Date.now()}`;
+});
+
+/** 初期化 */
 $("genBtn").addEventListener("click", generate);
 $("pdfBtn").addEventListener("click", downloadPdf);
 $("printBtn").addEventListener("click", ()=>window.print());
 $("toggleShopBtn").addEventListener("click", ()=> setShopEditable(!shopEditable));
 
-// 起動時：shop自動反映 → 生成
-setShopEditable(false);
-generate();
+(function init(){
+  const shop = getShopFromLogin();
+  const pin  = getPinFromLogin();
+
+  if(!shop || !pin){
+    setTopStatus("未ログイン：loginへ戻してください");
+    $("whoLine").textContent = "shopCode/shopPin が空です";
+    // すぐ飛ばしたい場合はコメント解除
+    // setTimeout(()=> location.href = `login.html?v=${Date.now()}`, 300);
+  }else{
+    $("whoLine").textContent = `shop=${shop} / pin=****`;
+    setTopStatus("ログインOK");
+  }
+
+  setShopEditable(false);
+  generate();
+})();
 </script>
 </body>
 </html>
-

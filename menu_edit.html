@@ -22,9 +22,6 @@
 
     input,select{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
     input{width:100%;box-sizing:border-box}
-    .w160{width:160px}
-    .w220{width:220px}
-    .w260{width:260px}
 
     .tabs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
     .tab{padding:10px 14px;border-radius:999px;border:1px solid #d1d5db;background:#fff;font-weight:900}
@@ -46,55 +43,75 @@
     .pillD{background:#dbeafe;border-color:#3b82f6}
     .pillF{background:#dcfce7;border-color:#16a34a}
     .id{font-weight:900}
-    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px}
     .price{font-weight:900}
     .hint{font-size:12px;color:#6b7280;line-height:1.6}
 
-    /* 編集欄は「既存選択 or ID手入力で新規」両対応 */
+    /* 編集欄 */
     .editBox{display:grid;grid-template-columns:1fr;gap:10px}
     @media(min-width:860px){
-      .editBox{grid-template-columns:260px 240px 1fr 180px 140px}
+      .editBox{grid-template-columns:280px 240px 1fr 180px 180px}
     }
 
-    /* デバッグは通常非表示 */
+    /* デバッグは通常非表示（details閉） */
     details{margin-top:10px}
     details summary{cursor:pointer;color:#374151;font-weight:900}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
     /* ===== 印刷最適化 =====
-       - 選択カテゴリのみ表示
-       - 2列で詰める
-       - 行高/余白/フォントを少し詰める
+       - ボタンで押したカテゴリだけ印刷
+       - 2列(Columns)で詰める
+       - 余白/カード高さを圧縮してページ数を減らす
     */
+    .printTitle{display:none}
     @media print{
       body{background:#fff;padding:0;max-width:none;margin:0}
       .noPrint{display:none !important;}
       .card{border:0;border-radius:0;margin:0;padding:0}
 
-      h1{margin:0 0 6px;font-size:14px}
+      /* ヘッダーは印刷時だけ表示 */
       .printTitle{display:block !important;margin:0 0 6px}
+      h1{margin:0 0 6px;font-size:14px}
       .printTitle .subLine{font-size:10px;color:#555;margin-top:1px}
 
-      /* 重要：印刷時の一覧は2列 */
-      .printGrid{
-        display:grid !important;
-        grid-template-columns:1fr 1fr !important;
-        gap:6px !important;
-        align-items:start;
+      /* カテゴリ分離（JSが body class を付ける） */
+      body.print-drink #foodPanel{display:none !important;}
+      body.print-food  #drinkPanel{display:none !important;}
+
+      /* 2列に詰める（Safariでも安定しやすい columns） */
+      body.print-drink #drinkList,
+      body.print-food  #foodList{
+        columns: 2;
+        column-gap: 10px;
       }
 
+      /* listをcolumns用に */
+      .list{display:block}
       .item{
-        break-inside:avoid;page-break-inside:avoid;
-        border:1px solid #ddd;border-radius:10px;padding:6px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:6px;
+        margin:0 0 6px 0;
+        padding:6px 8px;
+        border:1px solid #ddd;
+        border-radius:10px;
       }
-      .pill{height:20px;min-width:24px;font-size:10px;padding:0 8px}
-      .id{font-size:11px}
-      .name{font-size:11px;max-width:220px}
-      .price{font-size:11px}
+
+      /* さらに詰める */
+      .pill{display:none}            /* pillを消して縦を詰める */
       .left{gap:6px}
+      .id,.name,.price{font-size:10.5px}
+      .name{
+        max-width:none;
+        white-space:normal;          /* 1行固定を解除（長い名称も入る） */
+        overflow:visible;
+        text-overflow:clip;
+        line-height:1.15;
+      }
     }
-    .printTitle{display:none}
-    .printHide{display:none !important;}
   </style>
 </head>
 <body>
@@ -119,6 +136,7 @@
     </div>
   </div>
 
+  <!-- 印刷ヘッダー（印刷時のみ表示） -->
   <div class="printTitle" id="printHeader">
     <div style="font-weight:900;font-size:13px">メニュー一覧（<span id="printCat">-</span>）</div>
     <div class="subLine"><span id="printShop">-</span> / <span id="printTime">-</span></div>
@@ -136,7 +154,7 @@
       </div>
 
       <div>
-        <div class="muted">ID（新規追加はここに入力）</div>
+        <div class="muted">ID（新規追加はここ）</div>
         <input id="inpId" placeholder="例：d12 / f101" />
       </div>
 
@@ -155,12 +173,6 @@
         <button id="btnDelete" class="btn2">削除</button>
         <button id="btnClear" class="btn2">クリア</button>
       </div>
-    </div>
-
-    <div class="hint" style="margin-top:8px">
-      ・既存編集：プルダウン or 一覧タップ → 編集 → 保存。<br>
-      ・新規追加：ID欄に <b>dXX / fXXX</b> を入力 → 名前/価格 → 保存。<br>
-      ・空き番号の提案表示はやめました（混乱の元なので）。
     </div>
 
     <details>
@@ -244,19 +256,26 @@ function setTab(cat){
   $("tabDrink").classList.toggle("on", cat==="drink");
   $("tabFood").classList.toggle("on", cat==="food");
   rebuildSelect();
-  // クリアはしない（切替えても編集途中が消えない方が事故が少ない）
+}
+
+function formatOptionText(id, v){
+  const name = (v.name || "").trim() || "-";
+  const price = Number(v.price || 0);
+  // 例: d12｜レモンサワー｜450
+  return `${id}｜${name}｜${price}`;
 }
 
 function rebuildSelect(){
-  // ★ここが修正点：プルダウンは「既存のみ」
   const sel = $("selTarget");
   sel.innerHTML = `<option value="">（未選択）</option>`;
   const keys = (state.cat === "drink") ? state.drinkKeys : state.foodKeys;
+  const src  = (state.cat === "drink") ? state.drink : state.food;
 
   for(const id of keys){
+    const v = parseMenuValue(src[id]);
     const opt = document.createElement("option");
     opt.value = id;
-    opt.textContent = id; // 余計な（既存）表示をやめる
+    opt.textContent = formatOptionText(id, v);  // ★ID+名前+価格
     sel.appendChild(opt);
   }
 }
@@ -373,12 +392,10 @@ async function loadAll(){
 }
 
 function normalizeId(idRaw){
-  const id = String(idRaw||"").trim();
+  const id = String(idRaw||"").trim().toLowerCase();
   if(!id) return "";
-  const low = id.toLowerCase();
-  // d / f 以外は弾く（事故防止）
-  if(!(low.startsWith("d") || low.startsWith("f"))) return "";
-  return low;
+  if(!(id.startsWith("d") || id.startsWith("f"))) return "";
+  return id;
 }
 
 async function saveCurrent(){
@@ -399,7 +416,6 @@ async function saveCurrent(){
     return;
   }
 
-  // IDの先頭でカテゴリを決める（編集タブと食い違っても安全）
   const cat = id.startsWith("d") ? "drink" : "food";
 
   setStatus(`<span class="mono">saving...</span>`);
@@ -438,39 +454,26 @@ async function deleteCurrent(){
   setStatus(`<span class="ok">削除OK</span>`);
 }
 
-/* 印刷：選択カテゴリだけ表示 + 2列（printGrid） */
-function printOnly(cat){
+/* ===== 印刷：押したカテゴリだけ / 2列で詰める ===== */
+let printCat = "";
+function beginPrint(cat){
+  printCat = cat;
+
   $("printCat").textContent = (cat==="drink") ? "ドリンク" : "フード";
   $("printShop").textContent = state.shop || "-";
   $("printTime").textContent = new Date().toLocaleString("ja-JP");
 
-  const drinkPanel = $("drinkPanel");
-  const foodPanel = $("foodPanel");
+  document.body.classList.remove("print-drink","print-food");
+  document.body.classList.add(cat === "drink" ? "print-drink" : "print-food");
 
-  // パネルの中の list を印刷時だけ2列にする
-  $("drinkList").classList.remove("printGrid");
-  $("foodList").classList.remove("printGrid");
-  if(cat==="drink"){
-    $("drinkList").classList.add("printGrid");
-  }else{
-    $("foodList").classList.add("printGrid");
-  }
-
-  drinkPanel.classList.remove("printHide");
-  foodPanel.classList.remove("printHide");
-  if(cat==="drink") foodPanel.classList.add("printHide");
-  else drinkPanel.classList.add("printHide");
-
+  // 余計なタイミングで外れないように、afterprintで戻す
   setTimeout(()=>window.print(), 50);
-
-  // 戻す（Safari対策）
-  setTimeout(()=>{
-    drinkPanel.classList.remove("printHide");
-    foodPanel.classList.remove("printHide");
-    $("drinkList").classList.remove("printGrid");
-    $("foodList").classList.remove("printGrid");
-  }, 800);
 }
+
+window.addEventListener("afterprint", ()=>{
+  document.body.classList.remove("print-drink","print-food");
+  printCat = "";
+});
 
 /* ---- event ---- */
 $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
@@ -481,18 +484,15 @@ $("tabFood").onclick  = ()=> setTab("food");
 
 $("selTarget").onchange = ()=>{
   const id = $("selTarget").value;
-  if(id){
-    // タブで選択されたカテゴリ内の既存なので、そのまま反映
-    fillEditor(id);
-  }
+  if(id) fillEditor(id);
 };
 
 $("btnSave").onclick = saveCurrent;
 $("btnDelete").onclick = deleteCurrent;
 $("btnClear").onclick = clearEditor;
 
-$("btnPrintDrink").onclick = ()=> printOnly("drink");
-$("btnPrintFood").onclick  = ()=> printOnly("food");
+$("btnPrintDrink").onclick = ()=> beginPrint("drink");
+$("btnPrintFood").onclick  = ()=> beginPrint("food");
 
 /* init */
 setTab("drink");
@@ -500,6 +500,7 @@ loadAll();
 </script>
 </body>
 </html>
+
 
 
 

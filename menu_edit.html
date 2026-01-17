@@ -2,112 +2,149 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>メニュー編集</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:820px; margin:0 auto;}
-    h2{margin:0 0 10px}
-    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:980px; margin:0 auto; background:#fff}
+    h1{font-size:22px;margin:0 0 10px}
+    .card{border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin:12px 0;background:#fff}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .btn{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:900;font-size:16px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .muted{color:#6b7280}
+    .small{font-size:12px;color:#6b7280}
+    input,select{font-size:16px;padding:10px;border:1px solid #d1d5db;border-radius:12px}
+    button{font-size:14px;padding:10px 12px;border-radius:12px;border:0;cursor:pointer;font-weight:900}
     .btnDark{background:#111827;color:#fff}
-    .btnLight{background:#e5e7eb;color:#111}
-    .btnBlue{background:#2563eb;color:#fff}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
-    .ok{color:#0a7a2a;font-weight:900}
-    .ng{color:#b00020;font-weight:900}
-    .muted{color:#777}
-    label{display:block;font-size:12px;color:#666;margin-bottom:6px}
-    input{font-size:16px;padding:12px;border:1px solid #ddd;border-radius:12px;box-sizing:border-box;width:100%}
-    .grid2{display:grid;grid-template-columns:1fr;gap:12px}
-    @media(min-width:760px){ .grid2{grid-template-columns:1fr 1fr;} }
-    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
-    .pillDrink{background:#dbeafe;border-color:#3b82f6}
-    .pillFood{background:#dcfce7;border-color:#16a34a}
-    .mini{font-size:12px;color:#6b7280;line-height:1.6}
-    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
+    .btnLight{background:#f3f4f6;color:#111827;border:1px solid #e5e7eb}
+    .btnGreen{background:#16a34a;color:#fff}
+    .btnRed{background:#ef4444;color:#fff}
+    .ok{color:#16a34a;font-weight:900}
+    .ng{color:#dc2626;font-weight:900}
+
+    /* tabs */
+    .tabs{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .tab{padding:10px 14px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;font-weight:900;cursor:pointer}
+    .tab.active{background:#111827;color:#fff;border-color:#111827}
+
+    /* layout */
+    .grid{display:grid;grid-template-columns:1fr;gap:12px}
+    @media(min-width:900px){
+      .grid{grid-template-columns: 1.2fr .8fr;}
+    }
+
+    /* list */
+    .list{display:flex;flex-direction:column;gap:8px}
+    .item{
+      border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;
+      display:flex;gap:10px;align-items:center;justify-content:space-between;
+      cursor:pointer; user-select:none;
+    }
+    .item:hover{background:#f9fafb}
+    .item.active{border-color:#111827; box-shadow:0 0 0 2px rgba(17,24,39,.08) inset}
+    .left{display:flex;gap:10px;align-items:center;min-width:0}
+    .idPill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #e5e7eb;font-weight:900}
+    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px}
+    .price{font-weight:900}
+    .empty{background:#fefce8;border-color:#fde68a}
+    .empty .name{font-weight:800;color:#6b7280}
+    .right{display:flex;gap:8px;align-items:center}
+    .hint{font-size:12px;color:#6b7280;line-height:1.6}
+
+    /* print */
     @media print{
       .noPrint{display:none !important;}
       body{padding:0;max-width:none}
-      .card{border:0;margin:0}
+      .card{border:0}
+      .item{break-inside:avoid}
     }
   </style>
 </head>
 <body>
-  <h2>メニュー編集（店側）</h2>
+  <h1>メニュー編集</h1>
 
   <div class="card noPrint">
-    <div class="row">
-      <div>shop: <b id="shopText" class="mono">-</b></div>
-      <button id="btnBack" class="btn btnLight" type="button">← menuへ</button>
-      <button id="btnReload" class="btn btnDark" type="button">再読み込み</button>
-      <button id="btnPrint" class="btn btnLight" type="button">番号順で印刷</button>
+    <div class="row" style="justify-content:space-between">
+      <div class="row">
+        <div>shop: <b id="shopText" class="mono">-</b></div>
+        <div id="status" class="small muted">-</div>
+      </div>
+      <div class="row">
+        <button id="btnBack" class="btnLight">← menuへ</button>
+        <button id="btnReload" class="btnDark">再読み込み</button>
+        <button id="btnPrint" class="btnLight">番号順で印刷</button>
+      </div>
     </div>
-    <div id="status" class="mini muted">-</div>
+
+    <div class="tabs" style="margin-top:12px">
+      <div id="tabDrink" class="tab active">ドリンク</div>
+      <div id="tabFood" class="tab">フード</div>
+
+      <span class="small muted" style="margin-left:auto">
+        行をタップすると右側で編集できます（空き番号もタップ可）
+      </span>
+    </div>
   </div>
 
-  <div class="card noPrint">
-    <div class="grid2">
-      <!-- DRINK -->
-      <div>
-        <div class="row" style="align-items:flex-end">
-          <span class="pill pillDrink">ドリンク追加</span>
-          <div style="flex:1">
-            <label>ID（例：d1）</label>
-            <input id="dId" class="mono" placeholder="d1" />
-          </div>
+  <div class="grid">
+    <!-- left: list -->
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div class="row">
+          <b id="listTitle">ドリンク一覧</b>
+          <span class="small muted" id="listMeta">-</span>
         </div>
-        <div style="margin-top:10px">
-          <label>メニュー名</label>
-          <input id="dName" placeholder="例：レモンサワー" />
-        </div>
-        <div class="row" style="margin-top:10px">
-          <div style="flex:1">
-            <label>価格</label>
-            <input id="dPrice" type="number" min="0" step="1" placeholder="例：550" />
-          </div>
-          <button id="btnAddDrink" class="btn btnBlue" type="button" style="align-self:flex-end">追加</button>
+        <div class="row noPrint">
+          <button id="btnNew" class="btnGreen">空き番号で新規</button>
         </div>
       </div>
 
-      <!-- FOOD -->
-      <div>
-        <div class="row" style="align-items:flex-end">
-          <span class="pill pillFood">フード追加</span>
-          <div style="flex:1">
-            <label>ID（例：f101）</label>
-            <input id="fId" class="mono" placeholder="f101" />
-          </div>
+      <div class="hint noPrint" style="margin-top:8px">
+        ・黄色は「空き番号」です（タップするとその番号で新規登録できます）<br>
+        ・番号順で並びます（d1,d2… / f101,f102…）
+      </div>
+
+      <div class="list" id="list"></div>
+    </div>
+
+    <!-- right: editor -->
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <b>編集</b>
+        <span class="small muted" id="editHint">一覧から選択してください</span>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <div style="flex:1;min-width:180px">
+          <div class="small muted">ID</div>
+          <input id="editId" class="mono" style="width:100%" placeholder="例: d12 / f101" />
         </div>
-        <div style="margin-top:10px">
-          <label>メニュー名</label>
-          <input id="fName" placeholder="例：唐揚げ" />
-        </div>
-        <div class="row" style="margin-top:10px">
-          <div style="flex:1">
-            <label>価格</label>
-            <input id="fPrice" type="number" min="0" step="1" placeholder="例：680" />
-          </div>
-          <button id="btnAddFood" class="btn btnBlue" type="button" style="align-self:flex-end">追加</button>
+        <div style="flex:1;min-width:200px">
+          <div class="small muted">メニュー名</div>
+          <input id="editName" style="width:100%" placeholder="例: 唐揚げ" />
         </div>
       </div>
-    </div>
-    <div class="mini muted" style="margin-top:10px">
-      既存IDに上書きすると更新になります。
-    </div>
-  </div>
 
-  <div class="card">
-    <div class="row">
-      <b>一覧</b>
-      <span class="muted mini" id="countLine" style="margin-left:auto">-</span>
-    </div>
-    <div id="listArea"></div>
-  </div>
+      <div class="row" style="margin-top:10px">
+        <div style="flex:1;min-width:200px">
+          <div class="small muted">価格</div>
+          <input id="editPrice" inputmode="numeric" style="width:100%" placeholder="例: 550" />
+        </div>
+      </div>
 
-  <div class="card noPrint">
-    <div class="mini">デバッグ</div>
-    <pre id="debug" class="mono">-</pre>
+      <div class="row noPrint" style="margin-top:12px">
+        <button id="btnSave" class="btnDark" style="flex:1;min-width:180px">保存</button>
+        <button id="btnDelete" class="btnRed" style="flex:1;min-width:180px">削除</button>
+      </div>
+
+      <div class="small muted" style="margin-top:10px">
+        <span class="mono" id="pathText">-</span>
+      </div>
+
+      <div class="card" style="background:#f9fafb;border-color:#eef2f7;margin-top:12px">
+        <div class="small muted">デバッグ</div>
+        <pre id="debug" class="mono" style="white-space:pre-wrap;word-break:break-word;margin:8px 0 0 0">-</pre>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -116,166 +153,364 @@ const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 /** ============== */
 
 const $ = (id)=>document.getElementById(id);
-function now(){ return Date.now(); }
-function esc(s){
-  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+const esc = (s)=>String(s??"").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+
+function requireLogin(){
+  const shop = (localStorage.getItem("shopCode") || "").trim();
+  const pin  = (localStorage.getItem("shopPin")  || "").trim();
+  if(!shop || !pin){
+    location.replace(`login.html?v=${Date.now()}`);
+    return null;
+  }
+  return { shop, pin };
 }
-function getShop(){ return (localStorage.getItem("shopCode") || "").trim(); }
 
 async function rtdbGet(path){
   const url = `${DB_BASE}/${path}.json`;
   const res = await fetch(url);
   const txt = await res.text();
-  if(!res.ok) throw new Error(`GET ${res.status} ${url} ${txt}`);
-  return JSON.parse(txt || "null");
-}
-async function rtdbPatch(path, obj){
-  const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url, {
-    method:"PATCH",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(obj)
-  });
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`PATCH ${res.status} ${url} ${txt}`);
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
   return JSON.parse(txt || "null");
 }
 async function rtdbPut(path, data){
   const url = `${DB_BASE}/${path}.json`;
   const res = await fetch(url, {
     method:"PUT",
-    headers:{ "Content-Type":"application/json" },
+    headers:{"Content-Type":"application/json"},
     body: JSON.stringify(data)
   });
   const txt = await res.text();
-  if(!res.ok) throw new Error(`PUT ${res.status} ${url} ${txt}`);
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
   return JSON.parse(txt || "null");
 }
 
-function idNumber(id){
-  const m = String(id||"").match(/\d+/);
-  return m ? Number(m[0]) : 999999;
+function parseIdNum(id){
+  // d12 -> 12, f101 -> 101
+  const m = String(id||"").match(/(\d+)/);
+  return m ? Number(m[1]) : NaN;
 }
-function sortIds(a,b){
-  const na = idNumber(a), nb = idNumber(b);
-  if(na !== nb) return na - nb;
-  return String(a).localeCompare(String(b), "ja");
-}
-
 function normalizeValue(v){
-  // {name,price} でも "xxx" でも吸収
-  if(v && typeof v === "object"){
-    return { name: String(v.name ?? ""), price: Number(v.price ?? 0), raw:v };
+  // 既存が文字列でも吸収
+  if(v == null) return { name:"", price:"" };
+  if(typeof v === "string") return { name:v, price:"" };
+  if(typeof v === "object"){
+    return {
+      name: (v.name ?? v.title ?? v.label ?? "") + "",
+      price: (v.price ?? v.cost ?? "") + ""
+    };
   }
-  return { name: String(v ?? ""), price: 0, raw:v };
+  return { name:String(v), price:"" };
+}
+function isValidId(cat, id){
+  id = String(id||"").trim();
+  if(cat === "drink") return /^d\d+$/.test(id);
+  if(cat === "food")  return /^f\d+$/.test(id);
+  return false;
+}
+function suggestPrefix(cat){ return cat==="drink" ? "d" : "f"; }
+
+/** 状態 */
+let AUTH = null;
+let CAT = "drink";  // "drink" | "food"
+let MENU = { drink:{}, food:{} }; // raw object
+let ACTIVE_ID = ""; // currently selected id
+
+function setStatusOk(msg){ $("status").innerHTML = `<span class="ok">OK</span> ${esc(msg||"")}`; }
+function setStatusNg(msg){ $("status").innerHTML = `<span class="ng">NG</span> ${esc(msg||"")}`; }
+function setPathText(){
+  const shop = AUTH.shop;
+  $("pathText").textContent = `/shops/${shop}/menu/${CAT}/${ACTIVE_ID || "(id未選択)"}`;
+}
+function setActiveTab(){
+  $("tabDrink").classList.toggle("active", CAT==="drink");
+  $("tabFood").classList.toggle("active", CAT==="food");
+  $("listTitle").textContent = CAT==="drink" ? "ドリンク一覧" : "フード一覧";
 }
 
-function setStatus(html){ $("status").innerHTML = html; }
+/** 空き番号生成（見せる用） */
+function buildHoles(sortedIds, maxShow=30){
+  // sortedIds: ["d1","d2","d4"...] のように番号順
+  const prefix = suggestPrefix(CAT);
+  const nums = sortedIds.map(parseIdNum).filter(n=>Number.isFinite(n)).sort((a,b)=>a-b);
+  if(nums.length === 0){
+    // 何もない場合の開始値（drink=1, food=101）
+    const start = (CAT==="drink") ? 1 : 101;
+    return Array.from({length: Math.min(maxShow, 10)}, (_,i)=>`${prefix}${start+i}`);
+  }
+  const min = nums[0];
+  const max = nums[nums.length-1];
+
+  const holes = [];
+  const exists = new Set(nums);
+
+  // 範囲内の穴
+  for(let n=min; n<=max; n++){
+    if(!exists.has(n)){
+      holes.push(`${prefix}${n}`);
+      if(holes.length>=maxShow) break;
+    }
+  }
+  // まだ足りない分は max+1 以降
+  let next = max+1;
+  while(holes.length < Math.min(maxShow, 15)){
+    holes.push(`${prefix}${next++}`);
+  }
+  return holes;
+}
+
+function currentMap(){
+  return (CAT==="drink") ? (MENU.drink||{}) : (MENU.food||{});
+}
+function getItem(id){
+  const m = currentMap();
+  return (m && typeof m==="object") ? m[id] : null;
+}
+
+function renderList(){
+  const m = currentMap();
+  const ids = Object.keys(m||{}).filter(k=>k && typeof k==="string");
+
+  ids.sort((a,b)=> parseIdNum(a) - parseIdNum(b));
+
+  const holes = buildHoles(ids, 30);
+
+  $("listMeta").textContent = `件数: ${ids.length}`;
+
+  const root = $("list");
+  root.innerHTML = "";
+
+  // 既存
+  for(const id of ids){
+    const v = normalizeValue(m[id]);
+    const div = document.createElement("div");
+    div.className = "item" + (id===ACTIVE_ID ? " active" : "");
+    div.dataset.id = id;
+    div.innerHTML = `
+      <div class="left">
+        <span class="idPill mono">${esc(id)}</span>
+        <div style="min-width:0">
+          <div class="name">${esc(v.name || "(名称なし)")}</div>
+          <div class="small muted">価格: ${esc(v.price || "-")}</div>
+        </div>
+      </div>
+      <div class="right">
+        <span class="price mono">${esc(v.price || "")}</span>
+      </div>
+    `;
+    div.onclick = ()=> selectId(id);
+    root.appendChild(div);
+  }
+
+  // 空き番号（見せる）
+  for(const id of holes){
+    if(m && Object.prototype.hasOwnProperty.call(m, id)) continue;
+    const div = document.createElement("div");
+    div.className = "item empty" + (id===ACTIVE_ID ? " active" : "");
+    div.dataset.id = id;
+    div.innerHTML = `
+      <div class="left">
+        <span class="idPill mono">${esc(id)}</span>
+        <div style="min-width:0">
+          <div class="name">空き番号（タップで新規）</div>
+          <div class="small muted">-</div>
+        </div>
+      </div>
+      <div class="right"><span class="small muted">NEW</span></div>
+    `;
+    div.onclick = ()=> selectId(id, true);
+    root.appendChild(div);
+  }
+}
+
+function selectId(id, isEmpty=false){
+  ACTIVE_ID = id;
+
+  const v = normalizeValue(getItem(id));
+  $("editId").value = id;
+  $("editName").value = isEmpty ? "" : (v.name||"");
+  $("editPrice").value = isEmpty ? "" : (v.price||"");
+
+  $("editHint").textContent = isEmpty ? "空き番号を編集中（保存で新規登録）" : "既存メニューを編集中";
+  setPathText();
+  renderList();
+}
+
+function clearEditor(){
+  ACTIVE_ID = "";
+  $("editId").value = "";
+  $("editName").value = "";
+  $("editPrice").value = "";
+  $("editHint").textContent = "一覧から選択してください";
+  setPathText();
+  renderList();
+}
 
 async function loadMenus(){
-  const shop = getShop();
-  $("shopText").textContent = shop || "-";
+  const shop = AUTH.shop;
+  try{
+    setStatusOk("読み込み中...");
+    const drink = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/drink`);
+    const food  = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/food`);
+    MENU.drink = (drink && typeof drink==="object") ? drink : {};
+    MENU.food  = (food  && typeof food==="object")  ? food  : {};
 
-  if(!shop){
-    setStatus(`<span class="ng">未ログイン</span>（shopCode がありません）`);
-    $("debug").textContent = JSON.stringify({ shopCode: shop, hint:"login.html で localStorage.shopCode が保存されているか確認" }, null, 2);
+    setStatusOk(`読み込み完了 (${new Date().toLocaleTimeString("ja-JP")})`);
+    setActiveTab();
+    renderList();
+    setPathText();
+
+    $("debug").textContent = JSON.stringify({
+      shop,
+      cat: CAT,
+      counts: { drink: Object.keys(MENU.drink||{}).length, food: Object.keys(MENU.food||{}).length }
+    }, null, 2);
+
+  }catch(e){
+    setStatusNg(e.message || e);
+    $("debug").textContent = String(e.stack || e);
+  }
+}
+
+async function saveCurrent(){
+  const shop = AUTH.shop;
+  const id = ($("editId").value || "").trim();
+  const name = ($("editName").value || "").trim();
+  const priceRaw = ($("editPrice").value || "").trim();
+
+  if(!isValidId(CAT, id)){
+    setStatusNg(`IDが不正です（${CAT==="drink" ? "d数字" : "f数字"}）`);
+    return;
+  }
+  if(!name){
+    setStatusNg("メニュー名を入力してください");
+    return;
+  }
+  // 価格は空OK / 数字っぽく整形
+  const price = priceRaw === "" ? "" : String(Number(priceRaw));
+  if(priceRaw !== "" && (!Number.isFinite(Number(priceRaw)) || Number(priceRaw) < 0)){
+    setStatusNg("価格が不正です");
     return;
   }
 
-  setStatus("loading...");
-  const drinkPath = `shops/${encodeURIComponent(shop)}/menu/drink`;
-  const foodPath  = `shops/${encodeURIComponent(shop)}/menu/food`;
-
-  const [drink, food] = await Promise.all([
-    rtdbGet(drinkPath),
-    rtdbGet(foodPath)
-  ]);
-
-  const dObj = (drink && typeof drink === "object") ? drink : {};
-  const fObj = (food  && typeof food  === "object") ? food  : {};
-
-  const dIds = Object.keys(dObj).sort(sortIds);
-  const fIds = Object.keys(fObj).sort(sortIds);
-
-  let html = "";
-
-  html += `<div class="row" style="margin:0 0 8px 0"><span class="pill pillDrink">ドリンク</span><span class="mini muted">(${dIds.length})</span></div>`;
-  html += `<div class="mini" style="margin-bottom:10px">`;
-  html += dIds.length ? "" : `<span class="muted">（空）</span>`;
-  html += `</div>`;
-  html += `<pre class="mono" style="display:none" id="rawDrink"></pre>`;
-
-  html += `<table style="margin-bottom:16px">
-    <thead><tr><th style="width:120px">ID</th><th>名前</th><th style="width:120px">価格</th></tr></thead><tbody>`;
-  for(const id of dIds){
-    const nv = normalizeValue(dObj[id]);
-    html += `<tr><td class="mono">${esc(id)}</td><td>${esc(nv.name)}</td><td class="mono">${esc(nv.price)}</td></tr>`;
+  const path = `shops/${encodeURIComponent(shop)}/menu/${CAT}/${encodeURIComponent(id)}`;
+  try{
+    setStatusOk("保存中...");
+    await rtdbPut(path, { name, price: priceRaw==="" ? "" : Number(priceRaw) });
+    // ローカル反映
+    currentMap()[id] = { name, price: priceRaw==="" ? "" : Number(priceRaw) };
+    ACTIVE_ID = id;
+    setStatusOk("保存しました");
+    selectId(id, false);
+  }catch(e){
+    setStatusNg(e.message || e);
   }
-  html += `</tbody></table>`;
-
-  html += `<div class="row" style="margin:0 0 8px 0"><span class="pill pillFood">フード</span><span class="mini muted">(${fIds.length})</span></div>`;
-  html += `<table>
-    <thead><tr><th style="width:120px">ID</th><th>名前</th><th style="width:120px">価格</th></tr></thead><tbody>`;
-  for(const id of fIds){
-    const nv = normalizeValue(fObj[id]);
-    html += `<tr><td class="mono">${esc(id)}</td><td>${esc(nv.name)}</td><td class="mono">${esc(nv.price)}</td></tr>`;
-  }
-  html += `</tbody></table>`;
-
-  $("listArea").innerHTML = html;
-  $("countLine").textContent = `drink:${dIds.length} / food:${fIds.length}`;
-
-  $("debug").textContent = JSON.stringify({
-    shop,
-    paths:{ drink:`/${drinkPath}`, food:`/${foodPath}` },
-    counts:{ drink:dIds.length, food:fIds.length },
-    sampleDrink: dIds[0] ? { id:dIds[0], value:dObj[dIds[0]] } : null
-  }, null, 2);
-
-  setStatus(`<span class="ok">OK</span> 読み込み完了（${new Date().toLocaleTimeString("ja-JP")}）`);
 }
 
-async function upsert(cat, id, name, price){
-  const shop = getShop();
-  if(!shop) throw new Error("shopCode がありません（未ログイン）");
-  if(!cat || !id) throw new Error("カテゴリとIDは必須です");
-  const p = `shops/${encodeURIComponent(shop)}/menu/${encodeURIComponent(cat)}/${encodeURIComponent(id)}`;
-  await rtdbPut(p, { name:String(name||""), price:Number(price||0) });
+async function deleteCurrent(){
+  const shop = AUTH.shop;
+  const id = ($("editId").value || "").trim();
+  if(!isValidId(CAT, id)){
+    setStatusNg("削除するIDが不正です");
+    return;
+  }
+  const existed = getItem(id) != null;
+  if(!existed){
+    setStatusNg("このIDは未登録です（空き番号）");
+    return;
+  }
+
+  const path = `shops/${encodeURIComponent(shop)}/menu/${CAT}/${encodeURIComponent(id)}`;
+  try{
+    setStatusOk("削除中...");
+    await rtdbPut(path, null);
+    // ローカル反映
+    delete currentMap()[id];
+    setStatusOk("削除しました");
+    clearEditor();
+  }catch(e){
+    setStatusNg(e.message || e);
+  }
 }
 
-$("btnAddDrink").onclick = async ()=>{
-  try{
-    setStatus("saving...");
-    await upsert("drink", $("dId").value.trim(), $("dName").value.trim(), $("dPrice").value);
-    setStatus(`<span class="ok">OK</span> ドリンク保存`);
-    await loadMenus();
-  }catch(e){
-    setStatus(`<span class="ng">NG</span> ${esc(e.message||e)}`);
-  }
-};
-$("btnAddFood").onclick = async ()=>{
-  try{
-    setStatus("saving...");
-    await upsert("food", $("fId").value.trim(), $("fName").value.trim(), $("fPrice").value);
-    setStatus(`<span class="ok">OK</span> フード保存`);
-    await loadMenus();
-  }catch(e){
-    setStatus(`<span class="ng">NG</span> ${esc(e.message||e)}`);
-  }
-};
+function newFromFirstHole(){
+  // 空き番号の先頭を選択
+  const m = currentMap();
+  const ids = Object.keys(m||{}).sort((a,b)=> parseIdNum(a)-parseIdNum(b));
+  const holes = buildHoles(ids, 30);
+  const id = holes.find(x => !(m && Object.prototype.hasOwnProperty.call(m, x))) || "";
+  if(id) selectId(id, true);
+}
 
+function openPrint(){
+  // 現在カテゴリを番号順で印刷
+  const title = CAT==="drink" ? "ドリンク一覧" : "フード一覧";
+  const m = currentMap();
+  const ids = Object.keys(m||{}).sort((a,b)=> parseIdNum(a)-parseIdNum(b));
+  const rows = ids.map(id=>{
+    const v = normalizeValue(m[id]);
+    return { id, name: v.name||"", price: v.price==="" ? "" : v.price };
+  });
+
+  const w = window.open("", "_blank");
+  const shop = AUTH.shop;
+
+  w.document.open();
+  w.document.write(`
+<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)}</title>
+<style>
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px}
+  h1{font-size:20px;margin:0 0 8px}
+  .muted{color:#6b7280;font-size:12px;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse}
+  th,td{border:1px solid #e5e7eb;padding:8px;font-size:14px}
+  th{background:#f3f4f6;text-align:left}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+</style>
+</head><body>
+<h1>${esc(title)}</h1>
+<div class="muted">shop: <span class="mono">${esc(shop)}</span> / 印刷日時: ${esc(new Date().toLocaleString("ja-JP"))}</div>
+<table>
+<thead><tr><th style="width:120px">ID</th><th>名前</th><th style="width:120px">価格</th></tr></thead>
+<tbody>
+${rows.map(r=>`<tr><td class="mono">${esc(r.id)}</td><td>${esc(r.name)}</td><td class="mono">${esc(r.price)}</td></tr>`).join("")}
+</tbody>
+</table>
+<script>window.onload=()=>window.print();</script>
+</body></html>
+  `);
+  w.document.close();
+}
+
+/** events */
+$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
 $("btnReload").onclick = loadMenus;
-$("btnPrint").onclick = ()=> window.print();
-$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-$("backMenuBtn")?.addEventListener?.("click", ()=>{});
-$("backLoginBtn")?.addEventListener?.("click", ()=>{});
+$("btnPrint").onclick = openPrint;
 
-$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-$("backMenuBtn") && ($("backMenuBtn").onclick = ()=> location.href = `menu.html?v=${Date.now()}`);
-$("backLoginBtn") && ($("backLoginBtn").onclick = ()=> location.href = `login.html?v=${Date.now()}`);
+$("tabDrink").onclick = ()=>{
+  CAT="drink";
+  setActiveTab();
+  clearEditor();
+};
+$("tabFood").onclick = ()=>{
+  CAT="food";
+  setActiveTab();
+  clearEditor();
+};
 
+$("btnNew").onclick = newFromFirstHole;
+
+$("btnSave").onclick = saveCurrent;
+$("btnDelete").onclick = deleteCurrent;
+
+/** init */
+AUTH = requireLogin();
+if(!AUTH) throw new Error("redirecting");
+$("shopText").textContent = AUTH.shop;
+setActiveTab();
+setPathText();
 loadMenus();
 </script>
 </body>
 </html>
-

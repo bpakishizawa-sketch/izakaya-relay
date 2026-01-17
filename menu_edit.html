@@ -22,9 +22,6 @@
 
     input,select{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
     input{width:100%;box-sizing:border-box}
-    .w160{width:160px}
-    .w220{width:220px}
-    .w260{width:260px}
 
     .tabs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
     .tab{padding:10px 14px;border-radius:999px;border:1px solid #d1d5db;background:#fff;font-weight:900}
@@ -50,7 +47,6 @@
     .price{font-weight:900}
     .hint{font-size:12px;color:#6b7280;line-height:1.6}
 
-    /* 編集欄 */
     .editBox{display:grid;grid-template-columns:1fr;gap:10px}
     @media(min-width:860px){
       .editBox{grid-template-columns:260px 240px 1fr 180px 140px}
@@ -60,72 +56,38 @@
     details summary{cursor:pointer;color:#374151;font-weight:900}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
-    /* 印刷ヘッダー（通常は非表示） */
-    .printTitle{display:none}
-    .printHide{display:none !important;}
-
-    /* ===== 印刷（2列・省スペース） ===== */
+    /* ===== 印刷最適化 ===== */
     @media print{
       body{background:#fff;padding:0;max-width:none;margin:0}
       .noPrint{display:none !important;}
       .card{border:0;border-radius:0;margin:0;padding:0}
 
-      /* ヘッダーは印刷時だけ表示 */
-      .printTitle{display:block !important;margin:0 0 6px}
       h1{margin:0 0 6px;font-size:14px}
+      .printTitle{display:block !important;margin:0 0 6px}
       .printTitle .subLine{font-size:10px;color:#555;margin-top:1px}
 
-      /* カテゴリ分離（JSで body に class を付ける） */
-      body.print-drink #foodPanel{display:none !important;}
-      body.print-food  #drinkPanel{display:none !important;}
-
-      /* ★2列固定（Safariでも確実） */
-      body.print-drink #drinkList,
-      body.print-food  #foodList{
+      /* 印刷時：2列グリッドで詰める（ドリンクもフードも同条件で動く） */
+      .printGrid{
         display:grid !important;
-        grid-template-columns: 1fr 1fr !important;
-        gap: 6px 10px !important;
+        grid-template-columns:1fr 1fr !important;
+        gap:6px !important;
         align-items:start;
       }
 
-      /* list内の縦積み解除 */
-      .list{display:grid !important;}
-
-      /* さらに詰める（ページ数減） */
+      /* 1カードを小さくして詰める */
       .item{
-        break-inside:avoid;
-        page-break-inside:avoid;
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        gap:6px;
-        margin:0 !important;
-        padding:6px 8px !important;
-        border:1px solid #ddd;
-        border-radius:10px;
+        break-inside:avoid;page-break-inside:avoid;
+        border:1px solid #ddd;border-radius:10px;
+        padding:6px;
       }
-
-      /* pillを消して高さ圧縮 */
-      .pill{display:none !important;}
-
-      /* ★名前/価格の縦スペースを縮める */
-      .left{gap:6px; min-width:0; flex:1;}
-      .id{font-size:10px; line-height:1.1}
-      .name{
-        font-size:10.5px;
-        line-height:1.1;
-        max-width:none;
-        white-space:nowrap;
-        overflow:hidden;
-        text-overflow:ellipsis;
-      }
-      .price{
-        font-size:10.5px;
-        line-height:1.1;
-        width:56px;
-        text-align:right;
-      }
+      .pill{height:18px;min-width:22px;font-size:9px;padding:0 6px}
+      .id{font-size:10px}
+      .name{font-size:10px;max-width:180px} /* ←さらに短く */
+      .price{font-size:10px}
+      .left{gap:6px}
     }
+    .printTitle{display:none}
+    .printHide{display:none !important;}
   </style>
 </head>
 <body>
@@ -146,7 +108,6 @@
     <div class="tabs">
       <button class="tab on" id="tabDrink">ドリンク</button>
       <button class="tab" id="tabFood">フード</button>
-      <span class="muted">（一覧タップ → 編集欄に入ります）</span>
     </div>
   </div>
 
@@ -272,14 +233,19 @@ function setTab(cat){
 }
 
 function rebuildSelect(){
+  // ★修正：プルダウンは「ID + 名前 + 価格」を表示（見分けやすい）
   const sel = $("selTarget");
   sel.innerHTML = `<option value="">（未選択）</option>`;
   const keys = (state.cat === "drink") ? state.drinkKeys : state.foodKeys;
+  const src  = (state.cat === "drink") ? state.drink : state.food;
 
   for(const id of keys){
+    const v = parseMenuValue(src[id]);
     const opt = document.createElement("option");
     opt.value = id;
-    opt.textContent = id;
+    const n = (v.name || "").trim();
+    const p = Number(v.price || 0);
+    opt.textContent = `${id} ｜ ${n || "-"} ｜ ${p}`;
     sel.appendChild(opt);
   }
 }
@@ -459,22 +425,38 @@ async function deleteCurrent(){
   setStatus(`<span class="ok">削除OK</span>`);
 }
 
-/* 印刷：bodyに class を付けてカテゴリ分離 → print → 戻す */
-function setPrintHeader(cat){
+/* 印刷：選択カテゴリだけ表示 + 2列（drink/food 両方同じ処理） */
+function printOnly(cat){
   $("printCat").textContent = (cat==="drink") ? "ドリンク" : "フード";
   $("printShop").textContent = state.shop || "-";
   $("printTime").textContent = new Date().toLocaleString("ja-JP");
-}
-function printOnly(cat){
-  setPrintHeader(cat);
 
-  document.body.classList.remove("print-drink","print-food");
-  document.body.classList.add(cat==="drink" ? "print-drink" : "print-food");
+  const drinkPanel = $("drinkPanel");
+  const foodPanel  = $("foodPanel");
+
+  // 重要：印刷する側の list に必ず printGrid を付ける（foodもここで2列になる）
+  $("drinkList").classList.remove("printGrid");
+  $("foodList").classList.remove("printGrid");
+  if(cat === "drink"){
+    $("drinkList").classList.add("printGrid");
+  }else{
+    $("foodList").classList.add("printGrid");
+  }
+
+  // 印刷時は片側だけ出す
+  drinkPanel.classList.remove("printHide");
+  foodPanel.classList.remove("printHide");
+  if(cat === "drink") foodPanel.classList.add("printHide");
+  else drinkPanel.classList.add("printHide");
 
   setTimeout(()=>window.print(), 50);
 
+  // 戻す（Safari対策）
   setTimeout(()=>{
-    document.body.classList.remove("print-drink","print-food");
+    drinkPanel.classList.remove("printHide");
+    foodPanel.classList.remove("printHide");
+    $("drinkList").classList.remove("printGrid");
+    $("foodList").classList.remove("printGrid");
   }, 800);
 }
 
@@ -503,6 +485,7 @@ loadAll();
 </script>
 </body>
 </html>
+
 
 
 

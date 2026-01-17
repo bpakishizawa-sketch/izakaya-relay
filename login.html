@@ -6,112 +6,71 @@
   <title>店側ログイン</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:720px;margin:0 auto}
-    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0;background:#fff}
-    .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
-    input,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #ccc}
-    button{cursor:pointer;border:0;font-weight:900}
-    .btn{background:#111827;color:#fff}
-    .btn2{background:#e5e7eb;color:#111;border:1px solid #ddd}
-    .danger{background:#ef4444;color:#fff}
+    .card{border:1px solid #e5e7eb;border-radius:14px;padding:14px;margin:12px 0;background:#fff}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    input{font-size:16px;padding:10px;border-radius:12px;border:1px solid #ccc}
+    button{font-size:16px;padding:12px 14px;border-radius:12px;border:0;cursor:pointer;font-weight:900;background:#111827;color:#fff}
     .ok{color:#16a34a;font-weight:900}
     .ng{color:#dc2626;font-weight:900}
     .muted{color:#6b7280;font-size:12px;line-height:1.6}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    a{display:inline-block;padding:12px 14px;border-radius:10px;background:#2563eb;color:#fff;text-decoration:none;font-weight:900}
+    a{color:#2563eb}
   </style>
 </head>
 <body>
   <h2>店側ログイン</h2>
 
-  <div class="card" id="loggedCard" style="display:none;">
-    <div class="ok">ログイン済み</div>
-    <div class="row">
-      <div>shop: <b class="mono" id="lsShop">-</b></div>
-      <div>PIN: <b class="mono" id="lsPin">****</b></div>
-    </div>
-    <div class="row" style="margin-top:12px;">
-      <button id="goMenu" class="btn">メニューへ</button>
-      <button id="logout" class="danger">ログアウト</button>
-    </div>
-    <div class="muted">
-      ※ login.html は自動で移動しません（戻される現象防止）。<br>
-      「メニューへ」を押して移動してください。
-    </div>
-  </div>
-
-  <div class="card" id="formCard">
+  <div class="card">
     <div class="row">
       <input id="shop" placeholder="shopコード（例：daboya）" style="flex:1;min-width:240px">
-      <input id="pin"  placeholder="PIN（例：1111）" style="width:180px">
-      <button id="btnLogin" class="btn">ログイン</button>
+      <input id="pin"  placeholder="PIN（数字/英字OK）" style="width:200px">
+      <button id="btnLogin" type="button">ログイン</button>
     </div>
-    <div id="msg" class="muted">厨房／会計で端末を分けてもOK（各端末でログイン）。</div>
+    <div id="msg" class="muted">この端末に shopCode / shopPin を保存します。</div>
+  </div>
+
+  <div class="card">
     <div class="muted">
-      PINは数字だけでも英数字でもOK（ここでは制限しません）。
+      保存キー：<span class="mono">localStorage.shopCode</span> / <span class="mono">localStorage.shopPin</span><br>
+      既にログイン済みの場合は自動で menu.html に移動します。
     </div>
   </div>
 
 <script>
-  // localStorage 統一キー
   const KEY_SHOP = "shopCode";
   const KEY_PIN  = "shopPin";
 
   const $ = (id)=>document.getElementById(id);
 
-  function readLogin(){
-    return {
-      shop: (localStorage.getItem(KEY_SHOP) || "").trim(),
-      pin:  (localStorage.getItem(KEY_PIN)  || "").trim()
-    };
-  }
-  function maskPin(pin){
-    if(!pin) return "----";
-    return "*".repeat(Math.min(pin.length, 8));
+  function getShop(){ return (localStorage.getItem(KEY_SHOP)||"").trim(); }
+  function getPin(){  return (localStorage.getItem(KEY_PIN)||"").trim(); }
+
+  function goMenu(){
+    location.href = `menu.html?v=${Date.now()}`;
   }
 
-  function render(){
-    const {shop, pin} = readLogin();
-    if(shop && pin){
-      $("formCard").style.display = "none";
-      $("loggedCard").style.display = "block";
-      $("lsShop").textContent = shop;
-      $("lsPin").textContent = maskPin(pin);
-    }else{
-      $("loggedCard").style.display = "none";
-      $("formCard").style.display = "block";
-    }
+  // 既にログイン済みなら menuへ
+  if(getShop() && getPin()){
+    goMenu();
   }
 
-  $("btnLogin").onclick = ()=>{
-    const shop = $("shop").value.trim();
-    const pin  = $("pin").value.trim();
+  $("btnLogin").addEventListener("click", ()=>{
+    const shop = ($("shop").value||"").trim();
+    const pin  = ($("pin").value||"").trim();
 
     if(!shop || !pin){
       $("msg").innerHTML = `<span class="ng">shop と PIN を入力してください</span>`;
       return;
     }
 
-    // 保存（※ここで初めてログイン状態になる）
     localStorage.setItem(KEY_SHOP, shop);
-    localStorage.setItem(KEY_PIN,  pin);
+    localStorage.setItem(KEY_PIN, pin);
 
-    $("msg").innerHTML = `<span class="ok">ログイン情報を保存しました</span>`;
-    render();
-  };
-
-  $("logout").onclick = ()=>{
-    localStorage.removeItem(KEY_SHOP);
-    localStorage.removeItem(KEY_PIN);
-    render();
-  };
-
-  $("goMenu").onclick = ()=>{
-    // 店側メニューへ（あなたの店側トップが menu.html ならこれ）
-    location.href = `menu.html?v=${Date.now()}`;
-  };
-
-  render();
+    $("msg").innerHTML = `<span class="ok">OK</span> 保存しました：shop=<span class="mono">${shop}</span>`;
+    goMenu();
+  });
 </script>
 </body>
 </html>
+
 

@@ -1,4 +1,3 @@
-<script>
 /** ====== 設定ここだけ ====== */
 const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 /** ======================== */
@@ -28,7 +27,7 @@ async function rtdbGet(path){
   const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, { method:"GET" });
   const text = await res.text();
-  let json; try{ json = JSON.parse(text); }catch{ json = { raw:text }; }
+  let json; try{ json = JSON.parse(text); }catch{ json = null; }
   return { ok: res.ok, status: res.status, json, url };
 }
 
@@ -40,7 +39,7 @@ async function rtdbPut(path, data){
     body: JSON.stringify(data)
   });
   const text = await res.text();
-  let json; try{ json = JSON.parse(text); }catch{ json = { raw:text }; }
+  let json; try{ json = JSON.parse(text); }catch{ json = null; }
   return { ok: res.ok, status: res.status, json, url };
 }
 
@@ -52,7 +51,7 @@ async function rtdbPatch(path, data){
     body: JSON.stringify(data)
   });
   const text = await res.text();
-  let json; try{ json = JSON.parse(text); }catch{ json = { raw:text }; }
+  let json; try{ json = JSON.parse(text); }catch{ json = null; }
   return { ok: res.ok, status: res.status, json, url };
 }
 
@@ -64,7 +63,7 @@ async function rtdbPost(path, data){
     body: JSON.stringify(data)
   });
   const text = await res.text();
-  let json; try{ json = JSON.parse(text); }catch{ json = { raw:text }; }
+  let json; try{ json = JSON.parse(text); }catch{ json = null; }
   return { ok: res.ok, status: res.status, json, url };
 }
 
@@ -73,5 +72,3 @@ function esc(s){
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[m]));
 }
-</script>
-

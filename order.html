@@ -2,670 +2,474 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>注文</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>注文（お客さん）</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
-    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;}
-    select,input,button{font-size:16px;padding:10px;}
-    button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:700}
-    .btn{background:#2563eb;color:#fff;width:100%}
-    .btn2{background:#e5e7eb;color:#111;width:100%}
-    .row{display:flex;gap:10px;align-items:center;margin:10px 0}
-    .ok{color:#0a7a2a;font-weight:800}
-    .ng{color:#b00020;font-weight:800}
-    pre{background:#f5f5f5;padding:12px;border-radius:10px;overflow:auto;white-space:pre-wrap;word-break:break-word}
-    small{color:#666}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:860px;margin:0 auto;background:#f6f7f9}
+    h1{font-size:22px;margin:0 0 10px}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0;background:#fff}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .right{margin-left:auto}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .muted{color:#6b7280;font-size:12px}
+    .ok{color:#16a34a;font-weight:900}
+    .ng{color:#dc2626;font-weight:900}
+    button{cursor:pointer;border:0;border-radius:10px;padding:10px 12px;font-weight:900}
+    .btn{background:#2563eb;color:#fff}
+    .btn2{background:#e5e7eb;color:#111827}
+    .danger{background:#dc2626;color:#fff}
+    .pill{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:24px;padding:0 10px;border-radius:999px;border:1px solid #d1d5db;font-weight:900;font-size:12px}
+    .pillD{background:#dbeafe;border-color:#3b82f6}
+    .pillF{background:#dcfce7;border-color:#16a34a}
+    input{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff;width:70px;text-align:center}
+    .grid2{display:grid;grid-template-columns:1fr;gap:12px}
+    @media(min-width:860px){ .grid2{grid-template-columns:1fr 1fr;} }
+
+    .menuItem{border:1px solid #e5e7eb;border-radius:12px;padding:10px;display:flex;align-items:center;gap:10px;justify-content:space-between}
+    .name{font-weight:900;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .price{font-weight:900}
+    .qtyBox{display:flex;gap:8px;align-items:center}
+    .cartLine{display:flex;gap:10px;align-items:center;justify-content:space-between;border-top:1px dashed #e5e7eb;padding:8px 0}
+    .cartLine:first-child{border-top:0}
+    .smallBtn{padding:8px 10px;border-radius:10px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
+    details summary{cursor:pointer;font-weight:900;color:#374151}
   </style>
 </head>
 <body>
-  <h2>注文</h2>
+  <h1>注文</h1>
 
-  <div class="card" id="meta"></div>
-
-  <div class="card" id="sessionCard">
-    <div id="sessionStatus"></div>
-    <div id="sessionDetail" style="margin-top:8px;"></div>
+  <div class="card">
+    <div class="row">
+      <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
+      <div><b>table:</b> <span id="tableText" class="mono">-</span></div>
+      <div class="right muted" id="timeText">-</div>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <div><b>token:</b> <span id="tokenText" class="mono">-</span></div>
+      <span class="right" id="sessState">-</span>
+    </div>
+    <div id="status" class="muted" style="margin-top:8px">-</div>
   </div>
 
-  <div class="card" id="orderCard">
-    <div class="row">
-      <select id="menuSel" style="flex:1" disabled>
-        <option value="">メニューを選択</option>
-      </select>
-      <input id="qty" type="number" min="1" value="1" style="width:90px" disabled>
-    </div>
-
-    <div class="row">
-      <button id="addBtn" class="btn2" disabled>カートに追加</button>
+  <div class="grid2">
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div style="font-weight:900">メニュー</div>
+        <div class="row" style="gap:8px">
+          <button id="tabDrink" class="btn2">ドリンク</button>
+          <button id="tabFood" class="btn2">フード</button>
+        </div>
+      </div>
+      <div class="muted" id="menuInfo" style="margin:8px 0">-</div>
+      <div id="menuList"></div>
     </div>
 
     <div class="card">
-      <b>カート</b>
-      <pre id="cartPre">[]</pre>
-      <div id="sumLine"></div>
-    </div>
+      <div class="row" style="justify-content:space-between">
+        <div style="font-weight:900">カート</div>
+        <div class="row" style="gap:8px">
+          <button id="btnClear" class="btn2">クリア</button>
+        </div>
+      </div>
 
-    <div class="row">
-      <button id="sendBtn" class="btn" disabled>注文送信</button>
-      <button id="clearBtn" class="btn2" disabled>クリア</button>
-    </div>
+      <div id="cartBox" style="margin-top:8px"></div>
 
-    <div id="status"></div>
-    <div id="menuStatus" style="margin-top:8px;"></div>
+      <div class="row" style="margin-top:10px;justify-content:space-between">
+        <div style="font-weight:900">合計: <span id="cartTotal" class="mono">0</span></div>
+        <button id="btnSend" class="btn">注文送信</button>
+      </div>
+
+      <div id="sendErr" class="ng" style="margin-top:8px"></div>
+
+      <details style="margin-top:10px">
+        <summary>デバッグ（必要時だけ）</summary>
+        <pre id="debug" class="mono">-</pre>
+      </details>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div style="font-weight:900">注文履歴（このテーブル・このtoken）</div>
+      <button id="btnHistReload" class="btn2">再読込</button>
+    </div>
+    <div class="muted" id="histInfo" style="margin-top:8px">-</div>
+    <div id="histList" style="margin-top:10px"></div>
   </div>
 
 <script>
-const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ====== 設定ここだけ ====== */
+const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ========================= */
 
 const $ = (id)=>document.getElementById(id);
+const esc = (s)=>String(s??"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
 
-function qs(name){
+function param(name){
   const u = new URL(location.href);
-  return (u.searchParams.get(name) || "").trim();
+  return (u.searchParams.get(name)||"").trim();
 }
 
-function esc(s){
-  return String(s||"").replace(/[&<>"']/g, m => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[m]));
-}
-
-async function getJson(path){
-  const url = `${DB_BASE}${path}.json`;
+async function rtdbGet(path){
+  const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, { method:"GET" });
-  const text = await res.text();
-  if(!res.ok) throw new Error(`GET HTTP ${res.status} ${text}`);
-  return text ? JSON.parse(text) : null;
+  const txt = await res.text();
+  let json=null; try{ json = txt ? JSON.parse(txt) : null; }catch{ json=null; }
+  return { ok: res.ok, status: res.status, json, url };
+}
+async function rtdbPut(path, data){
+  const url = `${RTDB_BASE}/${path}.json`;
+  const res = await fetch(url, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(data) });
+  const txt = await res.text();
+  let json=null; try{ json = txt ? JSON.parse(txt) : null; }catch{ json={ raw: txt }; }
+  return { ok: res.ok, status: res.status, json, url };
+}
+async function rtdbPost(path, data){
+  const url = `${RTDB_BASE}/${path}.json`;
+  const res = await fetch(url, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(data) });
+  const txt = await res.text();
+  let json=null; try{ json = txt ? JSON.parse(txt) : null; }catch{ json={ raw: txt }; }
+  return { ok: res.ok, status: res.status, json, url };
 }
 
-async function postJson(path, obj){
-  const url = `${DB_BASE}${path}.json`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(obj)
-  });
-  const text = await res.text();
-  if(!res.ok) throw new Error(`POST HTTP ${res.status} ${text}`);
-  return text ? JSON.parse(text) : null;
-}
+function setStatus(html){ $("status").innerHTML = html || ""; }
 
-// id: d1 / f103 などを数字として取り出す
-function idNumber(id){
+function parseMenuValue(v){
+  if(v && typeof v === "object") return { name:String(v.name??""), price:Number(v.price??0) };
+  if(typeof v === "string") return { name:v, price:0 };
+  return { name:"", price:0 };
+}
+function idNum(id){
   const m = String(id||"").match(/\d+/);
   return m ? Number(m[0]) : 999999;
 }
 
-// drink/foodの順→id番号順
-function sortMenu(a,b){
-  const catOrder = (c)=> c==="drink" ? 0 : (c==="food" ? 1 : 9);
-  const ca = catOrder(a.cat), cb = catOrder(b.cat);
-  if(ca !== cb) return ca - cb;
-  const na = idNumber(a.id), nb = idNumber(b.id);
-  if(na !== nb) return na - nb;
-  return String(a.name||"").localeCompare(String(b.name||""), "ja");
+/** ====== 状態 ====== */
+const state = {
+  shop: "",
+  table: "",
+  token: "",
+  cat: "drink",
+  menuDrink: {},
+  menuFood: {},
+  cart: [] // {id,cat,name,price,qty}
+};
+
+function cartTotal(){
+  return state.cart.reduce((a,x)=>a + (Number(x.price||0)*Number(x.qty||0)), 0);
+}
+function saveCart(){
+  // テーブル/トークンが変わったらカート混線しないようにキー分け
+  const key = `cart:${state.shop}:${state.table}:${state.token}`;
+  localStorage.setItem(key, JSON.stringify(state.cart));
+}
+function loadCart(){
+  const key = `cart:${state.shop}:${state.table}:${state.token}`;
+  try{ state.cart = JSON.parse(localStorage.getItem(key) || "[]") || []; }catch{ state.cart = []; }
+}
+function clearCart(){
+  state.cart = [];
+  saveCart();
+  renderCart();
 }
 
-function setEnabled(enabled){
-  $("menuSel").disabled = !enabled;
-  $("qty").disabled = !enabled;
-  $("addBtn").disabled = !enabled;
-  $("sendBtn").disabled = !enabled;
-  $("clearBtn").disabled = !enabled;
+function addToCart(cat, id, name, price, qty){
+  qty = Number(qty||1);
+  if(qty <= 0) return;
+  const idx = state.cart.findIndex(x => x.id===id && x.cat===cat);
+  if(idx >= 0){
+    state.cart[idx].qty = Number(state.cart[idx].qty||0) + qty;
+  }else{
+    state.cart.push({ id, cat, name, price:Number(price||0), qty });
+  }
+  saveCart();
+  renderCart();
 }
-
-const shop  = qs("shop");
-const table = qs("table");
-const token = qs("token");
-const v     = qs("v");
-
-$("meta").innerHTML = `
-  <div><b>shop:</b> ${esc(shop||"(none)")}</div>
-  <div><b>table:</b> ${esc(table||"(none)")}</div>
-  <div><b>token:</b> <small>${esc(token||"(none)")}</small></div>
-  <div><small>URL: ${esc(location.href)}</small></div>
-`;
-
-if(!shop || !table || !token){
-  $("sessionStatus").innerHTML = `<span class="ng">URL params が不足です（shop/table/token）</span>`;
-  setEnabled(false);
-}
-
-let menuAll = [];   // [{id,cat,name,price}]
-let cart = [];      // [{id,cat,name,price,qty}]
-let sessionOk = false;
 
 function renderCart(){
-  $("cartPre").textContent = JSON.stringify(cart, null, 2);
-  const total = cart.reduce((s,x)=>s + (Number(x.price)||0) * (Number(x.qty)||0), 0);
-  $("sumLine").innerHTML = `<div><b>合計:</b> ${total}</div>`;
+  const box = $("cartBox");
+  box.innerHTML = "";
+  if(!state.cart.length){
+    box.innerHTML = `<div class="muted">カートは空です</div>`;
+  }else{
+    for(const x of state.cart){
+      const line = document.createElement("div");
+      line.className = "cartLine";
+      line.innerHTML = `
+        <div style="min-width:0">
+          <div style="font-weight:900">
+            <span class="pill ${x.cat==="drink"?"pillD":"pillF"}">${x.cat==="drink"?"D":"F"}</span>
+            ${esc(x.name)}
+          </div>
+          <div class="muted mono">${esc(x.id)} / ${esc(String(x.price))}円</div>
+        </div>
+        <div class="row" style="gap:6px">
+          <button class="btn2 smallBtn" data-act="dec">-</button>
+          <div class="mono" style="min-width:28px;text-align:center">${esc(String(x.qty))}</div>
+          <button class="btn2 smallBtn" data-act="inc">+</button>
+        </div>
+      `;
+      const dec = line.querySelector('[data-act="dec"]');
+      const inc = line.querySelector('[data-act="inc"]');
+      dec.onclick = ()=>{
+        x.qty = Math.max(0, Number(x.qty||0)-1);
+        if(x.qty===0) state.cart = state.cart.filter(a => !(a.id===x.id && a.cat===x.cat));
+        saveCart(); renderCart();
+      };
+      inc.onclick = ()=>{
+        x.qty = Number(x.qty||0)+1;
+        saveCart(); renderCart();
+      };
+      box.appendChild(line);
+    }
+  }
+
+  $("cartTotal").textContent = String(cartTotal());
+  $("debug").textContent = JSON.stringify({
+    shop: state.shop, table: state.table, token: state.token,
+    cartCount: state.cart.length,
+    total: cartTotal(),
+    cat: state.cat
+  }, null, 2);
 }
 
-function buildMenuOptions(){
-  const sel = $("menuSel");
-  sel.innerHTML = `<option value="">メニューを選択</option>`;
-  for(const m of menuAll){
-    const label = `${m.id} / ${m.name} (${m.price}) [${m.cat}]`;
-    const opt = document.createElement("option");
-    opt.value = m.id;
-    opt.textContent = label;
-    sel.appendChild(opt);
+function renderMenu(){
+  const src = (state.cat==="drink") ? state.menuDrink : state.menuFood;
+  const keys = Object.keys(src).sort((a,b)=>idNum(a)-idNum(b));
+  $("menuInfo").textContent = `${state.cat==="drink"?"ドリンク":"フード"}：${keys.length}件`;
+
+  const wrap = $("menuList");
+  wrap.innerHTML = "";
+  for(const id of keys){
+    const v = parseMenuValue(src[id]);
+    const div = document.createElement("div");
+    div.className = "menuItem";
+    div.innerHTML = `
+      <div style="min-width:0">
+        <div class="name">${esc(v.name || "-")}</div>
+        <div class="muted mono">${esc(id)} / ${esc(String(v.price||0))}円</div>
+      </div>
+      <div class="qtyBox">
+        <input type="number" min="1" value="1" />
+        <button class="btn">追加</button>
+      </div>
+    `;
+    const inp = div.querySelector("input");
+    const btn = div.querySelector("button");
+    btn.onclick = ()=>{
+      const qty = Number(inp.value||1);
+      addToCart(state.cat, id, v.name, v.price, qty);
+    };
+    wrap.appendChild(div);
   }
+}
+
+/** ====== 重要：そのテーブルのActiveSession tokenと一致しているか確認 ====== */
+async function assertSessionToken(){
+  const path = `webActiveSessions/${encodeURIComponent(state.shop)}/${encodeURIComponent(String(state.table))}`;
+  const g = await rtdbGet(path);
+
+  if(!g.ok){
+    $("sessState").innerHTML = `<span class="ng">session NG</span>`;
+    setStatus(`<span class="ng">セッション取得失敗</span> ${esc(String(g.status))}`);
+    return { ok:false, reason:"session_read_failed", g };
+  }
+
+  const dbToken = g.json && g.json.token ? String(g.json.token).trim() : "";
+  if(!dbToken){
+    $("sessState").innerHTML = `<span class="ng">session NONE</span>`;
+    setStatus(`<span class="ng">このテーブルのセッションがありません</span>（QRを読み直してください）`);
+    return { ok:false, reason:"no_token", g };
+  }
+
+  if(dbToken !== state.token){
+    $("sessState").innerHTML = `<span class="ng">token MISMATCH</span>`;
+    setStatus(`<span class="ng">token不一致</span>（別テーブルのQRを読んだ可能性）<br>DB:${esc(dbToken)} / URL:${esc(state.token)}`);
+    return { ok:false, reason:"mismatch", g, dbToken };
+  }
+
+  $("sessState").innerHTML = `<span class="ok">session OK</span>`;
+  setStatus(`<span class="ok">メニュー読み込みOK</span>（${esc(String(Object.keys(state.menuDrink).length + Object.keys(state.menuFood).length))}件）`);
+  return { ok:true, g, dbToken };
 }
 
 async function loadMenu(){
-  try{
-    if(!shop) return;
-    const drinkObj = await getJson(`/shops/${encodeURIComponent(shop)}/menu/drink`);
-    const foodObj  = await getJson(`/shops/${encodeURIComponent(shop)}/menu/food`);
+  const d = await rtdbGet(`shops/${encodeURIComponent(state.shop)}/menu/drink`);
+  const f = await rtdbGet(`shops/${encodeURIComponent(state.shop)}/menu/food`);
+  state.menuDrink = (d.ok && d.json && typeof d.json==="object") ? d.json : {};
+  state.menuFood  = (f.ok && f.json && typeof f.json==="object") ? f.json : {};
+  renderMenu();
+}
 
-    const arr = [];
-    if(drinkObj){
-      for(const [id, v] of Object.entries(drinkObj)){
-        const name = (v && typeof v === "object") ? (v.name ?? "") : String(v||"");
-        const price = (v && typeof v === "object") ? Number(v.price ?? 0) : 0;
-        arr.push({id, cat:"drink", name, price});
-      }
-    }
-    if(foodObj){
-      for(const [id, v] of Object.entries(foodObj)){
-        const name = (v && typeof v === "object") ? (v.name ?? "") : String(v||"");
-        const price = (v && typeof v === "object") ? Number(v.price ?? 0) : 0;
-        arr.push({id, cat:"food", name, price});
-      }
-    }
+async function sendOrder(){
+  $("sendErr").textContent = "";
 
-    arr.sort(sortMenu);
-    menuAll = arr;
-    buildMenuOptions();
-    $("menuStatus").innerHTML = `<span class="ok">メニュー読み込みOK</span>（${menuAll.length}件）`;
-  }catch(e){
-    $("menuStatus").innerHTML = `<span class="ng">メニュー読み込み失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
+  // 送信直前に必ずセッション一致チェック
+  const s = await assertSessionToken();
+  if(!s.ok){
+    $("sendErr").textContent = `送信失敗: session/token が一致しません（QRを読み直して下さい）`;
+    return;
+  }
+
+  if(!state.cart.length){
+    $("sendErr").textContent = "カートが空です";
+    return;
+  }
+
+  const payload = {
+    shop: state.shop,
+    table: String(state.table),
+    token: state.token,
+    createdAt: Date.now(),
+    items: state.cart.map(x=>({
+      id: x.id, cat: x.cat, name: x.name, price: Number(x.price||0), qty: Number(x.qty||0)
+    })),
+    total: cartTotal(),
+    ua: navigator.userAgent
+  };
+
+  // 1) ordersへPOST（pushId生成）
+  const postPath = `shops/${encodeURIComponent(state.shop)}/orders/${encodeURIComponent(String(state.table))}`;
+  const p = await rtdbPost(postPath, payload);
+
+  if(!p.ok){
+    $("sendErr").textContent = `送信失敗 POST HTTP ${p.status} ${JSON.stringify(p.json)}`;
+    return;
+  }
+
+  const orderKey = p.json && p.json.name ? String(p.json.name) : "";
+  const orderPath = `/shops/${state.shop}/orders/${state.table}/${orderKey}`;
+
+  // 2) orderFeedへPUT（同じキーで作る）
+  const feedKey = orderKey || (`feed_${Date.now()}`);
+  const feedPayload = {
+    shop: state.shop,
+    table: String(state.table),
+    token: state.token,
+    createdAt: payload.createdAt,
+    status: "new",
+    total: payload.total,
+    itemsCount: payload.items.length,
+    orderKey: orderKey,
+    orderPath: orderPath
+  };
+  await rtdbPut(`shops/${encodeURIComponent(state.shop)}/orderFeed/${encodeURIComponent(feedKey)}`, feedPayload);
+
+  // 完了
+  clearCart();
+  await loadHistory();
+  setStatus(`<span class="ok">注文送信OK</span>`);
+}
+
+/** ====== 注文履歴（この token の分だけ） ====== */
+async function loadHistory(){
+  const base = `shops/${encodeURIComponent(state.shop)}/orders/${encodeURIComponent(String(state.table))}`;
+  const g = await rtdbGet(base);
+
+  if(!g.ok){
+    $("histInfo").innerHTML = `<span class="ng">履歴読込NG</span> HTTP ${esc(String(g.status))}`;
+    $("histList").innerHTML = "";
+    return;
+  }
+
+  const obj = (g.json && typeof g.json==="object") ? g.json : {};
+  const keys = Object.keys(obj);
+
+  // token一致のみ
+  const rows = keys
+    .map(k => ({ k, v: obj[k] }))
+    .filter(x => x.v && String(x.v.token||"") === state.token)
+    .sort((a,b)=> Number(b.v.createdAt||0) - Number(a.v.createdAt||0));
+
+  $("histInfo").textContent = `${rows.length}件`;
+
+  const wrap = $("histList");
+  wrap.innerHTML = "";
+
+  if(!rows.length){
+    wrap.innerHTML = `<div class="muted">履歴がありません</div>`;
+    return;
+  }
+
+  for(const r of rows.slice(0, 20)){ // 表示は最新20件
+    const v = r.v;
+    const items = Array.isArray(v.items) ? v.items : [];
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.margin = "10px 0";
+    card.innerHTML = `
+      <div class="row">
+        <div style="font-weight:900">注文</div>
+        <div class="right muted">${esc(new Date(Number(v.createdAt||0)).toLocaleString("ja-JP"))}</div>
+      </div>
+      <div class="muted mono" style="margin-top:4px">${esc(r.k)}</div>
+      <div style="margin-top:10px">
+        ${items.map(it=>{
+          const cat = String(it.cat||"");
+          const pill = cat==="drink" ? "pillD" : "pillF";
+          const ptxt = cat==="drink" ? "D" : "F";
+          return `
+            <div class="row" style="justify-content:space-between;border-top:1px dashed #e5e7eb;padding:6px 0">
+              <div style="min-width:0">
+                <span class="pill ${pill}">${ptxt}</span>
+                <b>${esc(it.name||"-")}</b> x${esc(String(it.qty||0))}
+              </div>
+              <div class="mono">${esc(String(it.price||0))}</div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+      <div class="row" style="margin-top:8px;justify-content:space-between">
+        <div style="font-weight:900">合計</div>
+        <div class="mono" style="font-weight:900">${esc(String(v.total||0))}</div>
+      </div>
+    `;
+    wrap.appendChild(card);
   }
 }
 
-/**
- * webActiveSessions/{shop}/{table} を読み、
- * DB側 token と URL token が一致したら注文を有効化する
- */
-async function verifySession(){
-  try{
-    if(!shop || !table || !token) return false;
-
-    $("sessionStatus").textContent = "セッション確認中...";
-    setEnabled(false);
-
-    const sess = await getJson(`/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`);
-
-    if(!sess){
-      $("sessionStatus").innerHTML = `<span class="ng">セッションが見つかりません（店のQRを読み直してください）</span>`;
-      $("sessionDetail").innerHTML = `<small>path: /webActiveSessions/${esc(shop)}/${esc(String(table))}</small>`;
-      return false;
-    }
-
-    const dbToken = String(sess.token || "").trim();
-    const urlToken = String(token || "").trim();
-
-    if(!dbToken || dbToken !== urlToken){
-      $("sessionStatus").innerHTML = `<span class="ng">トークン不一致（このURLでは注文できません）</span>`;
-      $("sessionDetail").innerHTML =
-        `<small>DB token: ${esc(dbToken||"(none)")}<br>URL token: ${esc(urlToken||"(none)")}</small>`;
-      return false;
-    }
-
-    // （任意）期限チェックを入れたい場合はここで sess.expiresAt を見る
-    $("sessionStatus").innerHTML = `<span class="ok">セッションOK</span>`;
-    $("sessionDetail").innerHTML =
-      `<small>updatedAt: ${esc(String(sess.updatedAt||""))}<br>table: ${esc(String(sess.table||table))}</small>`;
-
-    return true;
-
-  }catch(e){
-    $("sessionStatus").innerHTML = `<span class="ng">セッション確認失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
-    return false;
-  }
-}
-
-$("addBtn").onclick = ()=>{
-  const id = $("menuSel").value;
-  const qty = Number($("qty").value || 1);
-  if(!id) return;
-
-  const m = menuAll.find(x=>x.id===id);
-  if(!m) return;
-
-  const found = cart.find(x=>x.id===id);
-  if(found){
-    found.qty = Number(found.qty||0) + qty;
-  }else{
-    cart.push({id:m.id, cat:m.cat, name:m.name, price:m.price, qty});
-  }
-  renderCart();
-};
-
-$("clearBtn").onclick = ()=>{
-  cart = [];
-  renderCart();
-  $("status").textContent = "";
-};
-
-$("sendBtn").onclick = async ()=>{
-  let sendingLocked = false;
-  try{
-    if(!shop || !table || !token) return;
-    if(!sessionOk){
-      $("status").innerHTML = `<span class="ng">セッション未確認のため送信できません</span>`;
-      return;
-    }
-    if(cart.length === 0){
-      $("status").innerHTML = `<span class="ng">カートが空です</span>`;
-      return;
-    }
-
-    // 二重送信防止
-    if(sendingLocked) return;
-    sendingLocked = true;
-    $("sendBtn").disabled = true;
-
-    const createdAt = Date.now();
-    const ua = navigator.userAgent;
-    const total = cart.reduce((s,x)=>s + (Number(x.price)||0) * (Number(x.qty)||0), 0);
-
-    const orderObj = {
-      shop,
-      table: String(table),
-      token,
-      createdAt,
-      ua,
-      items: cart,
-      total,
-      status: "new"
-    };
-
-    $("status").textContent = "sending...";
-
-    // 1) orders にPOST（正本）
-    const ordersPath =
-      `/shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
-    const ordersRes = await postJson(ordersPath, orderObj);
-    const orderKey = (ordersRes && ordersRes.name) ? String(ordersRes.name) : "";
-
-    // 2) 店別 orderFeed にPOST（軽量）
-    const feedObj = {
-      shop,
-      table: String(table),
-      token,
-      createdAt,
-      status: "new",
-      total,
-      itemsCount: cart.reduce((n,x)=>n + (Number(x.qty)||0), 0),
-      orderKey,
-      orderPath: orderKey ? `${ordersPath}/${orderKey}` : ordersPath
-    };
-
-    const feedPath = `/shops/${encodeURIComponent(shop)}/orderFeed`;
-    await postJson(feedPath, feedObj);
-
-    // 3) 全店集約（任意）
-    // await postJson(`/orderFeedAll`, feedObj);
-
-    $("status").innerHTML = `<span class="ok">送信OK</span>`;
-    cart = [];
-    renderCart();
-
-  }catch(e){
-    $("status").innerHTML = `<span class="ng">送信失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
-  }finally{
-    $("sendBtn").disabled = !sessionOk;
-  }
-};
-
+/** ===== init ===== */
 (async ()=>{
+  state.shop  = param("shop");
+  state.table = param("table");
+  state.token = param("token");
+
+  $("shopText").textContent  = state.shop || "(missing)";
+  $("tableText").textContent = state.table || "(missing)";
+  $("tokenText").textContent = state.token || "(missing)";
+  $("timeText").textContent  = new Date().toLocaleString("ja-JP");
+
+  if(!state.shop || !state.table || !state.token){
+    setStatus(`<span class="ng">URLが不足</span>（shop/table/token）`);
+    return;
+  }
+
+  // タブ
+  function setTab(cat){
+    state.cat = cat;
+    $("tabDrink").style.background = (cat==="drink") ? "#111827" : "#e5e7eb";
+    $("tabDrink").style.color      = (cat==="drink") ? "#fff" : "#111827";
+    $("tabFood").style.background  = (cat==="food") ? "#111827" : "#e5e7eb";
+    $("tabFood").style.color       = (cat==="food") ? "#fff" : "#111827";
+    renderMenu();
+  }
+  $("tabDrink").onclick = ()=> setTab("drink");
+  $("tabFood").onclick  = ()=> setTab("food");
+  setTab("drink");
+
+  // カート
+  loadCart();
   renderCart();
-  // まずセッション検証 → OKならUI有効化＆メニュー読み込み
-  sessionOk = await verifySession();
-  setEnabled(sessionOk);
-  if(sessionOk) await loadMenu();
-})();
-</script>
-</body>
-</html>
+  $("btnClear").onclick = clearCart;
+  $("btnSend").onclick  = sendOrder;
 
-岸澤幹 <mikikilin@icloud.com>
-10:29 (16 分前)
-To 自分
+  $("btnHistReload").onclick = loadHistory;
 
-このメールは英語で書かれているようです
-<!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>注文</title>
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px;}
-    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;}
-    select,input,button{font-size:16px;padding:10px;}
-    button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:700}
-    .btn{background:#2563eb;color:#fff;width:100%}
-    .btn2{background:#e5e7eb;color:#111;width:100%}
-    .row{display:flex;gap:10px;align-items:center;margin:10px 0}
-    .ok{color:#0a7a2a;font-weight:800}
-    .ng{color:#b00020;font-weight:800}
-    pre{background:#f5f5f5;padding:12px;border-radius:10px;overflow:auto;white-space:pre-wrap;word-break:break-word}
-    small{color:#666}
-  </style>
-</head>
-<body>
-  <h2>注文</h2>
-
-  <div class="card" id="meta"></div>
-
-  <div class="card" id="sessionCard">
-    <div id="sessionStatus"></div>
-    <div id="sessionDetail" style="margin-top:8px;"></div>
-  </div>
-
-  <div class="card" id="orderCard">
-    <div class="row">
-      <select id="menuSel" style="flex:1" disabled>
-        <option value="">メニューを選択</option>
-      </select>
-      <input id="qty" type="number" min="1" value="1" style="width:90px" disabled>
-    </div>
-
-    <div class="row">
-      <button id="addBtn" class="btn2" disabled>カートに追加</button>
-    </div>
-
-    <div class="card">
-      <b>カート</b>
-      <pre id="cartPre">[]</pre>
-      <div id="sumLine"></div>
-    </div>
-
-    <div class="row">
-      <button id="sendBtn" class="btn" disabled>注文送信</button>
-      <button id="clearBtn" class="btn2" disabled>クリア</button>
-    </div>
-
-    <div id="status"></div>
-    <div id="menuStatus" style="margin-top:8px;"></div>
-  </div>
-
-<script>
-const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-
-const $ = (id)=>document.getElementById(id);
-
-function qs(name){
-  const u = new URL(location.href);
-  return (u.searchParams.get(name) || "").trim();
-}
-
-function esc(s){
-  return String(s||"").replace(/[&<>"']/g, m => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[m]));
-}
-
-async function getJson(path){
-  const url = `${DB_BASE}${path}.json`;
-  const res = await fetch(url, { method:"GET" });
-  const text = await res.text();
-  if(!res.ok) throw new Error(`GET HTTP ${res.status} ${text}`);
-  return text ? JSON.parse(text) : null;
-}
-
-async function postJson(path, obj){
-  const url = `${DB_BASE}${path}.json`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(obj)
-  });
-  const text = await res.text();
-  if(!res.ok) throw new Error(`POST HTTP ${res.status} ${text}`);
-  return text ? JSON.parse(text) : null;
-}
-
-// id: d1 / f103 などを数字として取り出す
-function idNumber(id){
-  const m = String(id||"").match(/\d+/);
-  return m ? Number(m[0]) : 999999;
-}
-
-// drink/foodの順→id番号順
-function sortMenu(a,b){
-  const catOrder = (c)=> c==="drink" ? 0 : (c==="food" ? 1 : 9);
-  const ca = catOrder(a.cat), cb = catOrder(b.cat);
-  if(ca !== cb) return ca - cb;
-  const na = idNumber(a.id), nb = idNumber(b.id);
-  if(na !== nb) return na - nb;
-  return String(a.name||"").localeCompare(String(b.name||""), "ja");
-}
-
-function setEnabled(enabled){
-  $("menuSel").disabled = !enabled;
-  $("qty").disabled = !enabled;
-  $("addBtn").disabled = !enabled;
-  $("sendBtn").disabled = !enabled;
-  $("clearBtn").disabled = !enabled;
-}
-
-const shop  = qs("shop");
-const table = qs("table");
-const token = qs("token");
-const v     = qs("v");
-
-$("meta").innerHTML = `
-  <div><b>shop:</b> ${esc(shop||"(none)")}</div>
-  <div><b>table:</b> ${esc(table||"(none)")}</div>
-  <div><b>token:</b> <small>${esc(token||"(none)")}</small></div>
-  <div><small>URL: ${esc(location.href)}</small></div>
-`;
-
-if(!shop || !table || !token){
-  $("sessionStatus").innerHTML = `<span class="ng">URL params が不足です（shop/table/token）</span>`;
-  setEnabled(false);
-}
-
-let menuAll = [];   // [{id,cat,name,price}]
-let cart = [];      // [{id,cat,name,price,qty}]
-let sessionOk = false;
-
-function renderCart(){
-  $("cartPre").textContent = JSON.stringify(cart, null, 2);
-  const total = cart.reduce((s,x)=>s + (Number(x.price)||0) * (Number(x.qty)||0), 0);
-  $("sumLine").innerHTML = `<div><b>合計:</b> ${total}</div>`;
-}
-
-function buildMenuOptions(){
-  const sel = $("menuSel");
-  sel.innerHTML = `<option value="">メニューを選択</option>`;
-  for(const m of menuAll){
-    const label = `${m.id} / ${m.name} (${m.price}) [${m.cat}]`;
-    const opt = document.createElement("option");
-    opt.value = m.id;
-    opt.textContent = label;
-    sel.appendChild(opt);
-  }
-}
-
-async function loadMenu(){
-  try{
-    if(!shop) return;
-    const drinkObj = await getJson(`/shops/${encodeURIComponent(shop)}/menu/drink`);
-    const foodObj  = await getJson(`/shops/${encodeURIComponent(shop)}/menu/food`);
-
-    const arr = [];
-    if(drinkObj){
-      for(const [id, v] of Object.entries(drinkObj)){
-        const name = (v && typeof v === "object") ? (v.name ?? "") : String(v||"");
-        const price = (v && typeof v === "object") ? Number(v.price ?? 0) : 0;
-        arr.push({id, cat:"drink", name, price});
-      }
-    }
-    if(foodObj){
-      for(const [id, v] of Object.entries(foodObj)){
-        const name = (v && typeof v === "object") ? (v.name ?? "") : String(v||"");
-        const price = (v && typeof v === "object") ? Number(v.price ?? 0) : 0;
-        arr.push({id, cat:"food", name, price});
-      }
-    }
-
-    arr.sort(sortMenu);
-    menuAll = arr;
-    buildMenuOptions();
-    $("menuStatus").innerHTML = `<span class="ok">メニュー読み込みOK</span>（${menuAll.length}件）`;
-  }catch(e){
-    $("menuStatus").innerHTML = `<span class="ng">メニュー読み込み失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
-  }
-}
-
-/**
- * webActiveSessions/{shop}/{table} を読み、
- * DB側 token と URL token が一致したら注文を有効化する
- */
-async function verifySession(){
-  try{
-    if(!shop || !table || !token) return false;
-
-    $("sessionStatus").textContent = "セッション確認中...";
-    setEnabled(false);
-
-    const sess = await getJson(`/webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`);
-
-    if(!sess){
-      $("sessionStatus").innerHTML = `<span class="ng">セッションが見つかりません（店のQRを読み直してください）</span>`;
-      $("sessionDetail").innerHTML = `<small>path: /webActiveSessions/${esc(shop)}/${esc(String(table))}</small>`;
-      return false;
-    }
-
-    const dbToken = String(sess.token || "").trim();
-    const urlToken = String(token || "").trim();
-
-    if(!dbToken || dbToken !== urlToken){
-      $("sessionStatus").innerHTML = `<span class="ng">トークン不一致（このURLでは注文できません）</span>`;
-      $("sessionDetail").innerHTML =
-        `<small>DB token: ${esc(dbToken||"(none)")}<br>URL token: ${esc(urlToken||"(none)")}</small>`;
-      return false;
-    }
-
-    // （任意）期限チェックを入れたい場合はここで sess.expiresAt を見る
-    $("sessionStatus").innerHTML = `<span class="ok">セッションOK</span>`;
-    $("sessionDetail").innerHTML =
-      `<small>updatedAt: ${esc(String(sess.updatedAt||""))}<br>table: ${esc(String(sess.table||table))}</small>`;
-
-    return true;
-
-  }catch(e){
-    $("sessionStatus").innerHTML = `<span class="ng">セッション確認失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
-    return false;
-  }
-}
-
-$("addBtn").onclick = ()=>{
-  const id = $("menuSel").value;
-  const qty = Number($("qty").value || 1);
-  if(!id) return;
-
-  const m = menuAll.find(x=>x.id===id);
-  if(!m) return;
-
-  const found = cart.find(x=>x.id===id);
-  if(found){
-    found.qty = Number(found.qty||0) + qty;
-  }else{
-    cart.push({id:m.id, cat:m.cat, name:m.name, price:m.price, qty});
-  }
-  renderCart();
-};
-
-$("clearBtn").onclick = ()=>{
-  cart = [];
-  renderCart();
-  $("status").textContent = "";
-};
-
-$("sendBtn").onclick = async ()=>{
-  let sendingLocked = false;
-  try{
-    if(!shop || !table || !token) return;
-    if(!sessionOk){
-      $("status").innerHTML = `<span class="ng">セッション未確認のため送信できません</span>`;
-      return;
-    }
-    if(cart.length === 0){
-      $("status").innerHTML = `<span class="ng">カートが空です</span>`;
-      return;
-    }
-
-    // 二重送信防止
-    if(sendingLocked) return;
-    sendingLocked = true;
-    $("sendBtn").disabled = true;
-
-    const createdAt = Date.now();
-    const ua = navigator.userAgent;
-    const total = cart.reduce((s,x)=>s + (Number(x.price)||0) * (Number(x.qty)||0), 0);
-
-    const orderObj = {
-      shop,
-      table: String(table),
-      token,
-      createdAt,
-      ua,
-      items: cart,
-      total,
-      status: "new"
-    };
-
-    $("status").textContent = "sending...";
-
-    // 1) orders にPOST（正本）
-    const ordersPath =
-      `/shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
-    const ordersRes = await postJson(ordersPath, orderObj);
-    const orderKey = (ordersRes && ordersRes.name) ? String(ordersRes.name) : "";
-
-    // 2) 店別 orderFeed にPOST（軽量）
-    const feedObj = {
-      shop,
-      table: String(table),
-      token,
-      createdAt,
-      status: "new",
-      total,
-      itemsCount: cart.reduce((n,x)=>n + (Number(x.qty)||0), 0),
-      orderKey,
-      orderPath: orderKey ? `${ordersPath}/${orderKey}` : ordersPath
-    };
-
-    const feedPath = `/shops/${encodeURIComponent(shop)}/orderFeed`;
-    await postJson(feedPath, feedObj);
-
-    // 3) 全店集約（任意）
-    // await postJson(`/orderFeedAll`, feedObj);
-
-    $("status").innerHTML = `<span class="ok">送信OK</span>`;
-    cart = [];
-    renderCart();
-
-  }catch(e){
-    $("status").innerHTML = `<span class="ng">送信失敗</span><div><small>${esc(String(e.message||e))}</small></div>`;
-  }finally{
-    $("sendBtn").disabled = !sessionOk;
-  }
-};
-
-(async ()=>{
-  renderCart();
-  // まずセッション検証 → OKならUI有効化＆メニュー読み込み
-  sessionOk = await verifySession();
-  setEnabled(sessionOk);
-  if(sessionOk) await loadMenu();
+  // メニュー読み込み → session確認 → 履歴
+  await loadMenu();
+  await assertSessionToken();
+  await loadHistory();
 })();
 </script>
 </body>

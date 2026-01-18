@@ -279,8 +279,6 @@ $("shopText").textContent = shop || "(missing)";
 $("tableText").textContent = table || "(missing)";
 $("tokenText").textContent = token || "(missing)";
 $("btnBack").onclick = ()=>{
-  // entry/customer に戻る想定（shop/tableを維持）
-  const base = location.href.split("?")[0];
   location.href = `customer.html?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(String(table))}&v=${Date.now()}`;
 };
 
@@ -434,7 +432,7 @@ $("btnAdd").onclick = ()=>{
   }
 
   // 同一IDはまとめる
-  const found = cart.find(x => x.id === id && x.category === cat);
+  const found = cart.find(x => x.id=== id && x.category === cat);
   if(found){
     found.qty = Number(found.qty||1) + qty;
   }else{
@@ -525,7 +523,6 @@ async function refreshHistory(){
   const path = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
   const r = await rtdbGet(path);
   if(!r.ok){
-    // 読めない場合は権限/ルール
     setSendMsg(`<span class="ng">履歴読込失敗</span> HTTP ${r.status}`);
     $("debug").textContent = JSON.stringify({ historyRead: r }, null, 2);
     return;
@@ -594,8 +591,8 @@ async function sendOrder(){
   const orderPathAbs = `/shops/${shop}/orders/${table}/${orderKey}`;
 
   // 2) orderFeed 保存（厨房用）
-  // ★重要：rulesで items 必須なので、1品ずつでも items:[{...}] を必ず入れる
-  // kitchen側で category で左右に分けるため、category も必ず入れる
+  // ★重要：統一先は「/shops/{shop}/orderFeed」
+  // 1品ずつ feed に積む（kitchen 側で category で左右に分ける）
   for(const it of items){
     const feedPayload = {
       shop,
@@ -603,22 +600,20 @@ async function sendOrder(){
       token,
       createdAt,
       status: "new",
-      // kitchen分岐用
       category: String(it.category || ""),
-      // kitchen表示用（分かりやすい）
       name: String(it.name || ""),
       qty: Number(it.qty||0),
       price: Number(it.price||0),
       total: Number(it.price||0) * Number(it.qty||0),
-      // 元注文参照（任意）
       orderKey,
       orderPath: orderPathAbs,
       itemsCount: Number(it.qty||0),
-      // rules対策：items必須
+      // 互換・将来用（rulesで必要になっても困らないように）
       items: [ { name: it.name, qty: Number(it.qty||0), price: Number(it.price||0), category: it.category } ]
     };
 
-    const feedPath = `orderFeed/${encodeURIComponent(shop)}`;
+    // ★ここが変更点：/shops/{shop}/orderFeed に POST
+    const feedPath = `shops/${encodeURIComponent(shop)}/orderFeed`;
     const r2 = await rtdbPost(feedPath, feedPayload);
 
     if(!r2.ok){
@@ -687,7 +682,6 @@ async function requestCheckout(){
     }))
   };
 
-  // shops/$shop は現ルールで write:true なのでここは通る想定
   const path = `shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(table))}`;
   const r = await rtdbPut(path, payload);
 
@@ -768,7 +762,6 @@ $("btnCheckout").addEventListener("pointercancel", ()=> endHold());
 </body>
 </html>
 
-iPhoneから送信
 
 
 

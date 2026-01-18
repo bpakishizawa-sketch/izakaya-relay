@@ -2,415 +2,447 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kitchen - Order Feed</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Kitchen（店側）</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:1200px; margin:0 auto;}
-    h1{font-size:22px;margin:0 0 8px}
-    .sub{font-size:12px;color:#6b7280;margin-bottom:12px;line-height:1.6}
-    .topbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}
-    .card{border:1px solid #ddd;border-radius:12px;padding:12px;margin:10px 0;background:#fff;}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    select,input{font-size:16px;padding:10px;border:1px solid #ccc;border-radius:10px}
-    button{font-size:14px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:900}
-    button.dark{background:#111827;color:#fff}
-    button.light{background:#f3f4f6;color:#111827;border:1px solid #ddd}
-    button.done{background:#16a34a;color:#fff}
-    button.cancel{background:#ef4444;color:#fff}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:980px;margin:0 auto;background:#f6f7f9}
+    h2{margin:0 0 10px}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0;background:#fff}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .right{margin-left:auto}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+    .muted{color:#6b7280;font-size:12px}
     .ok{color:#16a34a;font-weight:900}
     .ng{color:#dc2626;font-weight:900}
-    .muted{color:#6b7280}
-    .small{font-size:12px;color:#6b7280}
-    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
-    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
+    button{cursor:pointer;border:0;border-radius:10px;padding:10px 12px;font-weight:900}
+    .btn{background:#111827;color:#fff}
+    .btn2{background:#e5e7eb;color:#111827}
+    .danger{background:#dc2626;color:#fff}
+    .good{background:#16a34a;color:#fff}
+    input,select{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
+    input{width:140px}
+    .badge{display:inline-block;background:#111;color:#fff;padding:2px 8px;border-radius:999px;font-size:12px}
 
-    .twoCol{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
-    @media(min-width:860px){
-      .twoCol{grid-template-columns: 1fr 1fr;}
+    /* ===== ここが重要：ドリンク/フードを上下2段（独立スクロール） ===== */
+    .split{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:12px;
     }
-    .colHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
-    .colTitle{font-weight:900;font-size:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .badgeDrink{background:#dbeafe;border-color:#3b82f6}
-    .badgeFood{background:#dcfce7;border-color:#16a34a}
-    .list{display:flex;flex-direction:column;gap:10px}
+    .pane{
+      border:1px solid #e5e7eb;border-radius:12px;background:#fff;
+      display:flex;flex-direction:column;
+      min-height:240px;
+    }
+    .paneHead{
+      padding:10px 12px;border-bottom:1px solid #e5e7eb;
+      display:flex;align-items:center;gap:10px;
+      font-weight:900;
+    }
+    .paneBody{
+      padding:10px 12px;
+      overflow:auto;
+      /* スマホで “片方が長くなっても他が見えなくならない” ように固定 */
+      max-height: calc((100vh - 250px) / 2);
+    }
+    .paneDrink .paneHead{color:#1d4ed8}
+    .paneFood  .paneHead{color:#166534}
 
-    .oCard{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff}
-    .oTop{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .oName{font-weight:900;font-size:16px;margin-top:8px}
-    .oMeta{font-size:12px;color:#6b7280;margin-top:4px}
-    .oBtns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+    @media(min-width:860px){
+      /* PCは左右2列にして、各列は独立スクロール */
+      .split{grid-template-columns:1fr 1fr;}
+      .paneBody{max-height: calc(100vh - 220px);}
+    }
 
-    .pending{ background:#f0fdf4; border-color:#22c55e; }
-    .pending .pillPending{ background:#dcfce7;border-color:#22c55e; }
-    .countdown{font-weight:900;}
+    .oCard{
+      border:1px solid #e5e7eb;border-radius:12px;padding:10px;margin:10px 0;
+      background:#fff;
+    }
+    .oTop{display:flex;gap:10px;align-items:center}
+    .oTitle{font-weight:900}
+    .oTime{color:#6b7280;font-size:12px}
+    .oTotal{font-weight:900}
+    .items{margin-top:8px}
+    .itemLine{display:flex;gap:8px;justify-content:space-between}
+    .pill{display:inline-flex;align-items:center;justify-content:center;min-width:26px;height:22px;padding:0 8px;border-radius:999px;border:1px solid #d1d5db;font-weight:900;font-size:11px}
+    .pillD{background:#dbeafe;border-color:#3b82f6}
+    .pillF{background:#dcfce7;border-color:#16a34a}
+
+    details{margin-top:10px}
+    details summary{cursor:pointer;font-weight:900;color:#374151}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
   </style>
 </head>
 <body>
-  <h1>厨房：オーダーリスト</h1>
-  <div class="sub">
-    左＝ドリンク / 右＝フード。入った順（createdAt昇順）で表示。<br>
-    <b>提供済み</b> は 1回タップで色が変わり、<b>10秒後に自動削除</b>します（10秒以内は「取消」可能）。
-  </div>
+  <h2>Kitchen（店側）</h2>
 
   <div class="card">
     <div class="row">
-      <div>shop: <b id="shopText" class="mono">-</b></div>
-      <div class="small">（menu.html でログインして localStorage.shopCode が入っている前提）</div>
+      <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
+      <span class="right muted" id="lastLine">-</span>
     </div>
 
-    <div class="topbar">
-      <button id="btnBack" class="light">← menuへ</button>
-      <button id="btnRefresh" class="dark">更新</button>
+    <div class="row" style="margin-top:10px">
+      <button id="btnBack" class="btn2">← menuへ</button>
+      <button id="btnReload" class="btn">再読み込み</button>
 
-      <label class="row">
-        <span class="small">自動更新</span>
-        <select id="autoSec">
-          <option value="0">OFF</option>
-          <option value="2" selected>2秒</option>
-          <option value="5">5秒</option>
-          <option value="10">10秒</option>
-        </select>
+      <label class="row" style="gap:8px;margin:0;">
+        <input id="chkAuto" type="checkbox">
+        <span class="muted">自動更新（3秒）</span>
       </label>
 
-      <label class="row">
-        <span class="small">テーブル</span>
-        <input id="tableFilter" placeholder="例：1（空=全て）" style="width:160px" inputmode="numeric" />
-      </label>
-
-      <label class="row">
-        <select id="hidePending">
-          <option value="0" selected>提供処理中も表示</option>
-          <option value="1">提供処理中は隠す</option>
-        </select>
-      </label>
-    </div>
-
-    <div id="status" class="small muted">-</div>
-  </div>
-
-  <div class="twoCol">
-    <div class="card">
-      <div class="colHead">
-        <div class="colTitle">
-          <span class="pill badgeDrink">ドリンク</span>
-          <span class="mono" id="drinkCount">0</span>
-        </div>
-        <div class="small muted" id="drinkByTable">-</div>
+      <div class="row" style="gap:8px;margin:0;">
+        <span class="muted">テーブル</span>
+        <input id="inpTable" inputmode="numeric" placeholder="例: 2（空=全て）">
       </div>
-      <div class="list" id="drinkList"></div>
+
+      <label class="row" style="gap:8px;margin:0;">
+        <input id="chkHidePending" type="checkbox">
+        <span class="muted">提供処理中も表示（OFFで非表示）</span>
+      </label>
+
+      <span class="badge" id="badgeAll">0件</span>
+      <span class="badge" id="badgeDrink">ドリンク 0</span>
+      <span class="badge" id="badgeFood">フード 0</span>
     </div>
 
-    <div class="card">
-      <div class="colHead">
-        <div class="colTitle">
-          <span class="pill badgeFood">フード</span>
-          <span class="mono" id="foodCount">0</span>
-        </div>
-        <div class="small muted" id="foodByTable">-</div>
+    <div id="status" class="muted" style="margin-top:8px">-</div>
+
+    <details>
+      <summary>デバッグ（必要時だけ）</summary>
+      <pre id="debug" class="mono">-</pre>
+    </details>
+  </div>
+
+  <div class="split">
+    <div class="pane paneDrink">
+      <div class="paneHead">
+        <span class="pill pillD">D</span> ドリンク
+        <span class="right muted" id="drinkInfo">-</span>
       </div>
-      <div class="list" id="foodList"></div>
+      <div class="paneBody" id="drinkList"></div>
+    </div>
+
+    <div class="pane paneFood">
+      <div class="paneHead">
+        <span class="pill pillF">F</span> フード
+        <span class="right muted" id="foodInfo">-</span>
+      </div>
+      <div class="paneBody" id="foodList"></div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="small">デバッグ</div>
-    <pre id="debug" class="mono">-</pre>
-  </div>
+  <!-- shop_common.js は同階層。キャッシュ回避で ?v= を付ける -->
+  <script src="shop_common.js?v=20260118"></script>
 
-<script>
-/** ===== 設定 ===== */
-const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-/** ============== */
+  <script>
+  (() => {
+    const $ = (id)=>document.getElementById(id);
 
-function $(id){ return document.getElementById(id); }
-function esc(s){
-  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-}
-function now(){ return Date.now(); }
-
-async function rtdbGet(path){
-  const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url);
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-  return JSON.parse(txt || "null");
-}
-async function rtdbPatch(path, obj){
-  const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(obj)
-  });
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-  return JSON.parse(txt || "null");
-}
-async function rtdbPut(path, data){
-  const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(data)
-  });
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-  return JSON.parse(txt || "null");
-}
-
-function getShop(){
-  return (localStorage.getItem("shopCode") || "").trim();
-}
-
-function fmtTime(ts){
-  if(!ts) return "-";
-  const d = new Date(ts);
-  const hh = String(d.getHours()).padStart(2,"0");
-  const mm = String(d.getMinutes()).padStart(2,"0");
-  const ss = String(d.getSeconds()).padStart(2,"0");
-  return `${hh}:${mm}:${ss}`;
-}
-
-function normalizeOrder(pushId, o){
-  const table = String(o.table ?? "");
-  const category = String(o.category ?? o.cat ?? "").toLowerCase();
-  const createdAt = Number(o.createdAt ?? o.updatedAt ?? 0);
-
-  let name = o.name ?? o.itemName ?? "";
-  let qty = Number(o.qty ?? o.count ?? 1);
-  let price = (o.price === undefined ? "" : o.price);
-
-  if((!name || !qty) && Array.isArray(o.items) && o.items.length){
-    name = o.items[0].name ?? name;
-    qty = Number(o.items[0].qty ?? qty);
-  }
-
-  const status = String(o.status ?? "new"); // "new" or "pending"
-  const providedAt = Number(o.providedAt ?? 0);
-  const deleteAt = Number(o.deleteAt ?? 0);
-
-  return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt };
-}
-
-/** 10秒後削除の管理（ローカルタイマー） */
-const deleteTimers = new Map(); // pushId -> timeoutId
-
-// ★変更：削除先も /shops/{shop}/orderFeed に合わせる
-function scheduleDelete(shop, pushId, deleteAt){
-  if(deleteTimers.has(pushId)) return;
-  const ms = Math.max(0, Number(deleteAt||0) - now());
-  const t = setTimeout(async ()=>{
-    deleteTimers.delete(pushId);
-    try{
-      await rtdbPut(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(pushId)}`, null);
-      await refresh();
-    }catch(e){
-      console.log("delete failed", e);
+    // shop_common.js 必須
+    function must(fnName){
+      if(typeof window[fnName] !== "function"){
+        throw new Error(`shop_common.js の ${fnName}() が見つかりません`);
+      }
     }
-  }, ms);
-  deleteTimers.set(pushId, t);
-}
+    must("requireLogin");
+    must("getShop");
+    must("rtdbGet");
+    must("rtdbPut");
+    must("esc");
 
-function cancelScheduledDelete(pushId){
-  const t = deleteTimers.get(pushId);
-  if(t){
-    clearTimeout(t);
-    deleteTimers.delete(pushId);
-  }
-}
+    // ログイン必須
+    if(!requireLogin()) return;
 
-function sumByTable(list){
-  const m = new Map();
-  for(const o of list){
-    const t = String(o.table||"?");
-    const q = Number(o.qty||0);
-    m.set(t, (m.get(t)||0) + q);
-  }
-  const arr = Array.from(m.entries()).sort((a,b)=>Number(a[0]) - Number(b[0]));
-  if(arr.length===0) return "-";
-  return arr.map(([t,q])=>`T${t}:${q}`).join(" / ");
-}
+    const shop = getShop();
+    $("shopText").textContent = shop || "(missing)";
 
-function renderColumn(rootId, list, shop){
-  const root = $(rootId);
-  root.innerHTML = "";
+    let autoTimer = null;
+    let lastFeedRaw = null; // デバッグ用
 
-  const tFilter = $("tableFilter").value.trim();
-  const hidePending = $("hidePending").value === "1";
+    function setStatus(html){ $("status").innerHTML = html || ""; }
+    function setLastLine(t){ $("lastLine").textContent = t || "-"; }
 
-  let view = list.slice();
-  if(tFilter) view = view.filter(x => String(x.table) === String(tFilter));
-  if(hidePending) view = view.filter(x => !(x.deleteAt && x.deleteAt > now()));
-
-  view.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
-
-  if(view.length === 0){
-    root.innerHTML = `<div class="muted"><small>表示する注文がありません</small></div>`;
-    return;
-  }
-
-  for(const o of view){
-    const isPending = (o.deleteAt && o.deleteAt > now());
-    const left = isPending ? Math.max(0, Math.ceil((o.deleteAt - now())/1000)) : 0;
-
-    if(isPending){
-      scheduleDelete(shop, o.pushId, o.deleteAt);
-    }else if(o.deleteAt && o.deleteAt <= now()){
-      scheduleDelete(shop, o.pushId, now()+10);
+    function jst(ts){
+      try{ return new Date(Number(ts||0)).toLocaleString("ja-JP"); }
+      catch{ return String(ts||""); }
     }
 
-    const div = document.createElement("div");
-    div.className = "oCard" + (isPending ? " pending" : "");
+    // orderPath は "/shops/..." のように先頭 "/" が付いているので外す
+    function normPath(p){
+      let s = String(p||"").trim();
+      if(s.startsWith("/")) s = s.slice(1);
+      return s;
+    }
 
-    div.innerHTML = `
-      <div class="oTop">
-        <span class="pill">T${esc(o.table || "?")}</span>
-        <span class="pill mono">${esc(fmtTime(o.createdAt))}</span>
-        ${
-          isPending
-          ? `<span class="pill pillPending">提供処理中 <span class="countdown">${left}s</span></span>`
-          : `<span class="pill" style="background:#fff7ed;border-color:#f59e0b">未提供</span>`
-        }
-      </div>
+    // feed 1件から items を確実に取り出す
+    async function resolveItemsFromFeed(feedItem){
+      // 1) feedに items が入っているパターン（今後の拡張用）
+      if(feedItem && Array.isArray(feedItem.items)){
+        return feedItem.items;
+      }
 
-      <div class="oName">${esc(o.name || "(no name)")}</div>
-      <div class="oMeta">数量：<b>${esc(o.qty)}</b>${o.price!=="" ? ` / 単価：<b>${esc(o.price)}</b>` : ""}</div>
+      // 2) orderPath を辿って orders を取得する（今のDB構造はコレ）
+      const op = normPath(feedItem && feedItem.orderPath);
+      if(!op) return null;
 
-      <div class="oBtns">
-        ${
-          isPending
-          ? `<button class="cancel" data-act="undo" data-id="${esc(o.pushId)}">取消</button>`
-          : `<button class="done" data-act="done" data-id="${esc(o.pushId)}">提供済み</button>`
-        }
-        <button class="light" data-act="copy" data-id="${esc(o.pushId)}">IDコピー</button>
-      </div>
+      const g = await rtdbGet(op);
+      if(!g || g.ok !== true || !g.json) return null;
 
-      <div class="small muted">pushId: <span class="mono">${esc(o.pushId)}</span></div>
-    `;
+      // orders の中身は { items:[...], ... } を想定
+      if(Array.isArray(g.json.items)) return g.json.items;
 
-    div.querySelectorAll("button").forEach(btn=>{
-      btn.onclick = async ()=>{
-        const act = btn.getAttribute("data-act");
-        const id  = btn.getAttribute("data-id");
+      // まれに items が別名の可能性に備えて
+      if(Array.isArray(g.json.orderItems)) return g.json.orderItems;
 
-        if(act === "copy"){
-          try{ await navigator.clipboard.writeText(id); }catch{}
-          return;
-        }
+      return null;
+    }
 
-        if(act === "done"){
-          try{
-            const deleteAt = now() + 10000;
-            // ★変更：PATCH先も /shops/{shop}/orderFeed に合わせる
-            await rtdbPatch(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, {
-              status: "pending",
-              providedAt: now(),
-              deleteAt: deleteAt
-            });
-            scheduleDelete(shop, id, deleteAt);
-            await refresh();
-          }catch(e){
-            $("status").innerHTML = `<span class="ng">更新失敗</span> ${esc(e.message||e)}`;
+    // 表示カード
+    function makeCard(kind, feedKey, feedItem, items){
+      const table = String(feedItem.table || "");
+      const total = Number(feedItem.total || 0);
+      const createdAt = feedItem.createdAt || 0;
+      const status = String(feedItem.status || "new");
+      const pending = (status === "pending");
+
+      const wrap = document.createElement("div");
+      wrap.className = "oCard";
+
+      const title = `Table ${table}`;
+      const time = jst(createdAt);
+
+      const itemsText = (items && items.length)
+        ? items.map(it=>{
+            const name = (it && it.name) ? String(it.name) : "-";
+            const qty  = (it && typeof it.qty !== "undefined") ? Number(it.qty||0) : 0;
+            const price= (it && typeof it.price !== "undefined") ? Number(it.price||0) : 0;
+            return { name, qty, price };
+          })
+        : [];
+
+      const listHtml = itemsText.length
+        ? itemsText.map(x => `
+            <div class="itemLine">
+              <div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(x.name)} x${esc(String(x.qty))}</div>
+              <div class="mono">${esc(String(x.price))}</div>
+            </div>
+          `).join("")
+        : `<div class="muted"><small>(itemsが取得できません)</small></div>`;
+
+      wrap.innerHTML = `
+        <div class="oTop">
+          <div class="oTitle">${esc(title)}</div>
+          <div class="right oTime">${esc(time)}</div>
+        </div>
+        <div class="row" style="margin-top:8px;align-items:center">
+          <div class="oTotal mono">合計: ${esc(String(total))}</div>
+          <span class="right muted"><small>${esc(pending ? "提供処理中" : "新規")}</small></span>
+        </div>
+        <div class="items">${listHtml}</div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn2" data-act="open">注文を開く</button>
+          <button class="good" data-act="pending">${pending ? "提供済みに戻す" : "提供処理中"}</button>
+          <button class="danger" data-act="del">feed削除</button>
+        </div>
+      `;
+
+      // actions
+      wrap.querySelectorAll("button").forEach(btn=>{
+        btn.onclick = async ()=>{
+          const act = btn.getAttribute("data-act");
+          if(act === "open"){
+            // orderPath を新タブで開く（確認用）
+            const op = normPath(feedItem.orderPath);
+            if(op){
+              const url = `${location.origin.replace(/\/$/,"")}/` + ""; // ダミー（使わない）
+              // RTDB直リンクを開く（ブラウザで見れる）
+              window.open(`https://izakayaorder-default-rtdb.firebaseio.com/${op}.json?print=pretty`, "_blank");
+            }else{
+              alert("orderPath がありません");
+            }
           }
-          return;
-        }
 
-        if(act === "undo"){
-          try{
-            cancelScheduledDelete(id);
-            // ★変更：PATCH先も /shops/{shop}/orderFeed に合わせる
-            await rtdbPatch(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, {
-              status: "new",
-              providedAt: null,
-              deleteAt: null
+          if(act === "pending"){
+            // status を pending / new でトグル
+            const next = (String(feedItem.status||"new")==="pending") ? "new" : "pending";
+            const newObj = Object.assign({}, feedItem, {
+              status: next,
+              updatedAt: Date.now(),
+              // deleteAt は pending の時だけ付与（任意）
+              deleteAt: (next==="pending") ? (Date.now() + 1000*60*60*24) : null
             });
-            await refresh();
-          }catch(e){
-            $("status").innerHTML = `<span class="ng">取消失敗</span> ${esc(e.message||e)}`;
+
+            // null を混ぜると削除になるので、deleteAt:null の場合はプロパティごと消す
+            if(newObj.deleteAt === null) delete newObj.deleteAt;
+
+            const path = `shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(feedKey)}`;
+            const res = await rtdbPut(path, newObj);
+            if(!res || res.ok !== true){
+              alert(`更新失敗: ${res && res.status}`);
+              return;
+            }
+            await load();
           }
+
+          if(act === "del"){
+            if(!confirm("このfeedを削除しますか？（orders本体は消しません）")) return;
+            const path = `shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(feedKey)}`;
+            const res = await rtdbPut(path, null);
+            if(!res || res.ok !== true){
+              alert(`削除失敗: ${res && res.status}`);
+              return;
+            }
+            await load();
+          }
+        };
+      });
+
+      return wrap;
+    }
+
+    function passFilter(feedItem){
+      // table filter
+      const wantTable = String(($("inpTable").value||"").trim());
+      if(wantTable){
+        if(String(feedItem.table||"") !== wantTable) return false;
+      }
+
+      // pending filter
+      const showPending = $("chkHidePending").checked;
+      // UI文言が「提供処理中も表示」なので、チェックON=表示、OFF=非表示 が自然
+      // ただし checkbox名が chkHidePending なので分かりにくい。ここで合わせる：
+      // checked=true → pendingも表示
+      // checked=false → pendingは非表示
+      const st = String(feedItem.status||"new");
+      const isPending = (st === "pending");
+      if(!showPending && isPending) return false;
+
+      return true;
+    }
+
+    async function load(){
+      try{
+        setStatus(`<span class="mono">loading...</span>`);
+        $("drinkList").innerHTML = "";
+        $("foodList").innerHTML = "";
+
+        const feedPath = `shops/${encodeURIComponent(shop)}/orderFeed`;
+        const g = await rtdbGet(feedPath);
+        if(!g || g.ok !== true){
+          setStatus(`<span class="ng">NG</span> 読み込み失敗: ${esc(String(g && g.status))}`);
           return;
         }
-      };
-    });
 
-    root.appendChild(div);
-  }
-}
+        const feedObj = (g.json && typeof g.json === "object") ? g.json : {};
+        lastFeedRaw = feedObj;
 
-let timer = null;
+        // feedは createdAt 昇順で並べる
+        const keys = Object.keys(feedObj);
+        const list = keys.map(k => ({ key:k, v: feedObj[k] }))
+          .filter(x => x.v && typeof x.v === "object")
+          .sort((a,b)=> Number(a.v.createdAt||0) - Number(b.v.createdAt||0));
 
-async function refresh(){
-  const shop = getShop();
-  if(!shop){
-    $("status").innerHTML = `<span class="ng">未ログイン</span> menu.html へ戻ります`;
-    setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 400);
-    return;
-  }
-  $("shopText").textContent = shop;
+        // フィルタ適用
+        const filtered = list.filter(x => passFilter(x.v));
 
-  try{
-    $("status").textContent = "loading...";
+        // items を解決して分類
+        const drinkWrap = $("drinkList");
+        const foodWrap  = $("foodList");
 
-    // ★超重要：読み込み先を /shops/{shop}/orderFeed に統一
-    const data = await rtdbGet(`shops/${encodeURIComponent(shop)}/orderFeed`);
+        let drinkN = 0, foodN = 0;
 
-    const all = [];
-    if(data && typeof data === "object"){
-      for(const [pushId, obj] of Object.entries(data)){
-        if(!obj || typeof obj !== "object") continue;
-        all.push(normalizeOrder(pushId, obj));
+        // ここで await を必ず効かせる（await漏れがあると drink/food が 0 になりがち）
+        for(const x of filtered){
+          const items = await resolveItemsFromFeed(x.v);
+
+          // items が取れない場合でも、とりあえず “未分類として両方に入れない” のではなく、
+          // feedItem内の token/itemsCount などは見えるように、cat推定できないなら food側に寄せる
+          let kind = null;
+
+          if(items && items.length){
+            // items[].cat を見て、1件でも drink があれば drink、foodがあれば food に分ける
+            // （混在注文の場合は両方に表示したいなら分割実装も可能。今は “最初のcat” に寄せる）
+            const first = items.find(it=>it && it.cat) || items[0];
+            const cat = String((first && first.cat) || "").toLowerCase();
+            if(cat === "drink") kind = "drink";
+            else if(cat === "food") kind = "food";
+          }
+
+          if(!kind){
+            // feedItem側に cat がある場合（将来用）
+            const c2 = String(x.v.cat||"").toLowerCase();
+            if(c2==="drink" || c2==="food") kind = c2;
+          }
+
+          if(!kind) kind = "food"; // 取れない時はfood側に寄せ（見失い防止）
+
+          const card = makeCard(kind, x.key, x.v, items);
+
+          if(kind === "drink"){
+            drinkWrap.appendChild(card);
+            drinkN++;
+          }else{
+            foodWrap.appendChild(card);
+            foodN++;
+          }
+        }
+
+        if(drinkN === 0) drinkWrap.innerHTML = `<div class="muted"><small>表示する注文がありません</small></div>`;
+        if(foodN === 0)  foodWrap.innerHTML  = `<div class="muted"><small>表示する注文がありません</small></div>`;
+
+        $("badgeAll").textContent = `${filtered.length}件`;
+        $("badgeDrink").textContent = `ドリンク ${drinkN}`;
+        $("badgeFood").textContent  = `フード ${foodN}`;
+        $("drinkInfo").textContent = `表示: ${drinkN}件`;
+        $("foodInfo").textContent  = `表示: ${foodN}件`;
+
+        setLastLine(`更新: ${new Date().toLocaleTimeString("ja-JP")}`);
+
+        $("debug").textContent = JSON.stringify({
+          shop,
+          feedPath: `shops/${shop}/orderFeed`,
+          total: list.length,
+          filtered: filtered.length,
+          drink: drinkN,
+          food: foodN,
+          filter: {
+            table: String(($("inpTable").value||"").trim()),
+            showPending: $("chkHidePending").checked ? "1" : "0"
+          },
+          note: "orderFeedはorderPathを辿ってitemsを取得して分類します"
+        }, null, 2);
+
+        setStatus(`<span class="ok">OK</span> ${filtered.length}件`);
+      }catch(e){
+        setStatus(`<span class="ng">NG</span> <span class="muted">${esc(String(e.message||e))}</span>`);
       }
     }
 
-    const drinks = all.filter(x => x.category === "drink");
-    const foods  = all.filter(x => x.category === "food");
+    // events
+    $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+    $("btnReload").onclick = load;
 
-    $("drinkCount").textContent = String(drinks.length);
-    $("foodCount").textContent  = String(foods.length);
-    $("drinkByTable").textContent = "合計: " + sumByTable(drinks);
-    $("foodByTable").textContent  = "合計: " + sumByTable(foods);
+    $("chkAuto").onchange = ()=>{
+      if($("chkAuto").checked){
+        if(autoTimer) clearInterval(autoTimer);
+        autoTimer = setInterval(load, 3000);
+      }else{
+        if(autoTimer) clearInterval(autoTimer);
+        autoTimer = null;
+      }
+    };
 
-    renderColumn("drinkList", drinks, shop);
-    renderColumn("foodList", foods, shop);
+    $("inpTable").oninput = ()=> load();
+    $("chkHidePending").onchange = ()=> load();
 
-    $("status").innerHTML = `<span class="ok">OK</span> ${all.length} 件（${new Date().toLocaleTimeString()}）`;
-
-    $("debug").textContent = JSON.stringify({
-      shop,
-      feedPath: `shops/${shop}/orderFeed`,
-      total: all.length,
-      drink: drinks.length,
-      food: foods.length,
-      filter: { table: $("tableFilter").value.trim(), hidePending: $("hidePending").value },
-      rule: "提供済み = status:pending + deleteAt を付与 → 10秒後に orderFeed から削除"
-    }, null, 2);
-
-  }catch(e){
-    $("status").innerHTML = `<span class="ng">読込失敗</span> ${esc(e.message||e)}`;
-    $("debug").textContent = String(e.stack || e);
-    $("drinkList").innerHTML = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
-    $("foodList").innerHTML  = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
-  }
-}
-
-function setAuto(){
-  const sec = Number($("autoSec").value || 0);
-  if(timer){ clearInterval(timer); timer = null; }
-  if(sec > 0){
-    timer = setInterval(refresh, sec * 1000);
-  }
-}
-
-$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-$("btnRefresh").onclick = refresh;
-$("autoSec").onchange = setAuto;
-$("tableFilter").onchange = refresh;
-$("hidePending").onchange = refresh;
-
-setAuto();
-refresh();
-</script>
+    // 初期
+    // 「提供処理中も表示」＝ON にしておく
+    $("chkHidePending").checked = true;
+    load();
+  })();
+  </script>
 </body>
 </html>
+
 

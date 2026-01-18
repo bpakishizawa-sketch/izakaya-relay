@@ -17,7 +17,9 @@
     }
     @keyframes rot { to { transform: rotate(360deg);} }
     pre { white-space: pre-wrap; word-break: break-word; background: #f7f7f7; padding: 10px; border-radius: 10px; overflow:auto; }
-    a { color:#2563eb; }
+    a,button { color:#2563eb; }
+    button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:900;background:#111827;color:#fff}
+    .muted{color:#6b7280}
   </style>
 </head>
 <body>
@@ -59,7 +61,7 @@ function getParam(name) {
 }
 
 function genToken(shop, table) {
-  const n = Math.floor(1000 + Math.random() * 9000);
+  const n = Math.floor(100000 + Math.random() * 900000); // 6桁にして衝突を減らす
   return `${shop}-${table}-${n}`;
 }
 
@@ -71,23 +73,24 @@ function showResult(ok, line, obj) {
 
 async function rtdbGet(path){
   const url = `${RTDB_BASE}/${path}.json`;
-  const res = await fetch(url, { method:"GET" });
+  const res = await fetch(url, { method:"GET", cache:"no-store" });
   const txt = await res.text();
   let json; try{ json = txt ? JSON.parse(txt) : null; }catch{ json = null; }
-  return { ok: res.ok, status: res.status, json, url };
+  return { ok: res.ok, status: res.status, json, url, raw: txt };
 }
 
 async function rtdbPut(path, data) {
   const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, {
     method: "PUT",
+    cache: "no-store",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
   const txt = await res.text();
   let json;
-  try { json = JSON.parse(txt); } catch { json = { raw: txt }; }
-  return { ok: res.ok, status: res.status, json, url };
+  try { json = txt ? JSON.parse(txt) : null; } catch { json = { raw: txt }; }
+  return { ok: res.ok, status: res.status, json, url, raw: txt };
 }
 
 function jumpToOrder(shop, table, token){
@@ -97,7 +100,7 @@ function jumpToOrder(shop, table, token){
     `&table=${encodeURIComponent(String(table))}` +
     `&token=${encodeURIComponent(token)}` +
     `&v=${Date.now()}`;
-  setTimeout(() => { location.href = jump; }, 0);
+  location.href = jump;
 }
 
 // ---- 初期表示 ----
@@ -125,16 +128,17 @@ if (!shop || !table) {
       const g = await rtdbGet(sessPath);
 
       if (g.ok && g.json && g.json.token && g.json.active !== false) {
-        // 既存 token を再利用（会計まで維持）
         const token = String(g.json.token).trim();
         $("tokenText").textContent = token;
-        $("line1").innerHTML = `<span class="ok">OK</span> 既存セッションを再利用 → 注文画面へ移動します`;
+        $("line1").innerHTML = `<span class="ok">OK</span> 既存セッションを再利用（2秒後に注文画面）`;
         showResult(true, `既存セッション利用: ${g.url}`, g.json);
-        jumpToOrder(shop, table, token);
+        $("retryBox").innerHTML = `<button id="goBtn">今すぐ注文画面へ</button> <span class="muted">（2秒後に自動遷移）</span>`;
+        setTimeout(()=> jumpToOrder(shop, table, token), 2000);
+        setTimeout(()=> { const b=$("goBtn"); if(b) b.onclick=()=>jumpToOrder(shop,table,token); }, 0);
         return;
       }
 
-      // 2) 無ければ新規発行
+      // 2) 無ければ新規発行してPUT
       const token = genToken(shop, table);
       $("tokenText").textContent = token;
 
@@ -143,7 +147,7 @@ if (!shop || !table) {
         table: String(table),
         token: token,
         active: true,
-        createdAt: (g.ok && g.json && g.json.createdAt) ? g.json.createdAt : now,
+        createdAt: now,
         updatedAt: now,
         ua: ua
       };
@@ -151,24 +155,37 @@ if (!shop || !table) {
       const p = await rtdbPut(sessPath, payload);
 
       if (!p.ok) {
-        $("line1").innerHTML = `<span class="ng">NG</span> セッション作成失敗`;
-        showResult(false, `書き込み失敗: HTTP ${p.status}  ${p.url}`, { payload, response: p.json });
-        $("retryBox").innerHTML = `<a href="${esc(location.href)}">再試行</a>`;
+        $("line1").innerHTML = `<span class="ng">NG</span> セッション作成失敗（Permission denied等）`;
+        showResult(false, `PUT失敗: HTTP ${p.status} ${p.url}`, { payload, response: p.json, raw: p.raw });
+        $("retryBox").innerHTML = `<button onclick="location.reload()">再試行</button>`;
         return;
       }
 
-      $("line1").innerHTML = `<span class="ok">OK</span> セッション新規作成 → 注文画面へ移動します`;
-      showResult(true, `新規作成: ${p.url}`, payload);
-      jumpToOrder(shop, table, token);
+      // 3) 直後に読み戻して「本当に書けたか」確認（ここ重要）
+      const g2 = await rtdbGet(sessPath);
+      if(!(g2.ok && g2.json && g2.json.token)){
+        $("line1").innerHTML = `<span class="ng">NG</span> 書き込み後の読み戻しで確認できませんでした`;
+        showResult(false, `PUTは成功したがGETで確認できない`, { put: payload, get: g2 });
+        $("retryBox").innerHTML = `<button onclick="location.reload()">再試行</button>`;
+        return;
+      }
+
+      $("line1").innerHTML = `<span class="ok">OK</span> セッション新規作成（2秒後に注文画面）`;
+      showResult(true, `新規作成→確認OK: ${g2.url}`, g2.json);
+
+      $("retryBox").innerHTML = `<button id="goBtn">今すぐ注文画面へ</button> <span class="muted">（2秒後に自動遷移）</span>`;
+      setTimeout(()=> jumpToOrder(shop, table, token), 2000);
+      setTimeout(()=> { const b=$("goBtn"); if(b) b.onclick=()=>jumpToOrder(shop,table,token); }, 0);
 
     } catch (e) {
-      $("line1").innerHTML = `<span class="ng">NG</span> 例外エラー`;
-      showResult(false, "例外エラー", { message: String(e) });
-      $("retryBox").innerHTML = `<a href="${esc(location.href)}">再試行</a>`;
+      $("line1").innerHTML = `<span class="ng">NG</span> 例外エラー（通信/CORS等）`;
+      showResult(false, "例外エラー", { message: String(e), stack: (e && e.stack) ? String(e.stack) : "" });
+      $("retryBox").innerHTML = `<button onclick="location.reload()">再試行</button>`;
     }
   })();
 }
 </script>
 </body>
 </html>
+
 

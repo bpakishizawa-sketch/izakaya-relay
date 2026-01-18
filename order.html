@@ -17,18 +17,13 @@
     button{cursor:pointer;border:0;border-radius:10px;padding:10px 12px;font-weight:900}
     .btn{background:#2563eb;color:#fff}
     .btn2{background:#e5e7eb;color:#111827}
-    .danger{background:#dc2626;color:#fff}
     .pill{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:24px;padding:0 10px;border-radius:999px;border:1px solid #d1d5db;font-weight:900;font-size:12px}
     .pillD{background:#dbeafe;border-color:#3b82f6}
     .pillF{background:#dcfce7;border-color:#16a34a}
-    input{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff;width:70px;text-align:center}
+    input,select{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
+    input[type="number"]{width:90px}
     .grid2{display:grid;grid-template-columns:1fr;gap:12px}
     @media(min-width:860px){ .grid2{grid-template-columns:1fr 1fr;} }
-
-    .menuItem{border:1px solid #e5e7eb;border-radius:12px;padding:10px;display:flex;align-items:center;gap:10px;justify-content:space-between}
-    .name{font-weight:900;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .price{font-weight:900}
-    .qtyBox{display:flex;gap:8px;align-items:center}
     .cartLine{display:flex;gap:10px;align-items:center;justify-content:space-between;border-top:1px dashed #e5e7eb;padding:8px 0}
     .cartLine:first-child{border-top:0}
     .smallBtn{padding:8px 10px;border-radius:10px}
@@ -53,18 +48,35 @@
   </div>
 
   <div class="grid2">
+    <!-- menu -->
     <div class="card">
       <div class="row" style="justify-content:space-between">
-        <div style="font-weight:900">メニュー</div>
+        <div style="font-weight:900">メニュー（プルダウン）</div>
         <div class="row" style="gap:8px">
           <button id="tabDrink" class="btn2">ドリンク</button>
           <button id="tabFood" class="btn2">フード</button>
         </div>
       </div>
+
       <div class="muted" id="menuInfo" style="margin:8px 0">-</div>
-      <div id="menuList"></div>
+
+      <div class="row">
+        <select id="selMenu" style="flex:1;min-width:240px">
+          <option value="">（読み込み中）</option>
+        </select>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <div id="menuPreview" class="mono muted" style="flex:1">-</div>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <input id="inpQty" type="number" min="1" value="1" inputmode="numeric" />
+        <button id="btnAdd" class="btn">追加</button>
+      </div>
     </div>
 
+    <!-- cart -->
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <div style="font-weight:900">カート</div>
@@ -94,7 +106,12 @@
       <div style="font-weight:900">注文履歴（このテーブル・このtoken）</div>
       <button id="btnHistReload" class="btn2">再読込</button>
     </div>
-    <div class="muted" id="histInfo" style="margin-top:8px">-</div>
+    <div class="row" style="margin-top:8px">
+      <div class="muted" id="histInfo">-</div>
+      <div class="right" style="font-weight:900">
+        累計合計: <span id="histSum" class="mono">0</span>
+      </div>
+    </div>
     <div id="histList" style="margin-top:10px"></div>
   </div>
 
@@ -105,7 +122,6 @@ const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 
 const $ = (id)=>document.getElementById(id);
 const esc = (s)=>String(s??"").replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-
 function param(name){
   const u = new URL(location.href);
   return (u.searchParams.get(name)||"").trim();
@@ -153,27 +169,26 @@ const state = {
   cat: "drink",
   menuDrink: {},
   menuFood: {},
-  cart: [] // {id,cat,name,price,qty}
+  cart: []
 };
 
 function cartTotal(){
   return state.cart.reduce((a,x)=>a + (Number(x.price||0)*Number(x.qty||0)), 0);
 }
+function cartKey(){
+  return `cart:${state.shop}:${state.table}:${state.token}`;
+}
 function saveCart(){
-  // テーブル/トークンが変わったらカート混線しないようにキー分け
-  const key = `cart:${state.shop}:${state.table}:${state.token}`;
-  localStorage.setItem(key, JSON.stringify(state.cart));
+  localStorage.setItem(cartKey(), JSON.stringify(state.cart));
 }
 function loadCart(){
-  const key = `cart:${state.shop}:${state.table}:${state.token}`;
-  try{ state.cart = JSON.parse(localStorage.getItem(key) || "[]") || []; }catch{ state.cart = []; }
+  try{ state.cart = JSON.parse(localStorage.getItem(cartKey()) || "[]") || []; }catch{ state.cart = []; }
 }
 function clearCart(){
   state.cart = [];
   saveCart();
   renderCart();
 }
-
 function addToCart(cat, id, name, price, qty){
   qty = Number(qty||1);
   if(qty <= 0) return;
@@ -190,6 +205,7 @@ function addToCart(cat, id, name, price, qty){
 function renderCart(){
   const box = $("cartBox");
   box.innerHTML = "";
+
   if(!state.cart.length){
     box.innerHTML = `<div class="muted">カートは空です</div>`;
   }else{
@@ -226,43 +242,45 @@ function renderCart(){
   }
 
   $("cartTotal").textContent = String(cartTotal());
+
   $("debug").textContent = JSON.stringify({
     shop: state.shop, table: state.table, token: state.token,
     cartCount: state.cart.length,
-    total: cartTotal(),
-    cat: state.cat
+    cartTotal: cartTotal(),
+    cat: state.cat,
+    menuDrink: Object.keys(state.menuDrink||{}).length,
+    menuFood: Object.keys(state.menuFood||{}).length
   }, null, 2);
 }
 
-function renderMenu(){
+/** ====== メニュー：プルダウン構築 ====== */
+function buildMenuSelect(){
   const src = (state.cat==="drink") ? state.menuDrink : state.menuFood;
   const keys = Object.keys(src).sort((a,b)=>idNum(a)-idNum(b));
+
   $("menuInfo").textContent = `${state.cat==="drink"?"ドリンク":"フード"}：${keys.length}件`;
 
-  const wrap = $("menuList");
-  wrap.innerHTML = "";
+  const sel = $("selMenu");
+  sel.innerHTML = `<option value="">（選択してください）</option>`;
+
   for(const id of keys){
     const v = parseMenuValue(src[id]);
-    const div = document.createElement("div");
-    div.className = "menuItem";
-    div.innerHTML = `
-      <div style="min-width:0">
-        <div class="name">${esc(v.name || "-")}</div>
-        <div class="muted mono">${esc(id)} / ${esc(String(v.price||0))}円</div>
-      </div>
-      <div class="qtyBox">
-        <input type="number" min="1" value="1" />
-        <button class="btn">追加</button>
-      </div>
-    `;
-    const inp = div.querySelector("input");
-    const btn = div.querySelector("button");
-    btn.onclick = ()=>{
-      const qty = Number(inp.value||1);
-      addToCart(state.cat, id, v.name, v.price, qty);
-    };
-    wrap.appendChild(div);
+    const opt = document.createElement("option");
+    opt.value = id;
+    // メニュー名も表示（分かりやすく）
+    opt.textContent = `${id}｜${v.name || "-"}｜${v.price||0}円`;
+    sel.appendChild(opt);
   }
+
+  $("menuPreview").textContent = "-";
+}
+
+function selectedMenuInfo(){
+  const id = $("selMenu").value;
+  if(!id) return null;
+  const src = (state.cat==="drink") ? state.menuDrink : state.menuFood;
+  const v = parseMenuValue(src[id]);
+  return { id, cat: state.cat, name: v.name||"", price: Number(v.price||0) };
 }
 
 /** ====== 重要：そのテーブルのActiveSession tokenと一致しているか確認 ====== */
@@ -273,25 +291,25 @@ async function assertSessionToken(){
   if(!g.ok){
     $("sessState").innerHTML = `<span class="ng">session NG</span>`;
     setStatus(`<span class="ng">セッション取得失敗</span> ${esc(String(g.status))}`);
-    return { ok:false, reason:"session_read_failed", g };
+    return { ok:false };
   }
 
   const dbToken = g.json && g.json.token ? String(g.json.token).trim() : "";
   if(!dbToken){
     $("sessState").innerHTML = `<span class="ng">session NONE</span>`;
     setStatus(`<span class="ng">このテーブルのセッションがありません</span>（QRを読み直してください）`);
-    return { ok:false, reason:"no_token", g };
+    return { ok:false };
   }
 
   if(dbToken !== state.token){
     $("sessState").innerHTML = `<span class="ng">token MISMATCH</span>`;
     setStatus(`<span class="ng">token不一致</span>（別テーブルのQRを読んだ可能性）<br>DB:${esc(dbToken)} / URL:${esc(state.token)}`);
-    return { ok:false, reason:"mismatch", g, dbToken };
+    return { ok:false };
   }
 
   $("sessState").innerHTML = `<span class="ok">session OK</span>`;
-  setStatus(`<span class="ok">メニュー読み込みOK</span>（${esc(String(Object.keys(state.menuDrink).length + Object.keys(state.menuFood).length))}件）`);
-  return { ok:true, g, dbToken };
+  setStatus(`<span class="ok">準備OK</span>`);
+  return { ok:true };
 }
 
 async function loadMenu(){
@@ -299,13 +317,13 @@ async function loadMenu(){
   const f = await rtdbGet(`shops/${encodeURIComponent(state.shop)}/menu/food`);
   state.menuDrink = (d.ok && d.json && typeof d.json==="object") ? d.json : {};
   state.menuFood  = (f.ok && f.json && typeof f.json==="object") ? f.json : {};
-  renderMenu();
+  buildMenuSelect();
 }
 
+/** ====== 注文送信 ====== */
 async function sendOrder(){
   $("sendErr").textContent = "";
 
-  // 送信直前に必ずセッション一致チェック
   const s = await assertSessionToken();
   if(!s.ok){
     $("sendErr").textContent = `送信失敗: session/token が一致しません（QRを読み直して下さい）`;
@@ -362,7 +380,7 @@ async function sendOrder(){
   setStatus(`<span class="ok">注文送信OK</span>`);
 }
 
-/** ====== 注文履歴（この token の分だけ） ====== */
+/** ====== 履歴：同tokenの注文を全部集計して「累計合計」を出す ====== */
 async function loadHistory(){
   const base = `shops/${encodeURIComponent(state.shop)}/orders/${encodeURIComponent(String(state.table))}`;
   const g = await rtdbGet(base);
@@ -370,19 +388,23 @@ async function loadHistory(){
   if(!g.ok){
     $("histInfo").innerHTML = `<span class="ng">履歴読込NG</span> HTTP ${esc(String(g.status))}`;
     $("histList").innerHTML = "";
+    $("histSum").textContent = "0";
     return;
   }
 
   const obj = (g.json && typeof g.json==="object") ? g.json : {};
   const keys = Object.keys(obj);
 
-  // token一致のみ
   const rows = keys
     .map(k => ({ k, v: obj[k] }))
     .filter(x => x.v && String(x.v.token||"") === state.token)
     .sort((a,b)=> Number(b.v.createdAt||0) - Number(a.v.createdAt||0));
 
-  $("histInfo").textContent = `${rows.length}件`;
+  // ★累計合計（同tokenのtotalを全部足す）
+  const sum = rows.reduce((a,r)=> a + Number(r.v.total||0), 0);
+  $("histSum").textContent = String(sum);
+
+  $("histInfo").textContent = `${rows.length}件（このtoken）`;
 
   const wrap = $("histList");
   wrap.innerHTML = "";
@@ -392,7 +414,7 @@ async function loadHistory(){
     return;
   }
 
-  for(const r of rows.slice(0, 20)){ // 表示は最新20件
+  for(const r of rows.slice(0, 30)){ // 表示は最新30件
     const v = r.v;
     const items = Array.isArray(v.items) ? v.items : [];
     const card = document.createElement("div");
@@ -404,6 +426,7 @@ async function loadHistory(){
         <div class="right muted">${esc(new Date(Number(v.createdAt||0)).toLocaleString("ja-JP"))}</div>
       </div>
       <div class="muted mono" style="margin-top:4px">${esc(r.k)}</div>
+
       <div style="margin-top:10px">
         ${items.map(it=>{
           const cat = String(it.cat||"");
@@ -420,8 +443,9 @@ async function loadHistory(){
           `;
         }).join("")}
       </div>
+
       <div class="row" style="margin-top:8px;justify-content:space-between">
-        <div style="font-weight:900">合計</div>
+        <div style="font-weight:900">この注文の合計</div>
         <div class="mono" style="font-weight:900">${esc(String(v.total||0))}</div>
       </div>
     `;
@@ -452,11 +476,37 @@ async function loadHistory(){
     $("tabDrink").style.color      = (cat==="drink") ? "#fff" : "#111827";
     $("tabFood").style.background  = (cat==="food") ? "#111827" : "#e5e7eb";
     $("tabFood").style.color       = (cat==="food") ? "#fff" : "#111827";
-    renderMenu();
+    buildMenuSelect();
   }
   $("tabDrink").onclick = ()=> setTab("drink");
   $("tabFood").onclick  = ()=> setTab("food");
   setTab("drink");
+
+  // メニュー選択プレビュー
+  $("selMenu").onchange = ()=>{
+    const info = selectedMenuInfo();
+    if(!info){
+      $("menuPreview").textContent = "-";
+    }else{
+      $("menuPreview").textContent = `${info.id} / ${info.name} / ${info.price}円`;
+    }
+  };
+
+  // 追加
+  $("btnAdd").onclick = ()=>{
+    const info = selectedMenuInfo();
+    if(!info){
+      setStatus(`<span class="ng">メニューを選択してください</span>`);
+      return;
+    }
+    const qty = Number(($("inpQty").value||"1").trim());
+    if(!Number.isFinite(qty) || qty<=0){
+      setStatus(`<span class="ng">数量が不正です</span>`);
+      return;
+    }
+    addToCart(info.cat, info.id, info.name, info.price, qty);
+    setStatus(`<span class="ok">追加しました</span>`);
+  };
 
   // カート
   loadCart();
@@ -474,4 +524,5 @@ async function loadHistory(){
 </script>
 </body>
 </html>
+
 

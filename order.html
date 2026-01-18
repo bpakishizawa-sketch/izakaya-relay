@@ -37,6 +37,15 @@
     .nowrap{white-space:nowrap}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
     details summary{cursor:pointer;font-weight:900;color:#374151}
+
+    .histCard{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-top:10px;background:#fff}
+    .histTop{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+    .histItems{margin-top:8px;font-size:14px}
+    .histItems .line{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed #eee;padding-top:6px;margin-top:6px}
+    .histItems .left{min-width:0}
+    .histItems .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px}
+    .histItems .meta{font-size:12px;color:#6b7280;margin-top:2px}
+    .histItems .right{font-weight:900;white-space:nowrap}
   </style>
 </head>
 <body>
@@ -119,7 +128,7 @@
       </div>
     </div>
     <div id="histLine" class="muted" style="margin-top:6px;">-</div>
-    <pre id="histJson" class="mono">[]</pre>
+    <div id="histList"></div>
   </div>
 
   <details class="card">
@@ -188,6 +197,15 @@ const state = {
 };
 
 function money(n){ return Number(n||0).toLocaleString("ja-JP"); }
+function fmtTime(ts){
+  if(!ts) return "-";
+  try{
+    const d = new Date(Number(ts));
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    return `${hh}:${mm}`;
+  }catch{ return "-"; }
+}
 
 function cartSum(){
   return state.cart.reduce((s,x)=> s + (Number(x.price||0) * Number(x.qty||0)), 0);
@@ -320,6 +338,18 @@ async function verifyToken(){
   return { ok:true, serverToken, session:g.json };
 }
 
+function getSelected(selId){
+  const sel = $(selId);
+  const id = sel.value;
+  if(!id) return null;
+  const opt = sel.options[sel.selectedIndex];
+  return {
+    id,
+    name: opt.dataset.name || "",
+    price: Number(opt.dataset.price || 0)
+  };
+}
+
 async function sendOrder(){
   if(state.cart.length===0){
     setStatus(`<span class="ng">カートが空です</span>`);
@@ -368,7 +398,7 @@ async function sendOrder(){
 
   const orderKey = oRes.json.name;
 
-  // ★ /shops/{shop}/orderFeed にも push（店側kitchenがここを見る想定）
+  // /shops/{shop}/orderFeed にも push（厨房用）
   const feedPayload = {
     shop: state.shop,
     table: String(state.table),
@@ -406,7 +436,7 @@ async function refreshHistory(){
   const g = await rtdbGet(path);
   if(!g.ok){
     $("histLine").innerHTML = `<span class="ng">履歴取得失敗</span> <span class="muted">${esc(g.status)}</span>`;
-    $("histJson").textContent = JSON.stringify({ error:true, status:g.status, url:g.url }, null, 2);
+    $("histList").innerHTML = `<div class="muted">読み込みに失敗しました</div>`;
     return;
   }
 
@@ -414,12 +444,17 @@ async function refreshHistory(){
   const list = [];
   for(const [k,v] of Object.entries(obj)){
     if(!v || typeof v !== "object") continue;
-    if(String(v.token||"") !== String(state.token||"")) continue; // ★token累計
+    if(String(v.token||"") !== String(state.token||"")) continue; // ★token一致だけ
+    const items = Array.isArray(v.items) ? v.items : [];
     list.push({
       key: k,
       createdAt: Number(v.createdAt||0),
       total: Number(v.total||0),
-      itemsCount: Array.isArray(v.items) ? v.items.reduce((s,it)=> s + Number(it.qty||0),0) : 0
+      items: items.map(it => ({
+        name: String(it?.name ?? ""),
+        qty: Number(it?.qty ?? 0),
+        price: Number(it?.price ?? 0)
+      }))
     });
   }
   list.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
@@ -427,19 +462,47 @@ async function refreshHistory(){
   const sum = list.reduce((s,x)=> s + Number(x.total||0), 0);
   $("tokenSum").textContent = money(sum);
   $("histLine").textContent = `件数: ${list.length} / 最終更新: ${new Date().toLocaleTimeString("ja-JP")}`;
-  $("histJson").textContent = JSON.stringify(list, null, 2);
-}
 
-function getSelected(selId){
-  const sel = $(selId);
-  const id = sel.value;
-  if(!id) return null;
-  const opt = sel.options[sel.selectedIndex];
-  return {
-    id,
-    name: opt.dataset.name || "",
-    price: Number(opt.dataset.price || 0)
-  };
+  const wrap = $("histList");
+  wrap.innerHTML = "";
+  if(list.length===0){
+    wrap.innerHTML = `<div class="muted">このtokenの注文履歴はまだありません</div>`;
+    return;
+  }
+
+  for(const o of list){
+    const card = document.createElement("div");
+    card.className = "histCard";
+    card.innerHTML = `
+      <div class="histTop">
+        <div>
+          <div class="mono muted">注文ID: ${esc(o.key)}</div>
+          <div style="font-weight:900;">${esc(fmtTime(o.createdAt))} の注文</div>
+        </div>
+        <div class="mono" style="font-weight:900;">小計: ${esc(money(o.total))} 円</div>
+      </div>
+      <div class="histItems" id="items_${esc(o.key)}"></div>
+    `;
+    const itemsWrap = card.querySelector(`#items_${CSS.escape(o.key)}`);
+    if(o.items.length===0){
+      itemsWrap.innerHTML = `<div class="muted">（itemsなし）</div>`;
+    }else{
+      for(const it of o.items){
+        const line = document.createElement("div");
+        line.className = "line";
+        const sub = Number(it.price||0) * Number(it.qty||0);
+        line.innerHTML = `
+          <div class="left">
+            <div class="name">${esc(it.name || "-")}</div>
+            <div class="meta">${esc(money(it.price))}円 × ${esc(it.qty)}個</div>
+          </div>
+          <div class="right">${esc(money(sub))} 円</div>
+        `;
+        itemsWrap.appendChild(line);
+      }
+    }
+    wrap.appendChild(card);
+  }
 }
 
 function init(){
@@ -459,7 +522,6 @@ function init(){
     return;
   }
 
-  // cart操作（+ / - / 削除）
   document.body.addEventListener("click", (e)=>{
     const t = e.target;
     if(!(t instanceof HTMLElement)) return;
@@ -504,6 +566,7 @@ init();
 </script>
 </body>
 </html>
+
 
 
 

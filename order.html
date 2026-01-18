@@ -2,50 +2,71 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>注文（お客さん）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>注文</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:980px;margin:0 auto;background:#f6f7f9}
-    h1{font-size:22px;margin:0 0 10px}
-    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0;background:#fff}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    .muted{color:#6b7280;font-size:12px}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:980px; margin:0 auto; background:#f6f7f9;}
+    h1{font-size:20px;margin:0 0 10px}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .grid2{display:grid;grid-template-columns:1fr;gap:12px}
+    @media(min-width:860px){ .grid2{grid-template-columns:1fr 1fr;} }
+
+    select,input,button{font-size:16px;padding:10px;border-radius:10px}
+    select,input{border:1px solid #d1d5db;background:#fff}
+    input{width:100%;box-sizing:border-box}
+    button{cursor:pointer;border:0;font-weight:900}
+    .btn{background:#2563eb;color:#fff;width:100%}
+    .btn2{background:#e5e7eb;color:#111827;width:100%}
+    .danger{background:#dc2626;color:#fff;width:100%}
+    .dark{background:#111827;color:#fff}
     .ok{color:#16a34a;font-weight:900}
     .ng{color:#dc2626;font-weight:900}
+    .muted{color:#6b7280;font-size:12px}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
+    .pillD{background:#dbeafe;border-color:#3b82f6}
+    .pillF{background:#dcfce7;border-color:#16a34a}
+    .hr{height:1px;background:#eee;margin:12px 0}
 
-    button{cursor:pointer;border:0;border-radius:10px;padding:10px 12px;font-weight:900}
-    .btn{background:#2563eb;color:#fff}
-    .btn2{background:#e5e7eb;color:#111827}
-    .danger{background:#dc2626;color:#fff}
+    /* cart */
+    .cartItem{border:1px solid #e5e7eb;border-radius:12px;padding:10px}
+    .cartTop{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+    .name{font-weight:900}
+    .right{margin-left:auto}
+    .qtyBox{display:flex;gap:8px;align-items:center}
+    .qtyBtn{padding:8px 10px;border-radius:10px;border:1px solid #d1d5db;background:#fff;font-weight:900}
+    .qtyNum{min-width:28px;text-align:center;font-weight:900}
+    .sumBig{font-size:22px;font-weight:900}
 
-    input,select{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
-    select{width:100%}
-    input{width:100%;box-sizing:border-box}
+    /* history */
+    .histItem{border:1px solid #e5e7eb;border-radius:12px;padding:10px}
+    .histHead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+    .histTitle{font-weight:900}
+    .histLines{margin-top:8px;font-size:14px}
+    .line{display:flex;gap:8px;justify-content:space-between;border-top:1px dashed #eee;padding-top:6px;margin-top:6px}
+    .line:first-child{border-top:0;padding-top:0;margin-top:0}
 
-    .grid2{display:grid;grid-template-columns:1fr;gap:12px}
-    @media(min-width:860px){
-      .grid2{grid-template-columns:1fr 1fr;}
+    /* hold */
+    .holdWrap{position:relative; width:100%;}
+    .holdBar{
+      position:absolute; left:0; top:0; height:100%; width:0%;
+      background: rgba(255,255,255,.25);
+      border-radius:10px;
+      pointer-events:none;
+      transition: width .05s linear;
+    }
+    .holdBtn{
+      position:relative; width:100%;
+      display:block;
+      text-align:center;
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action: manipulation;
     }
 
-    table{width:100%;border-collapse:separate;border-spacing:0 8px}
-    th{font-size:12px;color:#6b7280;text-align:left}
-    td{background:#fff;border:1px solid #e5e7eb;padding:10px;border-radius:12px;vertical-align:middle}
-    .qtyBtn{background:#111827;color:#fff;border-radius:10px;padding:8px 10px;font-weight:900}
-    .qty{min-width:26px;text-align:center;font-weight:900;display:inline-block}
-    .right{text-align:right}
-    .nowrap{white-space:nowrap}
-    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
     details summary{cursor:pointer;font-weight:900;color:#374151}
-
-    .histCard{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-top:10px;background:#fff}
-    .histTop{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}
-    .histItems{margin-top:8px;font-size:14px}
-    .histItems .line{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed #eee;padding-top:6px;margin-top:6px}
-    .histItems .left{min-width:0}
-    .histItems .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:520px}
-    .histItems .meta{font-size:12px;color:#6b7280;margin-top:2px}
-    .histItems .right{font-weight:900;white-space:nowrap}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
   </style>
 </head>
 <body>
@@ -53,87 +74,110 @@
 
   <div class="card">
     <div class="row">
-      <div class="mono"><b>shop</b>: <span id="shopText">-</span></div>
-      <div class="mono"><b>table</b>: <span id="tableText">-</span></div>
-      <div class="mono"><b>token</b>: <span id="tokenText">-</span></div>
+      <span class="pill">shop: <b id="shopText" class="mono">-</b></span>
+      <span class="pill">table: <b id="tableText" class="mono">-</b></span>
+      <span class="pill">token: <b id="tokenText" class="mono">-</b></span>
+      <button id="btnBack" class="btn2" style="width:auto">← 戻る</button>
     </div>
-    <div id="status" class="muted" style="margin-top:6px;">-</div>
+    <div id="status" class="muted">-</div>
+    <div id="checkoutBanner" class="muted" style="margin-top:8px; display:none;">
+      <span class="ok">会計依頼済み</span> 店員さんがお会計処理をします。必要ならこのまま画面を閉じてOKです。
+    </div>
   </div>
 
   <div class="grid2">
+    <!-- left: menu select + add -->
     <div class="card">
-      <div style="font-weight:900;margin-bottom:8px;">ドリンクを追加</div>
+      <div style="font-weight:900;margin-bottom:8px;">メニュー</div>
+
       <div class="row">
-        <div style="flex:1;min-width:220px;">
-          <select id="selDrink">
-            <option value="">（ドリンクを選択）</option>
-          </select>
-        </div>
-        <button id="btnAddDrink" class="btn">追加</button>
+        <select id="catSel" style="width:180px">
+          <option value="drink">ドリンク</option>
+          <option value="food">フード</option>
+        </select>
+
+        <select id="itemSel" style="flex:1;min-width:240px">
+          <option value="">（読み込み中…）</option>
+        </select>
+
+        <input id="qtyInp" type="number" min="1" value="1" style="width:120px" inputmode="numeric" />
       </div>
-      <div class="muted">件数: <span id="drinkCount" class="mono">0</span></div>
+
+      <div class="row">
+        <button id="btnAdd" class="btn">カートに追加</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="row">
+        <button id="btnReloadMenu" class="btn2">メニュー再読み込み</button>
+      </div>
+
+      <div class="muted" style="margin-top:8px;">
+        ※プルダウンは「ID：名前（価格）」で出します。
+      </div>
     </div>
 
+    <!-- right: cart -->
     <div class="card">
-      <div style="font-weight:900;margin-bottom:8px;">フードを追加</div>
-      <div class="row">
-        <div style="flex:1;min-width:220px;">
-          <select id="selFood">
-            <option value="">（フードを選択）</option>
-          </select>
-        </div>
-        <button id="btnAddFood" class="btn">追加</button>
+      <div class="row" style="justify-content:space-between">
+        <div style="font-weight:900">買い物カゴ</div>
+        <div class="muted">件数: <span id="cartCount" class="mono">0</span></div>
       </div>
-      <div class="muted">件数: <span id="foodCount" class="mono">0</span></div>
+
+      <div id="cartList" style="margin-top:10px;"></div>
+
+      <div class="hr"></div>
+
+      <div class="row" style="justify-content:space-between">
+        <div class="muted">合計</div>
+        <div class="sumBig mono" id="cartSum">0</div>
+      </div>
+
+      <div class="row" style="margin-top:10px">
+        <button id="btnSend" class="dark" style="width:100%">注文を送信</button>
+      </div>
+
+      <div class="row">
+        <button id="btnClearCart" class="btn2" style="width:100%">カートを空にする</button>
+      </div>
+
+      <div id="sendMsg" class="muted" style="margin-top:8px;">-</div>
     </div>
   </div>
 
+  <!-- history + checkout -->
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <div style="font-weight:900">カート（送信待ち）</div>
-      <div class="mono" style="font-weight:900">カート合計: <span id="cartSum">0</span> 円</div>
+      <div style="font-weight:900">注文履歴（このtoken）</div>
+      <div class="muted">件数: <span id="histCount" class="mono">0</span></div>
     </div>
 
-    <div id="cartEmpty" class="muted" style="margin-top:8px;">カートは空です</div>
-
-    <div style="overflow:auto;margin-top:8px;">
-      <table id="cartTable" style="display:none;">
-        <thead>
-          <tr>
-            <th class="nowrap">種別</th>
-            <th>メニュー</th>
-            <th class="right nowrap">単価</th>
-            <th class="right nowrap">数量</th>
-            <th class="right nowrap">小計</th>
-            <th class="right nowrap">操作</th>
-          </tr>
-        </thead>
-        <tbody id="cartTbody"></tbody>
-      </table>
+    <div class="row" style="justify-content:space-between; margin-top:6px;">
+      <div class="muted">累計合計</div>
+      <div class="sumBig mono" id="histSum">0</div>
     </div>
 
-    <div class="row" style="margin-top:10px;">
-      <button id="btnSend" class="btn">注文送信</button>
-      <button id="btnClear" class="btn2">カートクリア</button>
-      <span class="muted">※送信すると orders と /shops/{shop}/orderFeed に書き込みます</span>
-    </div>
-  </div>
+    <div id="histList" style="margin-top:10px;"></div>
 
-  <div class="card">
-    <div class="row" style="justify-content:space-between;align-items:center;">
-      <div style="font-weight:900">注文履歴（この token の累計）</div>
-      <div class="row">
-        <button id="btnHist" class="btn2">履歴更新</button>
-        <div class="mono" style="font-weight:900;">累計: <span id="tokenSum">0</span> 円</div>
-      </div>
+    <div class="hr"></div>
+
+    <div style="font-weight:900;margin-bottom:6px;">お会計（長押し 1.2秒）</div>
+    <div class="muted" style="margin-bottom:10px;">
+      送信内容：テーブル / token / 注文履歴 / 累計合計 / お会計依頼時刻 を保存します（店側が読み込み）。
     </div>
-    <div id="histLine" class="muted" style="margin-top:6px;">-</div>
-    <div id="histList"></div>
+
+    <div class="holdWrap">
+      <div class="holdBar" id="holdBar"></div>
+      <button id="btnCheckout" class="danger holdBtn">長押しでお会計を依頼</button>
+    </div>
+
+    <div class="muted" id="checkoutMsg" style="margin-top:8px;">-</div>
   </div>
 
   <details class="card">
-    <summary>デバッグ</summary>
-    <pre id="debug" class="mono">-</pre>
+    <summary>デバッグ（必要な時だけ）</summary>
+    <pre id="debug">-</pre>
   </details>
 
 <script>
@@ -142,16 +186,32 @@ const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 /** ========================= */
 
 const $ = (id)=>document.getElementById(id);
-function esc(s){ return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
-function getParam(name){ const u=new URL(location.href); return (u.searchParams.get(name)||"").trim(); }
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
+function getParam(name){
+  const u = new URL(location.href);
+  return (u.searchParams.get(name) || "").trim();
+}
+
+function yen(n){
+  const x = Number(n||0);
+  return x.toLocaleString("ja-JP") + " 円";
+}
 
 async function rtdbGet(path){
   const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, { method:"GET" });
   const txt = await res.text();
-  let json=null; try{ json = txt ? JSON.parse(txt) : null; }catch{ json=null; }
+  let json = null;
+  try{ json = txt ? JSON.parse(txt) : null; }catch{ json = null; }
   return { ok: res.ok, status: res.status, json, url, raw: txt };
 }
+
 async function rtdbPut(path, data){
   const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, {
@@ -160,9 +220,11 @@ async function rtdbPut(path, data){
     body: JSON.stringify(data)
   });
   const txt = await res.text();
-  let json=null; try{ json = txt ? JSON.parse(txt) : null; }catch{ json=null; }
+  let json = null;
+  try{ json = txt ? JSON.parse(txt) : null; }catch{ json = null; }
   return { ok: res.ok, status: res.status, json, url, raw: txt };
 }
+
 async function rtdbPost(path, data){
   const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, {
@@ -171,7 +233,8 @@ async function rtdbPost(path, data){
     body: JSON.stringify(data)
   });
   const txt = await res.text();
-  let json=null; try{ json = txt ? JSON.parse(txt) : null; }catch{ json=null; }
+  let json = null;
+  try{ json = txt ? JSON.parse(txt) : null; }catch{ json = null; }
   return { ok: res.ok, status: res.status, json, url, raw: txt };
 }
 
@@ -184,388 +247,529 @@ function parseMenuValue(v){
   }
   return { name:"", price:0 };
 }
+
 function idNum(id){
   const m = String(id||"").match(/\d+/);
   return m ? Number(m[0]) : 999999;
 }
-function setStatus(html){ $("status").innerHTML = html || ""; }
 
-const state = {
-  shop:"", table:"", token:"",
-  menuDrink:{}, menuFood:{},
-  cart: [] // {cat,id,name,price,qty}
+function nowJst(ts){
+  try{ return new Date(Number(ts||0)).toLocaleString("ja-JP"); }
+  catch{ return String(ts||""); }
+}
+
+/* ====== state ====== */
+const shop  = getParam("shop");
+const table = getParam("table");
+const token = getParam("token");
+
+const CART_KEY = ()=> `cart_${shop}_${table}_${token}`;
+const CHECKOUT_REQ_KEY = ()=> `checkoutReq_${shop}_${table}_${token}`;
+
+let menu = { drink:{}, food:{}, drinkKeys:[], foodKeys:[] };
+let cart = []; // [{id, name, price, qty, category}]
+let lastHistory = { orders: {}, list: [], sum:0, count:0 };
+
+function setStatus(html){ $("status").innerHTML = html || ""; }
+function setSendMsg(html){ $("sendMsg").innerHTML = html || ""; }
+function setCheckoutMsg(html){ $("checkoutMsg").innerHTML = html || ""; }
+
+/* ====== init ====== */
+$("shopText").textContent = shop || "(missing)";
+$("tableText").textContent = table || "(missing)";
+$("tokenText").textContent = token || "(missing)";
+$("btnBack").onclick = ()=>{
+  // entry/customer に戻る想定（shop/tableを維持）
+  const base = location.href.split("?")[0];
+  location.href = `customer.html?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(String(table))}&v=${Date.now()}`;
 };
 
-function money(n){ return Number(n||0).toLocaleString("ja-JP"); }
-function fmtTime(ts){
-  if(!ts) return "-";
+if(!shop || !table || !token){
+  setStatus(`<span class="ng">NG</span> URL params が不足です（shop/table/token）`);
+} else {
+  setStatus(`<span class="ok">OK</span> 読み込み中...`);
+}
+
+/* ====== cart storage ====== */
+function loadCart(){
   try{
-    const d = new Date(Number(ts));
-    const hh = String(d.getHours()).padStart(2,"0");
-    const mm = String(d.getMinutes()).padStart(2,"0");
-    return `${hh}:${mm}`;
-  }catch{ return "-"; }
+    const raw = localStorage.getItem(CART_KEY()) || "[]";
+    const arr = JSON.parse(raw);
+    if(Array.isArray(arr)) cart = arr;
+    else cart = [];
+  }catch{ cart = []; }
+}
+
+function saveCart(){
+  localStorage.setItem(CART_KEY(), JSON.stringify(cart));
 }
 
 function cartSum(){
-  return state.cart.reduce((s,x)=> s + (Number(x.price||0) * Number(x.qty||0)), 0);
+  return cart.reduce((s,x)=> s + (Number(x.price||0)*Number(x.qty||0)), 0);
 }
-function syncCartView(){
-  const sum = cartSum();
-  $("cartSum").textContent = money(sum);
 
-  const empty = state.cart.length === 0;
-  $("cartEmpty").style.display = empty ? "block" : "none";
-  $("cartTable").style.display = empty ? "none" : "table";
+function renderCart(){
+  $("cartCount").textContent = String(cart.length);
+  $("cartSum").textContent = yen(cartSum());
 
-  const tb = $("cartTbody");
-  tb.innerHTML = "";
+  const wrap = $("cartList");
+  wrap.innerHTML = "";
 
-  for(const x of state.cart){
-    const sub = Number(x.price||0) * Number(x.qty||0);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="nowrap">${esc(x.cat==="drink" ? "ドリンク" : "フード")}</td>
-      <td><b>${esc(x.name)}</b> <span class="muted mono">(${esc(x.id)})</span></td>
-      <td class="right nowrap">${esc(money(x.price))}</td>
-      <td class="right nowrap"><span class="qty mono">${esc(x.qty)}</span></td>
-      <td class="right nowrap"><b>${esc(money(sub))}</b></td>
-      <td class="right nowrap">
-        <button class="qtyBtn" data-act="dec" data-cat="${esc(x.cat)}" data-id="${esc(x.id)}">-</button>
-        <button class="qtyBtn" data-act="inc" data-cat="${esc(x.cat)}" data-id="${esc(x.id)}">+</button>
-        <button class="btn2" style="padding:8px 10px;" data-act="del" data-cat="${esc(x.cat)}" data-id="${esc(x.id)}">削除</button>
-      </td>
+  if(cart.length === 0){
+    wrap.innerHTML = `<div class="muted"><small>カートは空です</small></div>`;
+    return;
+  }
+
+  for(const it of cart){
+    const div = document.createElement("div");
+    div.className = "cartItem";
+    const pill = it.category === "drink" ? "pillD" : "pillF";
+    const catLabel = it.category === "drink" ? "D" : "F";
+
+    div.innerHTML = `
+      <div class="cartTop">
+        <div style="min-width:0">
+          <span class="pill ${pill}">${catLabel}</span>
+          <span class="name">${esc(it.name)}</span>
+          <div class="muted mono">単価: ${esc(String(it.price||0))}</div>
+        </div>
+        <div class="qtyBox">
+          <button class="qtyBtn" data-act="minus">-</button>
+          <span class="qtyNum mono">${esc(String(it.qty||1))}</span>
+          <button class="qtyBtn" data-act="plus">+</button>
+          <button class="qtyBtn" data-act="del">削除</button>
+        </div>
+      </div>
+      <div class="muted">小計: <span class="mono">${esc(yen(Number(it.price||0)*Number(it.qty||0)))}</span></div>
     `;
-    tb.appendChild(tr);
+
+    div.querySelectorAll("button").forEach(btn=>{
+      btn.onclick = ()=>{
+        const act = btn.getAttribute("data-act");
+        if(act === "minus"){
+          it.qty = Math.max(1, Number(it.qty||1)-1);
+        }else if(act === "plus"){
+          it.qty = Number(it.qty||1)+1;
+        }else if(act === "del"){
+          cart = cart.filter(x => x !== it);
+        }
+        saveCart();
+        renderCart();
+      };
+    });
+
+    wrap.appendChild(div);
   }
 }
 
-function upsertCart(cat, id, name, price){
-  const idx = state.cart.findIndex(x => x.cat===cat && x.id===id);
-  if(idx >= 0){
-    state.cart[idx].qty = Number(state.cart[idx].qty||0) + 1;
-  }else{
-    state.cart.push({ cat, id, name, price:Number(price||0), qty:1 });
-  }
-  syncCartView();
-}
-function incCart(cat,id){
-  const idx = state.cart.findIndex(x => x.cat===cat && x.id===id);
-  if(idx<0) return;
-  state.cart[idx].qty++;
-  syncCartView();
-}
-function decCart(cat,id){
-  const idx = state.cart.findIndex(x => x.cat===cat && x.id===id);
-  if(idx<0) return;
-  state.cart[idx].qty--;
-  if(state.cart[idx].qty<=0) state.cart.splice(idx,1);
-  syncCartView();
-}
-function delCart(cat,id){
-  const idx = state.cart.findIndex(x => x.cat===cat && x.id===id);
-  if(idx<0) return;
-  state.cart.splice(idx,1);
-  syncCartView();
-}
+/* ====== menu ====== */
+function rebuildItemSelect(){
+  const cat = $("catSel").value; // drink/food
+  const keys = cat === "drink" ? menu.drinkKeys : menu.foodKeys;
+  const src  = cat === "drink" ? menu.drink : menu.food;
 
-function rebuildSelects(){
-  const selD = $("selDrink");
-  const selF = $("selFood");
-  selD.innerHTML = `<option value="">（ドリンクを選択）</option>`;
-  selF.innerHTML = `<option value="">（フードを選択）</option>`;
+  const sel = $("itemSel");
+  sel.innerHTML = "";
+  const opt0 = document.createElement("option");
+  opt0.value = "";
+  opt0.textContent = "（選択）";
+  sel.appendChild(opt0);
 
-  const dKeys = Object.keys(state.menuDrink||{}).sort((a,b)=>idNum(a)-idNum(b));
-  const fKeys = Object.keys(state.menuFood||{}).sort((a,b)=>idNum(a)-idNum(b));
-  $("drinkCount").textContent = String(dKeys.length);
-  $("foodCount").textContent  = String(fKeys.length);
-
-  for(const id of dKeys){
-    const v = parseMenuValue(state.menuDrink[id]);
+  for(const id of keys){
+    const v = parseMenuValue(src[id]);
     const opt = document.createElement("option");
     opt.value = id;
-    opt.textContent = `${id}｜${v.name}｜${money(v.price)}円`;
-    opt.dataset.name = v.name;
-    opt.dataset.price = String(v.price||0);
-    selD.appendChild(opt);
-  }
-  for(const id of fKeys){
-    const v = parseMenuValue(state.menuFood[id]);
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = `${id}｜${v.name}｜${money(v.price)}円`;
-    opt.dataset.name = v.name;
-    opt.dataset.price = String(v.price||0);
-    selF.appendChild(opt);
+    opt.textContent = `${id}：${v.name || "-"}（${v.price||0}）`;
+    sel.appendChild(opt);
   }
 }
 
 async function loadMenu(){
+  if(!shop){ return; }
   setStatus(`<span class="mono">menu loading...</span>`);
-  const d = await rtdbGet(`shops/${encodeURIComponent(state.shop)}/menu/drink`);
-  const f = await rtdbGet(`shops/${encodeURIComponent(state.shop)}/menu/food`);
+
+  const d = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/drink`);
+  const f = await rtdbGet(`shops/${encodeURIComponent(shop)}/menu/food`);
+
   if(!d.ok || !f.ok){
-    setStatus(`<span class="ng">メニュー読込失敗</span> <span class="muted">(${d.status}/${f.status})</span>`);
-    $("debug").textContent = JSON.stringify({ drink:d, food:f }, null, 2);
-    return false;
+    setStatus(`<span class="ng">NG</span> メニュー取得失敗（${d.status}/${f.status}）`);
+    $("debug").textContent = JSON.stringify({ d, f }, null, 2);
+    return;
   }
-  state.menuDrink = (d.json && typeof d.json==="object") ? d.json : {};
-  state.menuFood  = (f.json && typeof f.json==="object") ? f.json : {};
-  rebuildSelects();
 
-  setStatus(`<span class="ok">メニュー読み込みOK</span>`);
+  menu.drink = (d.json && typeof d.json === "object") ? d.json : {};
+  menu.food  = (f.json && typeof f.json === "object") ? f.json : {};
+
+  menu.drinkKeys = Object.keys(menu.drink).sort((a,b)=>idNum(a)-idNum(b));
+  menu.foodKeys  = Object.keys(menu.food).sort((a,b)=>idNum(a)-idNum(b));
+
+  rebuildItemSelect();
+
+  setStatus(`<span class="ok">OK</span> メニュー読み込み完了`);
   $("debug").textContent = JSON.stringify({
-    shop: state.shop, table: state.table, token: state.token,
-    drinkKeys: Object.keys(state.menuDrink).length,
-    foodKeys: Object.keys(state.menuFood).length
+    shop, table, token,
+    drinkKeys: menu.drinkKeys.length,
+    foodKeys: menu.foodKeys.length
   }, null, 2);
-  return true;
 }
 
-async function verifyToken(){
-  const sessPath = `webActiveSessions/${encodeURIComponent(state.shop)}/${encodeURIComponent(String(state.table))}`;
-  const g = await rtdbGet(sessPath);
-  if(!g.ok){
-    return { ok:false, reason:`セッション読込失敗: ${g.status}`, data:g };
+/* ====== add to cart ====== */
+$("catSel").onchange = rebuildItemSelect;
+
+$("btnAdd").onclick = ()=>{
+  const cat = $("catSel").value;
+  const id  = $("itemSel").value;
+  const qty = Math.max(1, Number($("qtyInp").value||1));
+
+  if(!id){
+    setSendMsg(`<span class="ng">メニューを選択してください</span>`);
+    return;
   }
-  const serverToken = g.json && g.json.token ? String(g.json.token).trim() : "";
-  if(!serverToken){
-    return { ok:false, reason:`セッションtokenなし（未入店扱い）`, data:g.json };
+
+  const src = cat === "drink" ? menu.drink : menu.food;
+  const v = parseMenuValue(src[id]);
+  if(!v.name){
+    setSendMsg(`<span class="ng">メニュー情報が不正です</span>`);
+    return;
   }
-  if(serverToken !== state.token){
-    return { ok:false, reason:`token不一致（server=${serverToken} / url=${state.token}）`, data:g.json };
+
+  // 同一IDはまとめる
+  const found = cart.find(x => x.id === id && x.category === cat);
+  if(found){
+    found.qty = Number(found.qty||1) + qty;
+  }else{
+    cart.push({ id, name:v.name, price:Number(v.price||0), qty, category:cat });
   }
-  return { ok:true, serverToken, session:g.json };
+
+  saveCart();
+  renderCart();
+  setSendMsg(`<span class="ok">追加しました</span>`);
+};
+
+$("btnClearCart").onclick = ()=>{
+  cart = [];
+  saveCart();
+  renderCart();
+  setSendMsg(`<span class="muted">カートを空にしました</span>`);
+};
+
+$("btnReloadMenu").onclick = loadMenu;
+
+/* ====== orders + history ====== */
+function normalizeOrderObj(key, o){
+  const createdAt = Number(o?.createdAt||0);
+  const t = String(o?.table ?? "");
+  const tk = String(o?.token ?? "");
+  const total = Number(o?.total||0);
+  const items = Array.isArray(o?.items) ? o.items : [];
+  return { key, createdAt, table:t, token:tk, total, items, raw:o };
 }
 
-function getSelected(selId){
-  const sel = $(selId);
-  const id = sel.value;
-  if(!id) return null;
-  const opt = sel.options[sel.selectedIndex];
-  return {
-    id,
-    name: opt.dataset.name || "",
-    price: Number(opt.dataset.price || 0)
-  };
+function orderLineText(it){
+  const name = String(it?.name ?? "");
+  const qty  = Number(it?.qty ?? 0);
+  const price= Number(it?.price ?? 0);
+  const sub  = price * qty;
+  return { name, qty, price, sub };
 }
 
-async function sendOrder(){
-  if(state.cart.length===0){
-    setStatus(`<span class="ng">カートが空です</span>`);
-    return;
-  }
+function renderHistory(list){
+  // token一致だけ
+  const view = list.filter(x => x.token === token).sort((a,b)=>a.createdAt-b.createdAt);
 
-  setStatus(`<span class="mono">送信中...</span>`);
-
-  // token検証
-  const v = await verifyToken();
-  if(!v.ok){
-    setStatus(`<span class="ng">送信失敗</span> <span class="muted">${esc(v.reason)}</span>`);
-    $("debug").textContent = JSON.stringify({ verify:v }, null, 2);
-    return;
-  }
-
-  const now = Date.now();
-  const ua = navigator.userAgent;
-  const total = cartSum();
-
-  // orders（table配下にpush）
-  const orderPayload = {
-    shop: state.shop,
-    table: String(state.table),
-    token: state.token,
-    createdAt: now,
-    items: state.cart.map(x => ({
-      id: x.id,
-      cat: x.cat,
-      name: x.name,
-      price: Number(x.price||0),
-      qty: Number(x.qty||0)
-    })),
-    total: total,
-    ua: ua
-  };
-
-  const ordersPath = `shops/${encodeURIComponent(state.shop)}/orders/${encodeURIComponent(String(state.table))}`;
-  const oRes = await rtdbPost(ordersPath, orderPayload);
-
-  if(!oRes.ok || !oRes.json || !oRes.json.name){
-    setStatus(`<span class="ng">送信失敗</span> <span class="muted">orders POST ${oRes.status}</span>`);
-    $("debug").textContent = JSON.stringify({ orders:oRes, payload:orderPayload }, null, 2);
-    return;
-  }
-
-  const orderKey = oRes.json.name;
-
-  // /shops/{shop}/orderFeed にも push（厨房用）
-  const feedPayload = {
-    shop: state.shop,
-    table: String(state.table),
-    token: state.token,
-    createdAt: now,
-    status: "new",
-    total: total,
-    itemsCount: state.cart.reduce((s,x)=> s + Number(x.qty||0), 0),
-    orderKey: orderKey,
-    orderPath: `/shops/${state.shop}/orders/${state.table}/${orderKey}`
-  };
-
-  const feedPath = `shops/${encodeURIComponent(state.shop)}/orderFeed`;
-  const fRes = await rtdbPost(feedPath, feedPayload);
-
-  if(!fRes.ok){
-    setStatus(`<span class="ng">送信失敗</span> <span class="muted">orderFeed POST ${fRes.status}</span>`);
-    $("debug").textContent = JSON.stringify({ orders:oRes, feed:fRes, feedPayload }, null, 2);
-    return;
-  }
-
-  // 成功：カートクリア
-  state.cart = [];
-  syncCartView();
-
-  setStatus(`<span class="ok">送信OK</span> 注文キー: <span class="mono">${esc(orderKey)}</span>`);
-  $("debug").textContent = JSON.stringify({ orders:oRes, feed:fRes }, null, 2);
-
-  // 履歴更新（累計表示）
-  await refreshHistory();
-}
-
-async function refreshHistory(){
-  const path = `shops/${encodeURIComponent(state.shop)}/orders/${encodeURIComponent(String(state.table))}`;
-  const g = await rtdbGet(path);
-  if(!g.ok){
-    $("histLine").innerHTML = `<span class="ng">履歴取得失敗</span> <span class="muted">${esc(g.status)}</span>`;
-    $("histList").innerHTML = `<div class="muted">読み込みに失敗しました</div>`;
-    return;
-  }
-
-  const obj = (g.json && typeof g.json==="object") ? g.json : {};
-  const list = [];
-  for(const [k,v] of Object.entries(obj)){
-    if(!v || typeof v !== "object") continue;
-    if(String(v.token||"") !== String(state.token||"")) continue; // ★token一致だけ
-    const items = Array.isArray(v.items) ? v.items : [];
-    list.push({
-      key: k,
-      createdAt: Number(v.createdAt||0),
-      total: Number(v.total||0),
-      items: items.map(it => ({
-        name: String(it?.name ?? ""),
-        qty: Number(it?.qty ?? 0),
-        price: Number(it?.price ?? 0)
-      }))
-    });
-  }
-  list.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
-
-  const sum = list.reduce((s,x)=> s + Number(x.total||0), 0);
-  $("tokenSum").textContent = money(sum);
-  $("histLine").textContent = `件数: ${list.length} / 最終更新: ${new Date().toLocaleTimeString("ja-JP")}`;
+  const sum = view.reduce((s,x)=> s + Number(x.total||0), 0);
+  $("histCount").textContent = String(view.length);
+  $("histSum").textContent = yen(sum);
 
   const wrap = $("histList");
   wrap.innerHTML = "";
-  if(list.length===0){
-    wrap.innerHTML = `<div class="muted">このtokenの注文履歴はまだありません</div>`;
+
+  if(view.length === 0){
+    wrap.innerHTML = `<div class="muted"><small>このtokenの注文履歴はありません</small></div>`;
+    lastHistory = { orders:{}, list:[], sum:0, count:0 };
     return;
   }
 
-  for(const o of list){
-    const card = document.createElement("div");
-    card.className = "histCard";
-    card.innerHTML = `
-      <div class="histTop">
-        <div>
-          <div class="mono muted">注文ID: ${esc(o.key)}</div>
-          <div style="font-weight:900;">${esc(fmtTime(o.createdAt))} の注文</div>
-        </div>
-        <div class="mono" style="font-weight:900;">小計: ${esc(money(o.total))} 円</div>
+  for(const o of view){
+    const div = document.createElement("div");
+    div.className = "histItem";
+    const lines = (o.items||[]).map(orderLineText);
+
+    div.innerHTML = `
+      <div class="histHead">
+        <div class="histTitle mono">${esc(nowJst(o.createdAt))}</div>
+        <div class="mono" style="font-weight:900">${esc(yen(o.total))}</div>
       </div>
-      <div class="histItems" id="items_${esc(o.key)}"></div>
+      <div class="histLines">
+        ${
+          lines.length
+          ? lines.map(x=>`
+            <div class="line">
+              <div>${esc(x.name)} <span class="muted">x${esc(String(x.qty))}</span></div>
+              <div class="mono">${esc(String(x.price))} / ${esc(yen(x.sub))}</div>
+            </div>
+          `).join("")
+          : `<div class="muted"><small>(itemsなし)</small></div>`
+        }
+      </div>
     `;
-    const itemsWrap = card.querySelector(`#items_${CSS.escape(o.key)}`);
-    if(o.items.length===0){
-      itemsWrap.innerHTML = `<div class="muted">（itemsなし）</div>`;
-    }else{
-      for(const it of o.items){
-        const line = document.createElement("div");
-        line.className = "line";
-        const sub = Number(it.price||0) * Number(it.qty||0);
-        line.innerHTML = `
-          <div class="left">
-            <div class="name">${esc(it.name || "-")}</div>
-            <div class="meta">${esc(money(it.price))}円 × ${esc(it.qty)}個</div>
-          </div>
-          <div class="right">${esc(money(sub))} 円</div>
-        `;
-        itemsWrap.appendChild(line);
-      }
-    }
-    wrap.appendChild(card);
+    wrap.appendChild(div);
   }
+
+  lastHistory = { orders:{}, list:view, sum, count:view.length };
 }
 
-function init(){
-  state.shop  = getParam("shop");
-  state.table = getParam("table");
-  state.token = getParam("token");
+async function refreshHistory(){
+  if(!shop || !table) return;
 
-  $("shopText").textContent  = state.shop  || "(missing)";
-  $("tableText").textContent = state.table || "(missing)";
-  $("tokenText").textContent = state.token || "(missing)";
-
-  if(!state.shop || !state.table || !state.token){
-    setStatus(`<span class="ng">URLパラメータ不足</span>（shop/table/token）`);
-    $("debug").textContent = JSON.stringify({
-      hint: "例: order.html?shop=daboya&table=2&token=daboya-2-xxxx"
-    }, null, 2);
+  const path = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
+  const r = await rtdbGet(path);
+  if(!r.ok){
+    // 読めない場合は権限/ルール
+    setSendMsg(`<span class="ng">履歴読込失敗</span> HTTP ${r.status}`);
+    $("debug").textContent = JSON.stringify({ historyRead: r }, null, 2);
     return;
   }
 
-  document.body.addEventListener("click", (e)=>{
-    const t = e.target;
-    if(!(t instanceof HTMLElement)) return;
-    const act = t.dataset.act;
-    if(!act) return;
-    const cat = t.dataset.cat;
-    const id  = t.dataset.id;
-    if(!cat || !id) return;
-
-    if(act==="inc") incCart(cat,id);
-    if(act==="dec") decCart(cat,id);
-    if(act==="del") delCart(cat,id);
-  });
-
-  $("btnAddDrink").onclick = ()=>{
-    const s = getSelected("selDrink");
-    if(!s){ setStatus(`<span class="ng">ドリンクが未選択</span>`); return; }
-    upsertCart("drink", s.id, s.name, s.price);
-    setStatus(`<span class="ok">追加しました</span>`);
-  };
-  $("btnAddFood").onclick = ()=>{
-    const s = getSelected("selFood");
-    if(!s){ setStatus(`<span class="ng">フードが未選択</span>`); return; }
-    upsertCart("food", s.id, s.name, s.price);
-    setStatus(`<span class="ok">追加しました</span>`);
-  };
-
-  $("btnSend").onclick = sendOrder;
-  $("btnClear").onclick = ()=>{
-    state.cart = [];
-    syncCartView();
-    setStatus(`<span class="muted">カートをクリアしました</span>`);
-  };
-
-  $("btnHist").onclick = refreshHistory;
-
-  syncCartView();
-  loadMenu().then(()=> refreshHistory());
+  const obj = (r.json && typeof r.json === "object") ? r.json : {};
+  const list = Object.entries(obj).map(([key,val])=> normalizeOrderObj(key,val));
+  renderHistory(list);
 }
 
-init();
+/* ====== send order ====== */
+async function sendOrder(){
+  if(!shop || !table || !token){
+    setSendMsg(`<span class="ng">URL params 不足（shop/table/token）</span>`);
+    return;
+  }
+  if(cart.length === 0){
+    setSendMsg(`<span class="ng">カートが空です</span>`);
+    return;
+  }
+
+  // 会計依頼済みなら送信を止める（見た目リセット運用）
+  if(localStorage.getItem(CHECKOUT_REQ_KEY()) === "1"){
+    setSendMsg(`<span class="ng">会計依頼済みのため注文できません</span>`);
+    return;
+  }
+
+  $("btnSend").disabled = true;
+  setSendMsg(`<span class="mono">送信中...</span>`);
+
+  const createdAt = Date.now();
+
+  // orders には「1回の送信 = 1レコード（items[]含む）」で保存（今までの形のまま）
+  const items = cart.map(x=>({
+    id: x.id,
+    name: x.name,
+    price: Number(x.price||0),
+    qty: Number(x.qty||0),
+    category: x.category
+  }));
+
+  const total = items.reduce((s,x)=> s + (x.price*x.qty), 0);
+
+  const orderPayload = {
+    shop,
+    table: String(table),
+    token,
+    createdAt,
+    items,
+    itemsCount: items.reduce((s,x)=> s + Number(x.qty||0), 0),
+    total
+  };
+
+  // 1) orders 保存
+  const ordersPath = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
+  const r1 = await rtdbPost(ordersPath, orderPayload);
+
+  if(!r1.ok){
+    setSendMsg(`<span class="ng">送信失敗 orders POST</span> HTTP ${r1.status}`);
+    $("btnSend").disabled = false;
+    $("debug").textContent = JSON.stringify({ ordersPost: r1, payload: orderPayload }, null, 2);
+    return;
+  }
+
+  const orderKey = r1.json && r1.json.name ? String(r1.json.name) : "";
+  const orderPathAbs = `/shops/${shop}/orders/${table}/${orderKey}`;
+
+  // 2) orderFeed 保存（厨房用）
+  // ★重要：rulesで items 必須なので、1品ずつでも items:[{...}] を必ず入れる
+  // kitchen側で category で左右に分けるため、category も必ず入れる
+  for(const it of items){
+    const feedPayload = {
+      shop,
+      table: String(table),
+      token,
+      createdAt,
+      status: "new",
+      // kitchen分岐用
+      category: String(it.category || ""),
+      // kitchen表示用（分かりやすい）
+      name: String(it.name || ""),
+      qty: Number(it.qty||0),
+      price: Number(it.price||0),
+      total: Number(it.price||0) * Number(it.qty||0),
+      // 元注文参照（任意）
+      orderKey,
+      orderPath: orderPathAbs,
+      itemsCount: Number(it.qty||0),
+      // rules対策：items必須
+      items: [ { name: it.name, qty: Number(it.qty||0), price: Number(it.price||0), category: it.category } ]
+    };
+
+    const feedPath = `orderFeed/${encodeURIComponent(shop)}`;
+    const r2 = await rtdbPost(feedPath, feedPayload);
+
+    if(!r2.ok){
+      // ここで落ちた場合でも orders は入っている（安全）
+      setSendMsg(`<span class="ng">送信失敗 orderFeed POST</span> HTTP ${r2.status}`);
+      $("btnSend").disabled = false;
+      $("debug").textContent = JSON.stringify({ orderFeedPost: r2, feedPayload }, null, 2);
+      return;
+    }
+  }
+
+  // 完了：カートを空にして履歴更新
+  cart = [];
+  saveCart();
+  renderCart();
+
+  setSendMsg(`<span class="ok">注文を送信しました</span>（厨房へ反映）`);
+  $("btnSend").disabled = false;
+
+  await refreshHistory();
+}
+
+$("btnSend").onclick = sendOrder;
+
+/* ====== checkout request (customer) ====== */
+function setHoldBar(pct){
+  const p = Math.max(0, Math.min(100, pct));
+  $("holdBar").style.width = p + "%";
+}
+
+const HOLD_MS = 1200;
+let holdT = null;
+let holdStart = 0;
+let holding = false;
+
+async function requestCheckout(){
+  if(!shop || !table || !token){
+    setCheckoutMsg(`<span class="ng">URL params 不足（shop/table/token）</span>`);
+    return;
+  }
+
+  // まず履歴を最新化
+  await refreshHistory();
+
+  const reqAt = Date.now();
+  const payload = {
+    shop,
+    table: String(table),
+    token,
+    requestedAt: reqAt,
+    requestedAtText: nowJst(reqAt),
+    // token累計
+    total: Number(lastHistory.sum||0),
+    orderCount: Number(lastHistory.count||0),
+    // 注文一覧（token一致分だけ）
+    orders: lastHistory.list.map(o=>({
+      key: o.key,
+      createdAt: o.createdAt,
+      total: o.total,
+      items: (o.items||[]).map(x=>({
+        name: String(x.name||""),
+        qty: Number(x.qty||0),
+        price: Number(x.price||0),
+        category: String(x.category||"")
+      }))
+    }))
+  };
+
+  // shops/$shop は現ルールで write:true なのでここは通る想定
+  const path = `shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(table))}`;
+  const r = await rtdbPut(path, payload);
+
+  if(!r.ok){
+    setCheckoutMsg(`<span class="ng">会計依頼 失敗</span> HTTP ${r.status}`);
+    $("debug").textContent = JSON.stringify({ checkoutPut: r, payload }, null, 2);
+    return;
+  }
+
+  // 見た目だけリセット風（＝これ以降の注文を止める）
+  localStorage.setItem(CHECKOUT_REQ_KEY(), "1");
+  $("checkoutBanner").style.display = "block";
+  setCheckoutMsg(`<span class="ok">会計依頼しました</span> ${esc(nowJst(reqAt))}`);
+  setSendMsg(`<span class="muted">会計依頼済みのため、注文はできません（店側が会計確定後に再入店）</span>`);
+
+  // 履歴を“見た目だけ”消す（実データは残す）
+  $("histList").innerHTML = `<div class="muted"><small>会計依頼済み（表示リセット）</small></div>`;
+  $("histCount").textContent = "0";
+  $("histSum").textContent = yen(0);
+}
+
+function startHold(){
+  if(holding) return;
+  holding = true;
+  holdStart = Date.now();
+  setHoldBar(0);
+
+  const tick = async () => {
+    if(!holding) return;
+    const elapsed = Date.now() - holdStart;
+    const pct = Math.floor((elapsed / HOLD_MS) * 100);
+    setHoldBar(pct);
+
+    if(elapsed >= HOLD_MS){
+      holding = false;
+      setHoldBar(100);
+      await requestCheckout();
+      setTimeout(()=>setHoldBar(0), 300);
+      return;
+    }
+    holdT = setTimeout(tick, 16);
+  };
+  tick();
+}
+
+function endHold(){
+  holding = false;
+  if(holdT) clearTimeout(holdT);
+  holdT = null;
+  setHoldBar(0);
+}
+
+$("btnCheckout").addEventListener("pointerdown", (e)=>{ e.preventDefault(); startHold(); });
+$("btnCheckout").addEventListener("pointerup", (e)=>{ e.preventDefault(); endHold(); });
+$("btnCheckout").addEventListener("pointerleave", ()=> endHold());
+$("btnCheckout").addEventListener("pointercancel", ()=> endHold());
+
+/* ====== boot ====== */
+(async function boot(){
+  if(!shop || !table || !token) return;
+
+  loadCart();
+  renderCart();
+
+  await loadMenu();
+  await refreshHistory();
+
+  // 既に会計依頼済みなら表示も合わせる
+  if(localStorage.getItem(CHECKOUT_REQ_KEY()) === "1"){
+    $("checkoutBanner").style.display = "block";
+    setSendMsg(`<span class="muted">会計依頼済みのため、注文はできません（店側が会計確定後に再入店）</span>`);
+    setCheckoutMsg(`<span class="muted">会計依頼済み</span>`);
+  }else{
+    setCheckoutMsg(`<span class="muted">未依頼</span>`);
+  }
+})();
 </script>
 </body>
 </html>
+
+iPhoneから送信
+
 
 
 

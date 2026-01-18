@@ -28,24 +28,13 @@
       .grid2{grid-template-columns:1fr 1fr;}
     }
 
-    .pill{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:26px;padding:0 10px;border-radius:999px;border:1px solid #d1d5db;font-weight:900;font-size:12px}
-    .pillD{background:#dbeafe;border-color:#3b82f6}
-    .pillF{background:#dcfce7;border-color:#16a34a}
-
-    .list{display:flex;flex-direction:column;gap:10px}
-    .item{
-      border:1px solid #e5e7eb;border-radius:12px;padding:10px;
-      display:flex;gap:10px;align-items:center;justify-content:space-between;
-      background:#fff;
-    }
-    .left{display:flex;gap:10px;align-items:center;min-width:0}
-    .id{font-weight:900}
-    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:360px}
-    .price{font-weight:900}
-    .qtyBox{display:flex;gap:8px;align-items:center}
+    table{width:100%;border-collapse:separate;border-spacing:0 8px}
+    th{font-size:12px;color:#6b7280;text-align:left}
+    td{background:#fff;border:1px solid #e5e7eb;padding:10px;border-radius:12px;vertical-align:middle}
     .qtyBtn{background:#111827;color:#fff;border-radius:10px;padding:8px 10px;font-weight:900}
-    .qty{min-width:26px;text-align:center;font-weight:900}
-
+    .qty{min-width:26px;text-align:center;font-weight:900;display:inline-block}
+    .right{text-align:right}
+    .nowrap{white-space:nowrap}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
     details summary{cursor:pointer;font-weight:900;color:#374151}
   </style>
@@ -64,37 +53,73 @@
 
   <div class="grid2">
     <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <div style="font-weight:900">メニュー（ドリンク）</div>
-        <div class="muted">件数: <span id="drinkCount" class="mono">0</span></div>
+      <div style="font-weight:900;margin-bottom:8px;">ドリンクを追加</div>
+      <div class="row">
+        <div style="flex:1;min-width:220px;">
+          <select id="selDrink">
+            <option value="">（ドリンクを選択）</option>
+          </select>
+        </div>
+        <button id="btnAddDrink" class="btn">追加</button>
       </div>
-      <div class="list" id="drinkList"></div>
+      <div class="muted">件数: <span id="drinkCount" class="mono">0</span></div>
     </div>
 
     <div class="card">
-      <div class="row" style="justify-content:space-between">
-        <div style="font-weight:900">メニュー（フード）</div>
-        <div class="muted">件数: <span id="foodCount" class="mono">0</span></div>
+      <div style="font-weight:900;margin-bottom:8px;">フードを追加</div>
+      <div class="row">
+        <div style="flex:1;min-width:220px;">
+          <select id="selFood">
+            <option value="">（フードを選択）</option>
+          </select>
+        </div>
+        <button id="btnAddFood" class="btn">追加</button>
       </div>
-      <div class="list" id="foodList"></div>
+      <div class="muted">件数: <span id="foodCount" class="mono">0</span></div>
     </div>
   </div>
 
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <div style="font-weight:900">カート（今回送信分）</div>
-      <div class="mono" style="font-weight:900">合計: <span id="cartSum">0</span></div>
+      <div style="font-weight:900">カート（送信待ち）</div>
+      <div class="mono" style="font-weight:900">カート合計: <span id="cartSum">0</span> 円</div>
     </div>
-    <pre id="cartJson" class="mono">[]</pre>
 
-    <div class="row">
+    <div id="cartEmpty" class="muted" style="margin-top:8px;">カートは空です</div>
+
+    <div style="overflow:auto;margin-top:8px;">
+      <table id="cartTable" style="display:none;">
+        <thead>
+          <tr>
+            <th class="nowrap">種別</th>
+            <th>メニュー</th>
+            <th class="right nowrap">単価</th>
+            <th class="right nowrap">数量</th>
+            <th class="right nowrap">小計</th>
+            <th class="right nowrap">操作</th>
+          </tr>
+        </thead>
+        <tbody id="cartTbody"></tbody>
+      </table>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
       <button id="btnSend" class="btn">注文送信</button>
-      <button id="btnClear" class="btn2">クリア</button>
+      <button id="btnClear" class="btn2">カートクリア</button>
+      <span class="muted">※送信すると orders と /shops/{shop}/orderFeed に書き込みます</span>
     </div>
+  </div>
 
-    <div class="muted" style="margin-top:8px;">
-      ※「累計」は店側（kitchen/checkout）が <b>token</b> で集計して表示するのが安全です（端末更新でズレない）。
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center;">
+      <div style="font-weight:900">注文履歴（この token の累計）</div>
+      <div class="row">
+        <button id="btnHist" class="btn2">履歴更新</button>
+        <div class="mono" style="font-weight:900;">累計: <span id="tokenSum">0</span> 円</div>
+      </div>
     </div>
+    <div id="histLine" class="muted" style="margin-top:6px;">-</div>
+    <pre id="histJson" class="mono">[]</pre>
   </div>
 
   <details class="card">
@@ -109,18 +134,14 @@ const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 
 const $ = (id)=>document.getElementById(id);
 function esc(s){ return String(s??"").replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
-
-function getParam(name){
-  const u = new URL(location.href);
-  return (u.searchParams.get(name) || "").trim();
-}
+function getParam(name){ const u=new URL(location.href); return (u.searchParams.get(name)||"").trim(); }
 
 async function rtdbGet(path){
   const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, { method:"GET" });
   const txt = await res.text();
   let json=null; try{ json = txt ? JSON.parse(txt) : null; }catch{ json=null; }
-  return { ok: res.ok, status: res.status, json, url };
+  return { ok: res.ok, status: res.status, json, url, raw: txt };
 }
 async function rtdbPut(path, data){
   const url = `${RTDB_BASE}/${path}.json`;
@@ -131,7 +152,7 @@ async function rtdbPut(path, data){
   });
   const txt = await res.text();
   let json=null; try{ json = txt ? JSON.parse(txt) : null; }catch{ json=null; }
-  return { ok: res.ok, status: res.status, json, url };
+  return { ok: res.ok, status: res.status, json, url, raw: txt };
 }
 async function rtdbPost(path, data){
   const url = `${RTDB_BASE}/${path}.json`;
@@ -142,7 +163,7 @@ async function rtdbPost(path, data){
   });
   const txt = await res.text();
   let json=null; try{ json = txt ? JSON.parse(txt) : null; }catch{ json=null; }
-  return { ok: res.ok, status: res.status, json, url };
+  return { ok: res.ok, status: res.status, json, url, raw: txt };
 }
 
 function parseMenuValue(v){
@@ -154,127 +175,110 @@ function parseMenuValue(v){
   }
   return { name:"", price:0 };
 }
-
 function idNum(id){
   const m = String(id||"").match(/\d+/);
   return m ? Number(m[0]) : 999999;
 }
-
 function setStatus(html){ $("status").innerHTML = html || ""; }
 
 const state = {
-  shop: "",
-  table: "",
-  token: "",
-  menuDrink: {},
-  menuFood: {},
+  shop:"", table:"", token:"",
+  menuDrink:{}, menuFood:{},
   cart: [] // {cat,id,name,price,qty}
 };
+
+function money(n){ return Number(n||0).toLocaleString("ja-JP"); }
 
 function cartSum(){
   return state.cart.reduce((s,x)=> s + (Number(x.price||0) * Number(x.qty||0)), 0);
 }
 function syncCartView(){
-  $("cartJson").textContent = JSON.stringify(state.cart, null, 2);
-  $("cartSum").textContent = cartSum().toLocaleString("ja-JP");
+  const sum = cartSum();
+  $("cartSum").textContent = money(sum);
+
+  const empty = state.cart.length === 0;
+  $("cartEmpty").style.display = empty ? "block" : "none";
+  $("cartTable").style.display = empty ? "none" : "table";
+
+  const tb = $("cartTbody");
+  tb.innerHTML = "";
+
+  for(const x of state.cart){
+    const sub = Number(x.price||0) * Number(x.qty||0);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="nowrap">${esc(x.cat==="drink" ? "ドリンク" : "フード")}</td>
+      <td><b>${esc(x.name)}</b> <span class="muted mono">(${esc(x.id)})</span></td>
+      <td class="right nowrap">${esc(money(x.price))}</td>
+      <td class="right nowrap"><span class="qty mono">${esc(x.qty)}</span></td>
+      <td class="right nowrap"><b>${esc(money(sub))}</b></td>
+      <td class="right nowrap">
+        <button class="qtyBtn" data-act="dec" data-cat="${esc(x.cat)}" data-id="${esc(x.id)}">-</button>
+        <button class="qtyBtn" data-act="inc" data-cat="${esc(x.cat)}" data-id="${esc(x.id)}">+</button>
+        <button class="btn2" style="padding:8px 10px;" data-act="del" data-cat="${esc(x.cat)}" data-id="${esc(x.id)}">削除</button>
+      </td>
+    `;
+    tb.appendChild(tr);
+  }
 }
 
-function upsertCart(item){
-  const idx = state.cart.findIndex(x => x.cat===item.cat && x.id===item.id);
+function upsertCart(cat, id, name, price){
+  const idx = state.cart.findIndex(x => x.cat===cat && x.id===id);
   if(idx >= 0){
     state.cart[idx].qty = Number(state.cart[idx].qty||0) + 1;
   }else{
-    state.cart.push({ ...item, qty: 1 });
+    state.cart.push({ cat, id, name, price:Number(price||0), qty:1 });
   }
   syncCartView();
 }
-function decCart(cat, id){
+function incCart(cat,id){
   const idx = state.cart.findIndex(x => x.cat===cat && x.id===id);
-  if(idx < 0) return;
-  state.cart[idx].qty = Number(state.cart[idx].qty||0) - 1;
-  if(state.cart[idx].qty <= 0) state.cart.splice(idx, 1);
+  if(idx<0) return;
+  state.cart[idx].qty++;
+  syncCartView();
+}
+function decCart(cat,id){
+  const idx = state.cart.findIndex(x => x.cat===cat && x.id===id);
+  if(idx<0) return;
+  state.cart[idx].qty--;
+  if(state.cart[idx].qty<=0) state.cart.splice(idx,1);
+  syncCartView();
+}
+function delCart(cat,id){
+  const idx = state.cart.findIndex(x => x.cat===cat && x.id===id);
+  if(idx<0) return;
+  state.cart.splice(idx,1);
   syncCartView();
 }
 
-function renderMenu(){
-  const dKeys = Object.keys(state.menuDrink || {}).sort((a,b)=>idNum(a)-idNum(b));
-  const fKeys = Object.keys(state.menuFood  || {}).sort((a,b)=>idNum(a)-idNum(b));
+function rebuildSelects(){
+  const selD = $("selDrink");
+  const selF = $("selFood");
+  selD.innerHTML = `<option value="">（ドリンクを選択）</option>`;
+  selF.innerHTML = `<option value="">（フードを選択）</option>`;
 
+  const dKeys = Object.keys(state.menuDrink||{}).sort((a,b)=>idNum(a)-idNum(b));
+  const fKeys = Object.keys(state.menuFood||{}).sort((a,b)=>idNum(a)-idNum(b));
   $("drinkCount").textContent = String(dKeys.length);
   $("foodCount").textContent  = String(fKeys.length);
 
-  const dWrap = $("drinkList");
-  dWrap.innerHTML = "";
   for(const id of dKeys){
     const v = parseMenuValue(state.menuDrink[id]);
-    const div = document.createElement("div");
-    div.className = "item";
-    div.innerHTML = `
-      <div class="left">
-        <span class="pill pillD">D</span>
-        <div style="min-width:0">
-          <div class="id mono">${esc(id)}</div>
-          <div class="name">${esc(v.name || "-")}</div>
-        </div>
-      </div>
-      <div class="qtyBox">
-        <button class="qtyBtn" data-dec="1" data-cat="drink" data-id="${esc(id)}">-</button>
-        <span class="qty mono" id="qty_drink_${esc(id)}">0</span>
-        <button class="qtyBtn" data-add="1" data-cat="drink" data-id="${esc(id)}">+</button>
-      </div>
-      <div class="price mono">${esc(String(v.price||0))}</div>
-    `;
-    dWrap.appendChild(div);
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = `${id}｜${v.name}｜${money(v.price)}円`;
+    opt.dataset.name = v.name;
+    opt.dataset.price = String(v.price||0);
+    selD.appendChild(opt);
   }
-  if(dKeys.length===0){
-    dWrap.innerHTML = `<div class="muted"><small>ドリンクがありません</small></div>`;
-  }
-
-  const fWrap = $("foodList");
-  fWrap.innerHTML = "";
   for(const id of fKeys){
     const v = parseMenuValue(state.menuFood[id]);
-    const div = document.createElement("div");
-    div.className = "item";
-    div.innerHTML = `
-      <div class="left">
-        <span class="pill pillF">F</span>
-        <div style="min-width:0">
-          <div class="id mono">${esc(id)}</div>
-          <div class="name">${esc(v.name || "-")}</div>
-        </div>
-      </div>
-      <div class="qtyBox">
-        <button class="qtyBtn" data-dec="1" data-cat="food" data-id="${esc(id)}">-</button>
-        <span class="qty mono" id="qty_food_${esc(id)}">0</span>
-        <button class="qtyBtn" data-add="1" data-cat="food" data-id="${esc(id)}">+</button>
-      </div>
-      <div class="price mono">${esc(String(v.price||0))}</div>
-    `;
-    fWrap.appendChild(div);
-  }
-  if(fKeys.length===0){
-    fWrap.innerHTML = `<div class="muted"><small>フードがありません</small></div>`;
-  }
-
-  // 数量表示を反映
-  refreshQtyBadges();
-}
-
-function refreshQtyBadges(){
-  // いったん全て0へ（数が多いと重いが、まずは確実優先）
-  for(const id of Object.keys(state.menuDrink||{})){
-    const el = document.getElementById(`qty_drink_${id}`);
-    if(el) el.textContent = "0";
-  }
-  for(const id of Object.keys(state.menuFood||{})){
-    const el = document.getElementById(`qty_food_${id}`);
-    if(el) el.textContent = "0";
-  }
-  for(const x of state.cart){
-    const key = `qty_${x.cat}_${x.id}`;
-    const el = document.getElementById(key);
-    if(el) el.textContent = String(x.qty||0);
+    const opt = document.createElement("option");
+    opt.value = id;
+    opt.textContent = `${id}｜${v.name}｜${money(v.price)}円`;
+    opt.dataset.name = v.name;
+    opt.dataset.price = String(v.price||0);
+    selF.appendChild(opt);
   }
 }
 
@@ -285,21 +289,22 @@ async function loadMenu(){
   if(!d.ok || !f.ok){
     setStatus(`<span class="ng">メニュー読込失敗</span> <span class="muted">(${d.status}/${f.status})</span>`);
     $("debug").textContent = JSON.stringify({ drink:d, food:f }, null, 2);
-    return;
+    return false;
   }
   state.menuDrink = (d.json && typeof d.json==="object") ? d.json : {};
   state.menuFood  = (f.json && typeof f.json==="object") ? f.json : {};
-  renderMenu();
-  setStatus(`<span class="ok">メニュー読み込みOK</span> (${Object.keys(state.menuDrink).length + Object.keys(state.menuFood).length}件)`);
+  rebuildSelects();
+
+  setStatus(`<span class="ok">メニュー読み込みOK</span>`);
   $("debug").textContent = JSON.stringify({
     shop: state.shop, table: state.table, token: state.token,
     drinkKeys: Object.keys(state.menuDrink).length,
     foodKeys: Object.keys(state.menuFood).length
   }, null, 2);
+  return true;
 }
 
 async function verifyToken(){
-  // webActiveSessions/{shop}/{table}/token が一致するか確認（ルール対策）
   const sessPath = `webActiveSessions/${encodeURIComponent(state.shop)}/${encodeURIComponent(String(state.table))}`;
   const g = await rtdbGet(sessPath);
   if(!g.ok){
@@ -323,7 +328,7 @@ async function sendOrder(){
 
   setStatus(`<span class="mono">送信中...</span>`);
 
-  // 1) token検証（Permission denied の早期発見）
+  // token検証
   const v = await verifyToken();
   if(!v.ok){
     setStatus(`<span class="ng">送信失敗</span> <span class="muted">${esc(v.reason)}</span>`);
@@ -333,13 +338,14 @@ async function sendOrder(){
 
   const now = Date.now();
   const ua = navigator.userAgent;
+  const total = cartSum();
 
-  // 2) ordersへ書き込み（push）
+  // orders（table配下にpush）
   const orderPayload = {
-    createdAt: now,
     shop: state.shop,
     table: String(state.table),
     token: state.token,
+    createdAt: now,
     items: state.cart.map(x => ({
       id: x.id,
       cat: x.cat,
@@ -347,7 +353,7 @@ async function sendOrder(){
       price: Number(x.price||0),
       qty: Number(x.qty||0)
     })),
-    total: cartSum(),
+    total: total,
     ua: ua
   };
 
@@ -362,20 +368,20 @@ async function sendOrder(){
 
   const orderKey = oRes.json.name;
 
-  // 3) shops/{shop}/orderFeedへ書き込み（push）←★ここが今回の統一ポイント
+  // ★ /shops/{shop}/orderFeed にも push（店側kitchenがここを見る想定）
   const feedPayload = {
-    createdAt: now,
     shop: state.shop,
     table: String(state.table),
     token: state.token,
+    createdAt: now,
     status: "new",
-    total: cartSum(),
+    total: total,
     itemsCount: state.cart.reduce((s,x)=> s + Number(x.qty||0), 0),
     orderKey: orderKey,
     orderPath: `/shops/${state.shop}/orders/${state.table}/${orderKey}`
   };
 
-  const feedPath = `shops/${encodeURIComponent(state.shop)}/orderFeed`;   // ★統一
+  const feedPath = `shops/${encodeURIComponent(state.shop)}/orderFeed`;
   const fRes = await rtdbPost(feedPath, feedPayload);
 
   if(!fRes.ok){
@@ -384,39 +390,56 @@ async function sendOrder(){
     return;
   }
 
-  // 4) 成功 → カートクリア
+  // 成功：カートクリア
   state.cart = [];
   syncCartView();
-  refreshQtyBadges();
 
   setStatus(`<span class="ok">送信OK</span> 注文キー: <span class="mono">${esc(orderKey)}</span>`);
   $("debug").textContent = JSON.stringify({ orders:oRes, feed:fRes }, null, 2);
+
+  // 履歴更新（累計表示）
+  await refreshHistory();
 }
 
-function bindMenuClicks(){
-  document.body.addEventListener("click", (e)=>{
-    const t = e.target;
-    if(!(t instanceof HTMLElement)) return;
+async function refreshHistory(){
+  const path = `shops/${encodeURIComponent(state.shop)}/orders/${encodeURIComponent(String(state.table))}`;
+  const g = await rtdbGet(path);
+  if(!g.ok){
+    $("histLine").innerHTML = `<span class="ng">履歴取得失敗</span> <span class="muted">${esc(g.status)}</span>`;
+    $("histJson").textContent = JSON.stringify({ error:true, status:g.status, url:g.url }, null, 2);
+    return;
+  }
 
-    // + / -
-    if(t.dataset && t.dataset.add){
-      const cat = t.dataset.cat;
-      const id = t.dataset.id;
-      if(!cat || !id) return;
+  const obj = (g.json && typeof g.json==="object") ? g.json : {};
+  const list = [];
+  for(const [k,v] of Object.entries(obj)){
+    if(!v || typeof v !== "object") continue;
+    if(String(v.token||"") !== String(state.token||"")) continue; // ★token累計
+    list.push({
+      key: k,
+      createdAt: Number(v.createdAt||0),
+      total: Number(v.total||0),
+      itemsCount: Array.isArray(v.items) ? v.items.reduce((s,it)=> s + Number(it.qty||0),0) : 0
+    });
+  }
+  list.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
 
-      const src = (cat==="drink") ? state.menuDrink : state.menuFood;
-      const v = parseMenuValue(src[id]);
-      upsertCart({ cat, id, name:v.name, price:v.price });
-      refreshQtyBadges();
-    }
-    if(t.dataset && t.dataset.dec){
-      const cat = t.dataset.cat;
-      const id = t.dataset.id;
-      if(!cat || !id) return;
-      decCart(cat, id);
-      refreshQtyBadges();
-    }
-  });
+  const sum = list.reduce((s,x)=> s + Number(x.total||0), 0);
+  $("tokenSum").textContent = money(sum);
+  $("histLine").textContent = `件数: ${list.length} / 最終更新: ${new Date().toLocaleTimeString("ja-JP")}`;
+  $("histJson").textContent = JSON.stringify(list, null, 2);
+}
+
+function getSelected(selId){
+  const sel = $(selId);
+  const id = sel.value;
+  if(!id) return null;
+  const opt = sel.options[sel.selectedIndex];
+  return {
+    id,
+    name: opt.dataset.name || "",
+    price: Number(opt.dataset.price || 0)
+  };
 }
 
 function init(){
@@ -436,24 +459,52 @@ function init(){
     return;
   }
 
-  bindMenuClicks();
+  // cart操作（+ / - / 削除）
+  document.body.addEventListener("click", (e)=>{
+    const t = e.target;
+    if(!(t instanceof HTMLElement)) return;
+    const act = t.dataset.act;
+    if(!act) return;
+    const cat = t.dataset.cat;
+    const id  = t.dataset.id;
+    if(!cat || !id) return;
+
+    if(act==="inc") incCart(cat,id);
+    if(act==="dec") decCart(cat,id);
+    if(act==="del") delCart(cat,id);
+  });
+
+  $("btnAddDrink").onclick = ()=>{
+    const s = getSelected("selDrink");
+    if(!s){ setStatus(`<span class="ng">ドリンクが未選択</span>`); return; }
+    upsertCart("drink", s.id, s.name, s.price);
+    setStatus(`<span class="ok">追加しました</span>`);
+  };
+  $("btnAddFood").onclick = ()=>{
+    const s = getSelected("selFood");
+    if(!s){ setStatus(`<span class="ng">フードが未選択</span>`); return; }
+    upsertCart("food", s.id, s.name, s.price);
+    setStatus(`<span class="ok">追加しました</span>`);
+  };
 
   $("btnSend").onclick = sendOrder;
   $("btnClear").onclick = ()=>{
     state.cart = [];
     syncCartView();
-    refreshQtyBadges();
-    setStatus(`<span class="muted">クリアしました</span>`);
+    setStatus(`<span class="muted">カートをクリアしました</span>`);
   };
 
+  $("btnHist").onclick = refreshHistory;
+
   syncCartView();
-  loadMenu();
+  loadMenu().then(()=> refreshHistory());
 }
 
 init();
 </script>
 </body>
 </html>
+
 
 
 

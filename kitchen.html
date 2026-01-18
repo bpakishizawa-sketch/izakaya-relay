@@ -23,7 +23,6 @@
     .muted{color:#6b7280}
     .small{font-size:12px;color:#6b7280}
     .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
-    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
     /* 2カラム：左=drink / 右=food */
     .twoCol{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
@@ -34,7 +33,14 @@
     .colTitle{font-weight:900;font-size:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .badgeDrink{background:#dbeafe;border-color:#3b82f6}
     .badgeFood{background:#dcfce7;border-color:#16a34a}
-    .list{display:flex;flex-direction:column;gap:10px}
+
+    /* ★縦に見えるように：各カラムをスクロール可能に */
+    .list{
+      display:flex;flex-direction:column;gap:10px;
+      max-height: calc(100vh - 340px);
+      overflow:auto;
+      padding-right:4px;
+    }
 
     /* 注文カード */
     .oCard{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff}
@@ -44,13 +50,8 @@
     .oBtns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
 
     /* 提供済みペンディング（10秒） */
-    .pending{
-      background:#f0fdf4;
-      border-color:#22c55e;
-    }
-    .pending .pillPending{
-      background:#dcfce7;border-color:#22c55e;
-    }
+    .pending{ background:#f0fdf4; border-color:#22c55e; }
+    .pending .pillPending{ background:#dcfce7;border-color:#22c55e; }
     .countdown{font-weight:900;}
   </style>
 </head>
@@ -58,13 +59,13 @@
   <h1>厨房：オーダーリスト</h1>
   <div class="sub">
     左＝ドリンク / 右＝フード。入った順（createdAt昇順）で表示。<br>
-    <b>提供済み</b> は 1回タップで色が変わり、<b>10秒後に自動削除</b>します（誤タップ救済として10秒以内は「取消」可能）。
+    <b>提供済み</b> は 1回タップで色が変わり、<b>10秒後に自動削除</b>します（10秒以内は「取消」可能）。
   </div>
 
   <div class="card">
     <div class="row">
       <div>shop: <b id="shopText" class="mono">-</b></div>
-      <div class="small">（店側ログインで localStorage.shopCode が入っている前提）</div>
+      <div class="small">（menu.html でログインして localStorage.shopCode が入っている前提）</div>
     </div>
 
     <div class="topbar">
@@ -91,6 +92,11 @@
           <option value="0" selected>提供処理中も表示</option>
           <option value="1">提供処理中は隠す</option>
         </select>
+      </label>
+
+      <label class="row">
+        <input id="alarmChk" type="checkbox" />
+        <span class="small">新規オーダーで音</span>
       </label>
     </div>
 
@@ -121,309 +127,325 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="small">デバッグ</div>
-    <pre id="debug" class="mono">-</pre>
-  </div>
+  <!-- デバッグは完全非表示（必要なら復活できる） -->
+  <pre id="debug" class="mono" style="display:none;">-</pre>
+
+  <!-- 共通JS -->
+  <script src="shop_common.js"></script>
 
 <script>
-/** ===== 設定 ===== */
-const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-/** ============== */
+(() => {
+  const $ = (id)=>document.getElementById(id);
 
-function $(id){ return document.getElementById(id); }
-function esc(s){
-  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-}
-function now(){ return Date.now(); }
-
-async function rtdbGet(pathWithJson){
-  // pathWithJson: ".../.json" まで含めて渡す（今の作りを維持）
-  const url = `${DB_BASE}/${pathWithJson}`;
-  const res = await fetch(url);
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-  return JSON.parse(txt || "null");
-}
-async function rtdbPatch(pathNoJson, obj){
-  const url = `${DB_BASE}/${pathNoJson}.json`;
-  const res = await fetch(url, {
-    method: "PATCH",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(obj)
-  });
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-  return JSON.parse(txt || "null");
-}
-async function rtdbPut(pathNoJson, data){
-  const url = `${DB_BASE}/${pathNoJson}.json`;
-  const res = await fetch(url, {
-    method: "PUT",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(data)
-  });
-  const txt = await res.text();
-  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-  return JSON.parse(txt || "null");
-}
-
-function getShop(){
-  return (localStorage.getItem("shopCode") || "").trim();
-}
-
-function fmtTime(ts){
-  if(!ts) return "-";
-  const d = new Date(ts);
-  const hh = String(d.getHours()).padStart(2,"0");
-  const mm = String(d.getMinutes()).padStart(2,"0");
-  const ss = String(d.getSeconds()).padStart(2,"0");
-  return `${hh}:${mm}:${ss}`;
-}
-
-function normalizeOrder(pushId, o){
-  const table = String(o.table ?? "");
-  const category = String(o.category ?? o.cat ?? "").toLowerCase();
-  const createdAt = Number(o.createdAt ?? o.updatedAt ?? 0);
-
-  let name = o.name ?? o.itemName ?? "";
-  let qty = Number(o.qty ?? o.count ?? 1);
-  let price = (o.price === undefined ? "" : o.price);
-
-  // items がある場合の保険
-  if((!name || !qty) && Array.isArray(o.items) && o.items.length){
-    name = o.items[0].name ?? name;
-    qty = Number(o.items[0].qty ?? qty);
-  }
-
-  const status = String(o.status ?? "new"); // "new" or "pending"
-  const providedAt = Number(o.providedAt ?? 0);
-  const deleteAt = Number(o.deleteAt ?? 0);
-
-  return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt };
-}
-
-/** 10秒後削除の管理（ローカルタイマー） */
-const deleteTimers = new Map(); // pushId -> timeoutId
-
-function scheduleDelete(shop, pushId, deleteAt){
-  if(deleteTimers.has(pushId)) return;
-  const ms = Math.max(0, Number(deleteAt||0) - now());
-  const t = setTimeout(async ()=>{
-    deleteTimers.delete(pushId);
-    try{
-      // ★統一：/shops/{shop}/orderFeed/{pushId}
-      await rtdbPut(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(pushId)}`, null);
-      await refresh();
-    }catch(e){
-      console.log("delete failed", e);
+  function must(fnName){
+    if(typeof window[fnName] !== "function"){
+      throw new Error(`shop_common.js の ${fnName}() が見つかりません`);
     }
-  }, ms);
-  deleteTimers.set(pushId, t);
-}
-
-function cancelScheduledDelete(pushId){
-  const t = deleteTimers.get(pushId);
-  if(t){
-    clearTimeout(t);
-    deleteTimers.delete(pushId);
-  }
-}
-
-function sumByTable(list){
-  const m = new Map();
-  for(const o of list){
-    const t = String(o.table||"?");
-    const q = Number(o.qty||0);
-    m.set(t, (m.get(t)||0) + q);
-  }
-  const arr = Array.from(m.entries()).sort((a,b)=>Number(a[0]) - Number(b[0]));
-  if(arr.length===0) return "-";
-  return arr.map(([t,q])=>`T${t}:${q}`).join(" / ");
-}
-
-function renderColumn(rootId, list, shop){
-  const root = $(rootId);
-  root.innerHTML = "";
-
-  const tFilter = $("tableFilter").value.trim();
-  const hidePending = $("hidePending").value === "1";
-
-  let view = list.slice();
-  if(tFilter) view = view.filter(x => String(x.table) === String(tFilter));
-  if(hidePending) view = view.filter(x => !(x.deleteAt && x.deleteAt > now()));
-
-  view.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
-
-  if(view.length === 0){
-    root.innerHTML = `<div class="muted"><small>表示する注文がありません</small></div>`;
-    return;
   }
 
-  for(const o of view){
-    const isPending = (o.deleteAt && o.deleteAt > now());
-    const left = isPending ? Math.max(0, Math.ceil((o.deleteAt - now())/1000)) : 0;
+  // 必要関数（shop_common.js 側）
+  must("getShop");
+  must("requireLogin");
+  must("rtdbGet");
+  must("rtdbPut");
+  must("rtdbPatch");
+  must("esc");
 
-    if(isPending){
-      scheduleDelete(shop, o.pushId, o.deleteAt);
-    }else if(o.deleteAt && o.deleteAt <= now()){
-      // 取りこぼし防止
-      scheduleDelete(shop, o.pushId, now()+10);
-    }
+  // ログイン必須
+  if(!requireLogin()) return;
 
-    const div = document.createElement("div");
-    div.className = "oCard" + (isPending ? " pending" : "");
+  // 10秒後削除の管理（ローカルタイマー）
+  const deleteTimers = new Map(); // pushId -> timeoutId
+  function now(){ return Date.now(); }
 
-    div.innerHTML = `
-      <div class="oTop">
-        <span class="pill">T${esc(o.table || "?")}</span>
-        <span class="pill mono">${esc(fmtTime(o.createdAt))}</span>
-        ${
-          isPending
-          ? `<span class="pill pillPending">提供処理中 <span class="countdown">${left}s</span></span>`
-          : `<span class="pill" style="background:#fff7ed;border-color:#f59e0b">未提供</span>`
-        }
-      </div>
-
-      <div class="oName">${esc(o.name || "(no name)")}</div>
-      <div class="oMeta">数量：<b>${esc(o.qty)}</b>${o.price!=="" ? ` / 単価：<b>${esc(o.price)}</b>` : ""}</div>
-
-      <div class="oBtns">
-        ${
-          isPending
-          ? `<button class="cancel" data-act="undo" data-id="${esc(o.pushId)}">取消</button>`
-          : `<button class="done" data-act="done" data-id="${esc(o.pushId)}">提供済み</button>`
-        }
-        <button class="light" data-act="copy" data-id="${esc(o.pushId)}">IDコピー</button>
-      </div>
-
-      <div class="small muted">pushId: <span class="mono">${esc(o.pushId)}</span></div>
-    `;
-
-    div.querySelectorAll("button").forEach(btn=>{
-      btn.onclick = async ()=>{
-        const act = btn.getAttribute("data-act");
-        const id  = btn.getAttribute("data-id");
-
-        if(act === "copy"){
-          try{ await navigator.clipboard.writeText(id); }catch{}
-          return;
-        }
-
-        if(act === "done"){
-          try{
-            const deleteAt = now() + 10000;
-            // ★統一：/shops/{shop}/orderFeed/{pushId}
-            await rtdbPatch(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, {
-              status: "pending",
-              providedAt: now(),
-              deleteAt: deleteAt
-            });
-            scheduleDelete(shop, id, deleteAt);
-            await refresh();
-          }catch(e){
-            $("status").innerHTML = `<span class="ng">更新失敗</span> ${esc(e.message||e)}`;
-          }
-          return;
-        }
-
-        if(act === "undo"){
-          try{
-            cancelScheduledDelete(id);
-            // ★統一：/shops/{shop}/orderFeed/{pushId}
-            await rtdbPatch(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, {
-              status: "new",
-              providedAt: null,
-              deleteAt: null
-            });
-            await refresh();
-          }catch(e){
-            $("status").innerHTML = `<span class="ng">取消失敗</span> ${esc(e.message||e)}`;
-          }
-          return;
-        }
-      };
-    });
-
-    root.appendChild(div);
-  }
-}
-
-let timer = null;
-
-async function refresh(){
-  const shop = getShop();
-  if(!shop){
-    $("status").innerHTML = `<span class="ng">未ログイン</span> menu.html へ戻ります`;
-    setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 400);
-    return;
-  }
-  $("shopText").textContent = shop;
-
-  try{
-    $("status").textContent = "loading...";
-
-    // ★統一：/shops/{shop}/orderFeed を読む
-    const data = await rtdbGet(`shops/${encodeURIComponent(shop)}/orderFeed.json`);
-    const all = [];
-
-    if(data && typeof data === "object"){
-      for(const [pushId, obj] of Object.entries(data)){
-        if(!obj || typeof obj !== "object") continue;
-        all.push(normalizeOrder(pushId, obj));
+  function scheduleDelete(shop, pushId, deleteAt){
+    if(deleteTimers.has(pushId)) return;
+    const ms = Math.max(0, Number(deleteAt||0) - now());
+    const t = setTimeout(async ()=>{
+      deleteTimers.delete(pushId);
+      try{
+        // ★統一：/shops/{shop}/orderFeed/{pushId}
+        await rtdbPut(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(pushId)}`, null);
+        await refresh();
+      }catch(e){
+        console.log("delete failed", e);
       }
+    }, ms);
+    deleteTimers.set(pushId, t);
+  }
+
+  function cancelScheduledDelete(pushId){
+    const t = deleteTimers.get(pushId);
+    if(t){
+      clearTimeout(t);
+      deleteTimers.delete(pushId);
+    }
+  }
+
+  function fmtTime(ts){
+    if(!ts) return "-";
+    const d = new Date(ts);
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    const ss = String(d.getSeconds()).padStart(2,"0");
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  function normalizeOrder(pushId, o){
+    const table = String(o.table ?? "");
+    const category = String(o.category ?? o.cat ?? "").toLowerCase();
+    const createdAt = Number(o.createdAt ?? o.updatedAt ?? 0);
+
+    let name = o.name ?? o.itemName ?? "";
+    let qty = Number(o.qty ?? o.count ?? 1);
+    let price = (o.price === undefined ? "" : o.price);
+
+    if((!name || !qty) && Array.isArray(o.items) && o.items.length){
+      name = o.items[0].name ?? name;
+      qty = Number(o.items[0].qty ?? qty);
     }
 
-    const drinks = all.filter(x => x.category === "drink");
-    const foods  = all.filter(x => x.category === "food");
+    const status = String(o.status ?? "new"); // "new" or "pending"
+    const providedAt = Number(o.providedAt ?? 0);
+    const deleteAt = Number(o.deleteAt ?? 0);
 
-    $("drinkCount").textContent = String(drinks.length);
-    $("foodCount").textContent  = String(foods.length);
-    $("drinkByTable").textContent = "合計: " + sumByTable(drinks);
-    $("foodByTable").textContent  = "合計: " + sumByTable(foods);
-
-    renderColumn("drinkList", drinks, shop);
-    renderColumn("foodList", foods, shop);
-
-    $("status").innerHTML = `<span class="ok">OK</span> ${all.length} 件（${new Date().toLocaleTimeString()}）`;
-
-    $("debug").textContent = JSON.stringify({
-      shop,
-      total: all.length,
-      drink: drinks.length,
-      food: foods.length,
-      filter: { table: $("tableFilter").value.trim(), hidePending: $("hidePending").value },
-      path: `/shops/${shop}/orderFeed`,
-      rule: "提供済み = status:pending + deleteAt を付与 → 10秒後に orderFeed から削除"
-    }, null, 2);
-
-  }catch(e){
-    $("status").innerHTML = `<span class="ng">読込失敗</span> ${esc(e.message||e)}`;
-    $("debug").textContent = String(e.stack || e);
-    $("drinkList").innerHTML = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
-    $("foodList").innerHTML  = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
+    return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt };
   }
-}
 
-function setAuto(){
-  const sec = Number($("autoSec").value || 0);
-  if(timer){ clearInterval(timer); timer = null; }
-  if(sec > 0){
-    timer = setInterval(refresh, sec * 1000);
+  function sumByTable(list){
+    const m = new Map();
+    for(const o of list){
+      const t = String(o.table||"?");
+      const q = Number(o.qty||0);
+      m.set(t, (m.get(t)||0) + q);
+    }
+    const arr = Array.from(m.entries()).sort((a,b)=>Number(a[0]) - Number(b[0]));
+    if(arr.length===0) return "-";
+    return arr.map(([t,q])=>`T${t}:${q}`).join(" / ");
   }
-}
 
-$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-$("btnRefresh").onclick = refresh;
-$("autoSec").onchange = setAuto;
-$("tableFilter").onchange = refresh;
-$("hidePending").onchange = refresh;
+  function renderColumn(rootId, list, shop){
+    const root = $(rootId);
+    root.innerHTML = "";
 
-setAuto();
-refresh();
+    const tFilter = $("tableFilter").value.trim();
+    const hidePending = $("hidePending").value === "1";
+
+    let view = list.slice();
+    if(tFilter) view = view.filter(x => String(x.table) === String(tFilter));
+    if(hidePending) view = view.filter(x => !(x.deleteAt && x.deleteAt > now()));
+
+    view.sort((a,b)=> (a.createdAt||0) - (b.createdAt||0));
+
+    if(view.length === 0){
+      root.innerHTML = `<div class="muted"><small>表示する注文がありません</small></div>`;
+      return;
+    }
+
+    for(const o of view){
+      const isPending = (o.deleteAt && o.deleteAt > now());
+      const left = isPending ? Math.max(0, Math.ceil((o.deleteAt - now())/1000)) : 0;
+
+      if(isPending){
+        scheduleDelete(shop, o.pushId, o.deleteAt);
+      }else if(o.deleteAt && o.deleteAt <= now()){
+        scheduleDelete(shop, o.pushId, now()+10);
+      }
+
+      const div = document.createElement("div");
+      div.className = "oCard" + (isPending ? " pending" : "");
+
+      div.innerHTML = `
+        <div class="oTop">
+          <span class="pill">T${esc(o.table || "?")}</span>
+          <span class="pill mono">${esc(fmtTime(o.createdAt))}</span>
+          ${
+            isPending
+            ? `<span class="pill pillPending">提供処理中 <span class="countdown">${left}s</span></span>`
+            : `<span class="pill" style="background:#fff7ed;border-color:#f59e0b">未提供</span>`
+          }
+        </div>
+
+        <div class="oName">${esc(o.name || "(no name)")}</div>
+        <div class="oMeta">数量：<b>${esc(o.qty)}</b>${o.price!=="" ? ` / 単価：<b>${esc(o.price)}</b>` : ""}</div>
+
+        <div class="oBtns">
+          ${
+            isPending
+            ? `<button class="cancel" data-act="undo" data-id="${esc(o.pushId)}">取消</button>`
+            : `<button class="done" data-act="done" data-id="${esc(o.pushId)}">提供済み</button>`
+          }
+        </div>
+
+        <div class="small muted">pushId: <span class="mono">${esc(o.pushId)}</span></div>
+      `;
+
+      div.querySelectorAll("button").forEach(btn=>{
+        btn.onclick = async ()=>{
+          const act = btn.getAttribute("data-act");
+          const id  = btn.getAttribute("data-id");
+
+          if(act === "done"){
+            try{
+              const deleteAt = now() + 10000;
+              // ★統一：/shops/{shop}/orderFeed/{pushId}
+              await rtdbPatch(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, {
+                status: "pending",
+                providedAt: now(),
+                deleteAt: deleteAt
+              });
+              scheduleDelete(shop, id, deleteAt);
+              await refresh();
+            }catch(e){
+              $("status").innerHTML = `<span class="ng">更新失敗</span> ${esc(e.message||e)}`;
+            }
+            return;
+          }
+
+          if(act === "undo"){
+            try{
+              cancelScheduledDelete(id);
+              await rtdbPatch(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, {
+                status: "new",
+                providedAt: null,
+                deleteAt: null
+              });
+              await refresh();
+            }catch(e){
+              $("status").innerHTML = `<span class="ng">取消失敗</span> ${esc(e.message||e)}`;
+            }
+            return;
+          }
+        };
+      });
+
+      root.appendChild(div);
+    }
+  }
+
+  // ===== アラーム（新規オーダー検知）=====
+  const SEEN_KEY = (shop)=> `kitchen_seen_${shop}`;
+  function getSeen(shop){
+    const v = localStorage.getItem(SEEN_KEY(shop));
+    return v ? Number(v) : 0;
+  }
+  function setSeen(shop, ts){
+    localStorage.setItem(SEEN_KEY(shop), String(Number(ts||0)));
+  }
+
+  function beep(){
+    // iPhone Safari は「ユーザー操作後じゃないと鳴らない」ので、
+    // 最初にチェックONするとき/更新ボタン押した時に鳴らせる状態になります
+    try{
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = 880;
+      g.gain.value = 0.05;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      setTimeout(()=>{ o.stop(); ctx.close(); }, 120);
+    }catch{}
+    try{ navigator.vibrate && navigator.vibrate(80); }catch{}
+  }
+
+  let timer = null;
+
+  async function refresh(){
+    const shop = getShop();
+    if(!shop){
+      $("status").innerHTML = `<span class="ng">未ログイン</span> menu.html へ戻ります`;
+      setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 400);
+      return;
+    }
+    $("shopText").textContent = shop;
+
+    try{
+      $("status").textContent = "loading...";
+
+      // ✅統一：/shops/{shop}/orderFeed （※ .json を付けない）
+      const res = await rtdbGet(`shops/${encodeURIComponent(shop)}/orderFeed`);
+      if(!res || res.ok !== true){
+        throw new Error(`HTTP ${res?.status} ${res?.url || ""}`);
+      }
+
+      const data = (res.json && typeof res.json === "object") ? res.json : null;
+
+      const all = [];
+      if(data && typeof data === "object"){
+        for(const [pushId, obj] of Object.entries(data)){
+          if(!obj || typeof obj !== "object") continue;
+          all.push(normalizeOrder(pushId, obj));
+        }
+      }
+
+      // 新規検知（createdAt最大）
+      const latest = all.reduce((m,x)=> Math.max(m, Number(x.createdAt||0)), 0);
+      const prevSeen = getSeen(shop);
+      const alarmOn = $("alarmChk").checked;
+
+      if(alarmOn && prevSeen > 0 && latest > prevSeen){
+        beep();
+      }
+      if(latest > 0) setSeen(shop, latest);
+
+      const drinks = all.filter(x => x.category === "drink");
+      const foods  = all.filter(x => x.category === "food");
+
+      $("drinkCount").textContent = String(drinks.length);
+      $("foodCount").textContent  = String(foods.length);
+      $("drinkByTable").textContent = "合計: " + sumByTable(drinks);
+      $("foodByTable").textContent  = "合計: " + sumByTable(foods);
+
+      renderColumn("drinkList", drinks, shop);
+      renderColumn("foodList", foods, shop);
+
+      $("status").innerHTML = `<span class="ok">OK</span> ${all.length} 件（${new Date().toLocaleTimeString()}）`;
+
+      // debugは非表示のまま（必要ならdisplay:blockにして見れる）
+      $("debug").textContent = JSON.stringify({
+        shop,
+        total: all.length,
+        drink: drinks.length,
+        food: foods.length,
+        filter: { table: $("tableFilter").value.trim(), hidePending: $("hidePending").value },
+        path: `/shops/${shop}/orderFeed`
+      }, null, 2);
+
+    }catch(e){
+      $("status").innerHTML = `<span class="ng">読込失敗</span> ${esc(e.message||e)}`;
+      $("debug").textContent = String(e.stack || e);
+      $("drinkList").innerHTML = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
+      $("foodList").innerHTML  = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
+    }
+  }
+
+  function setAuto(){
+    const sec = Number($("autoSec").value || 0);
+    if(timer){ clearInterval(timer); timer = null; }
+    if(sec > 0){
+      timer = setInterval(refresh, sec * 1000);
+    }
+  }
+
+  $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+  $("btnRefresh").onclick = async ()=>{
+    // iPhoneで音を鳴らすために “ユーザー操作” として扱われやすい
+    await refresh();
+  };
+  $("autoSec").onchange = setAuto;
+  $("tableFilter").onchange = refresh;
+  $("hidePending").onchange = refresh;
+
+  // 初期
+  setAuto();
+  refresh();
+})();
 </script>
 </body>
 </html>
+
 
 
 

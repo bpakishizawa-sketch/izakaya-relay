@@ -2,155 +2,143 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>shop login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>店側ログイン</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:720px;margin:0 auto}
-    input,button{font-size:16px;padding:10px;border-radius:10px;border:1px solid #ccc}
-    button{cursor:pointer;border:0;font-weight:800}
-    .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:720px; margin:0 auto;}
+    h1{font-size:22px;margin:0 0 10px}
+    .sub{font-size:12px;color:#6b7280;margin-bottom:14px;line-height:1.6}
+    .card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;background:#fff;}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,button{font-size:16px;padding:12px;border-radius:12px}
+    input{border:1px solid #d1d5db; background:#fff; width:100%; box-sizing:border-box}
+    button{cursor:pointer;border:0;font-weight:900}
     .btn{background:#111827;color:#fff}
-    .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0}
-    .ok{color:#16a34a;font-weight:800}
-    .ng{color:#dc2626;font-weight:800}
-    .muted{color:#6b7280;font-size:12px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .ok{color:#16a34a;font-weight:900}
+    .ng{color:#dc2626;font-weight:900}
+    .small{font-size:12px;color:#6b7280}
+    details summary{cursor:pointer;font-weight:900;color:#374151}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
-    a{color:#2563eb}
   </style>
 </head>
 <body>
-  <h2>店側ログイン</h2>
+  <h1>店側ログイン</h1>
+  <div class="sub">
+    shopコード と staffPin を入力してログインします。<br>
+    成功すると <b>localStorage</b> に保存し、menu.html に移動します。
+  </div>
 
   <div class="card">
     <div class="row">
-      <input id="shop" placeholder="shopコード（例：daboya）" style="flex:1;min-width:240px">
-      <input id="pin"  placeholder="スタッフPIN" style="width:160px" inputmode="numeric">
-      <button id="btnLogin" class="btn">ログイン</button>
+      <input id="shopInp" placeholder="shopコード（例：daboya）" autocomplete="username" />
+      <input id="pinInp" placeholder="PIN（例：1111）" inputmode="numeric" autocomplete="current-password" style="max-width:160px" />
+      <button id="btnLogin" class="btn" style="max-width:160px">ログイン</button>
     </div>
-    <div id="msg" class="muted">shop と PIN を入力してください。</div>
 
-    <details style="margin-top:10px">
-      <summary style="cursor:pointer;font-weight:800">デバッグ（開いて確認）</summary>
-      <pre id="debug">-</pre>
-    </details>
+    <div id="msg" style="margin-top:10px;" class="small">-</div>
   </div>
 
-  <div class="card" id="logged" style="display:none;">
-    <div class="ok">ログイン中：<span id="who"></span></div>
-    <div class="row" style="margin-top:10px">
-      <a href="menu.html">menuへ</a>
-      <button id="btnLogout" style="background:#ef4444;color:#fff">ログアウト</button>
-    </div>
-  </div>
+  <!-- デバッグ（必要な時だけ開く） -->
+  <details class="card">
+    <summary>デバッグ（開いて確認）</summary>
+    <pre id="debug" class="mono">-</pre>
+  </details>
 
+  <!-- 共通JS（必須） -->
   <script src="shop_common.js"></script>
+
   <script>
     const $ = (id)=>document.getElementById(id);
 
-    function showLogged(){
-      const shop = getShop();
-      const pin  = getPin();
-      if(shop && pin){
-        $("logged").style.display = "block";
-        $("who").textContent = `${shop} / PIN ****`;
-      }else{
-        $("logged").style.display = "none";
-      }
+    function esc(s){
+      return String(s ?? "").replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[m]));
     }
 
-    function normStr(v){
-      return String(v ?? "").trim();
+    function setMsg(html){ $("msg").innerHTML = html; }
+
+    function normalizePin(x){
+      // FBRDが number でも string でも同じ比較にする
+      if(x === null || x === undefined) return "";
+      return String(x).trim();
     }
 
-    // ✅ 先頭0問題も吸収する比較
-    // - DBが数値(123)でも、入力が"0123"でもOKにする
-    function pinMatches(dbPin, inputPin){
-      const a = normStr(dbPin);
-      const b = normStr(inputPin);
-
-      if(!a || !b) return false;
-
-      // まずは文字列一致
-      if(a === b) return true;
-
-      // 次に数値比較（"0123" vs 123 を吸収）
-      const na = Number(a);
-      const nb = Number(b);
-      if(Number.isFinite(na) && Number.isFinite(nb) && na === nb) return true;
-
-      return false;
+    function getVal(){
+      const shop = ($("shopInp").value || "").trim();
+      const pin  = ($("pinInp").value  || "").trim();
+      return { shop, pin };
     }
 
-    // すでにログイン済みなら表示
-    showLogged();
-
-    $("btnLogout").onclick = ()=>{
-      lsClearShopLogin();
-      location.reload();
-    };
-
-    $("btnLogin").onclick = async ()=>{
-      const shop = $("shop").value.trim();
-      const pin  = $("pin").value.trim();
+    async function doLogin(){
+      const { shop, pin } = getVal();
 
       if(!shop || !pin){
-        $("msg").innerHTML = `<span class="ng">shop と PIN を入れてください</span>`;
+        setMsg(`<span class="ng">NG</span> shop と PIN を入力してください`);
         return;
       }
 
       $("btnLogin").disabled = true;
-      $("msg").innerHTML = `<span class="muted">照合中...</span>`;
-      $("debug").textContent = "-";
+      setMsg(`<span class="mono">確認中...</span>`);
 
       try{
-        // staffPin 取得
-        const r = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
+        // staffPin を確認
+        const staffPinPath = `shops/${encodeURIComponent(shop)}/staffPin`;
+        const r = await rtdbGet(staffPinPath);
 
-        // rtdbGet は {ok,status,json,url,raw...} の想定
         const dbg = {
           requestShop: shop,
           inputPin: pin,
-          staffPinPath: `shops/${shop}/staffPin`,
-          fetchStatus: r?.status,
-          ok: r?.ok,
-          url: r?.url,
-          gotJson: r?.json,
-          gotType: typeof (r?.json)
+          staffPinPath,
+          fetchStatus: r.status,
+          ok: r.ok,
+          url: r.url,
+          gotJson: r.json,
+          gotType: typeof r.json
         };
         $("debug").textContent = JSON.stringify(dbg, null, 2);
 
-        if(!r || !r.ok){
-          $("msg").innerHTML = `<span class="ng">PIN取得に失敗</span> <span class="muted">(HTTP ${r ? r.status : "?"})</span>`;
+        if(!r.ok){
+          setMsg(`<span class="ng">NG</span> PIN取得に失敗しました（HTTP ${r.status}）`);
           $("btnLogin").disabled = false;
           return;
         }
 
-        const staffPin = r.json; // ここが「1234」だったり 1234 だったり null だったりする
-        if(!normStr(staffPin)){
-          $("msg").innerHTML = `<span class="ng">staffPin が未設定</span> <span class="muted">（FBRD: shops/${shop}/staffPin を確認）</span>`;
+        const serverPin = normalizePin(r.json);
+        const inputPin  = normalizePin(pin);
+
+        if(!serverPin){
+          setMsg(`<span class="ng">NG</span> staffPin が未設定です（/shops/${esc(shop)}/staffPin）`);
           $("btnLogin").disabled = false;
           return;
         }
 
-        if(!pinMatches(staffPin, pin)){
-          $("msg").innerHTML = `<span class="ng">PINが違います</span>`;
+        if(serverPin !== inputPin){
+          setMsg(`<span class="ng">NG</span> PINが違います`);
           $("btnLogin").disabled = false;
           return;
         }
 
-        // ✅ 一致 → 保存
-        lsSetShopLogin(shop, pin);
+        // ✅ ここが今回の修正点：
+        // ❌ IsSetShopLogin(...) ではなく、✅ lsSetShopLogin(...) を使う
+        lsSetShopLogin(shop, inputPin);
 
-        $("msg").innerHTML = `<span class="ok">ログインしました</span>`;
-        showLogged();
-        location.href = `menu.html?v=${Date.now()}`;
+        setMsg(`<span class="ok">OK</span> ログインしました → menuへ移動します`);
+        setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 150);
 
       }catch(e){
-        $("msg").innerHTML = `<span class="ng">例外エラー</span> <span class="muted">${String(e.message||e)}</span>`;
+        setMsg(`<span class="ng">例外エラー</span> ${esc(e.message || e)}`);
         $("btnLogin").disabled = false;
       }
-    };
+    }
+
+    $("btnLogin").onclick = doLogin;
+    $("pinInp").addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") doLogin();
+    });
   </script>
 </body>
 </html>
+
 

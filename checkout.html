@@ -16,7 +16,6 @@
     button.dark{background:#111827;color:#fff}
     button.light{background:#f3f4f6;color:#111827;border:1px solid #ddd}
     button.ok{background:#16a34a;color:#fff}
-    button.danger{background:#dc2626;color:#fff}
     .okText{color:#16a34a;font-weight:900}
     .ngText{color:#dc2626;font-weight:900}
     .muted{color:#6b7280}
@@ -24,14 +23,14 @@
     .grid2{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
     @media(min-width:900px){ .grid2{grid-template-columns: 1fr 1fr;} }
 
-    /* テーブル一覧 */
+    /* 着席中テーブルのみ表示 */
     .tableGrid{display:grid;grid-template-columns:repeat(3,1fr); gap:10px;}
     @media(min-width:700px){ .tableGrid{grid-template-columns:repeat(6,1fr);} }
     @media(min-width:1000px){ .tableGrid{grid-template-columns:repeat(10,1fr);} }
     .tBtn{padding:10px;border-radius:12px;border:1px solid #e5e7eb;background:#fff;font-weight:900}
     .tOn{border-color:#3b82f6; background:#dbeafe;}
     .tReq{border-color:#dc2626; background:#fee2e2;}
-    .tEmpty{opacity:.55}
+    .tSel{outline:3px solid rgba(17,24,39,.25);}
 
     /* 明細 */
     .receipt{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff}
@@ -42,26 +41,13 @@
     .line{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed #eee;padding-top:8px}
     .line:first-child{border-top:0;padding-top:0}
     .sumBig{font-size:22px;font-weight:900}
-    .badge{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
-    .badgeDrink{background:#dbeafe;border-color:#3b82f6}
-    .badgeFood{background:#dcfce7;border-color:#16a34a}
 
     /* バナー */
     .alertBanner{
-      position: fixed;
-      left: 50%;
-      transform: translateX(-50%);
-      top: 10px;
-      z-index: 9999;
-      background: #dc2626;
-      color: #fff;
-      padding: 10px 14px;
-      border-radius: 999px;
-      font-weight: 900;
-      box-shadow: 0 10px 30px rgba(0,0,0,.2);
-      display: none;
-      max-width: 92vw;
-      text-align: center;
+      position: fixed; left: 50%; transform: translateX(-50%); top: 10px; z-index: 9999;
+      background: #dc2626; color: #fff; padding: 10px 14px; border-radius: 999px;
+      font-weight: 900; box-shadow: 0 10px 30px rgba(0,0,0,.2);
+      display: none; max-width: 92vw; text-align: center;
     }
 
     /* 印刷用（PDF） */
@@ -78,15 +64,15 @@
 
   <h1>会計（Checkout）</h1>
   <div class="sub">
-    客席の「長押し会計」→ <span class="mono">/shops/{shop}/checkoutRequests/{table}</span> に書き込みが入ると通知。<br>
-    会計確定で：<b>checkoutRequests削除 / orders削除 / webActiveSessions削除</b> を実行し、次の来客に備えます。
+    監視：<span class="mono">/shops/{shop}/checkoutRequests</span>（新規で赤バナー＋アラーム）<br>
+    会計確定で：<b>checkoutRequests削除 / orders削除 / webActiveSessions削除</b>
   </div>
 
   <div class="card noPrint">
     <div class="row" style="justify-content:space-between">
       <div class="row">
         <span class="pill">shop: <b id="shopText" class="mono">-</b></span>
-        <span class="pill">監視: <b class="mono">/shops/{shop}/checkoutRequests</b></span>
+        <span class="pill">監視: <b class="mono">checkoutRequests</b></span>
       </div>
       <div class="row">
         <button id="btnBack" class="light">← menuへ</button>
@@ -113,20 +99,13 @@
   </div>
 
   <div class="grid2">
-    <!-- 左：テーブル一覧 -->
+    <!-- 左：着席中テーブルのみ -->
     <div class="card noPrint">
       <div class="row" style="justify-content:space-between">
-        <div style="font-weight:900">テーブル状況</div>
+        <div style="font-weight:900">着席中テーブル（webActiveSessions があるものだけ）</div>
         <div class="muted" style="font-size:12px;">
-          <span class="pill">着席中</span> = webActiveSessions に active / token がある
-          <span class="pill" style="margin-left:6px;">会計依頼</span> = checkoutRequests がある
+          <span class="pill">青=着席</span> <span class="pill" style="margin-left:6px;">赤=会計依頼</span>
         </div>
-      </div>
-
-      <div class="row" style="margin-top:10px;">
-        <input id="tablesMax" type="number" min="1" value="20" style="width:140px" inputmode="numeric" />
-        <span class="muted" style="font-size:12px;">表示テーブル数</span>
-        <button id="btnBuildTables" class="light">反映</button>
       </div>
 
       <div id="tableGrid" class="tableGrid" style="margin-top:10px;"></div>
@@ -159,7 +138,7 @@
 
         <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
           <div class="muted">合計</div>
-          <div id="rcTotal" class="sumBig mono">0</div>
+          <div id="rcTotal" class="sumBig mono">0 円</div>
         </div>
 
         <div class="muted" style="margin-top:8px;font-size:12px;">
@@ -177,20 +156,10 @@ const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 /** ============== */
 
 function $(id){ return document.getElementById(id); }
-function esc(s){
-  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
-}
-function now(){ return Date.now(); }
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
 function getShop(){ return (localStorage.getItem("shopCode") || "").trim(); }
-
-function fmtJst(ts){
-  if(!ts) return "-";
-  try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); }
-}
-function yen(n){
-  const x = Number(n||0);
-  return x.toLocaleString("ja-JP") + " 円";
-}
+function fmtJst(ts){ if(!ts) return "-"; try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); } }
+function yen(n){ const x = Number(n||0); return x.toLocaleString("ja-JP") + " 円"; }
 
 async function rtdbGet(path){
   const url = `${DB_BASE}/${path}.json`;
@@ -201,45 +170,39 @@ async function rtdbGet(path){
 }
 async function rtdbPut(path, data){
   const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url, {
-    method:"PUT",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(data)
-  });
+  const res = await fetch(url, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(data) });
   const txt = await res.text();
   if(!res.ok) throw new Error(`PUT NG ${res.status} url=${url} body=${txt}`);
   return txt ? JSON.parse(txt) : null;
 }
 
-/* ===== 通知（kitchenと同じ：バナー + 任意の音 3秒） ===== */
+function setStatus(html){ $("status").innerHTML = html || ""; }
+function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
+
+/* ===== 通知（3秒） ===== */
 let soundEnabled = false;
 let audioCtx = null;
-
 function ensureAudio(){
   if(audioCtx) return;
   const AC = window.AudioContext || window.webkitAudioContext;
   if(!AC) return;
   audioCtx = new AC();
 }
-
 function beep3s(){
   if(!soundEnabled) return;
   try{
     ensureAudio();
     if(!audioCtx) return;
     if(audioCtx.state === "suspended") audioCtx.resume();
-
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
-    o.type = "sine";
-    o.frequency.value = 880;
+    o.type = "sine"; o.frequency.value = 880;
     g.gain.value = 0.05;
     o.connect(g); g.connect(audioCtx.destination);
     o.start();
     setTimeout(()=>{ try{o.stop();}catch{} }, 3000);
   }catch{}
 }
-
 function showBanner(msg){
   const el = $("alertBanner");
   el.textContent = msg || "会計依頼！";
@@ -247,7 +210,6 @@ function showBanner(msg){
   clearTimeout(showBanner._t);
   showBanner._t = setTimeout(()=>{ el.style.display = "none"; }, 3500);
 }
-
 function notifyCheckout(){
   showBanner("会計依頼！");
   try{ navigator.vibrate && navigator.vibrate([120,60,120]); }catch{}
@@ -256,33 +218,12 @@ function notifyCheckout(){
 
 /* ===== 状態 ===== */
 let timer = null;
-let selectedTable = ""; // 表示中テーブル
-let lastReqKeyByTable = new Map(); // table -> requestedAt（変化検知）
+let selectedTable = "";
+let lastReqAt = new Map(); // table -> requestedAt
+let latestRequests = {};
+let latestSessions = {};
 
-/* ===== テーブルグリッド ===== */
-function buildTableGrid(maxN){
-  const root = $("tableGrid");
-  root.innerHTML = "";
-  const n = Math.max(1, Number(maxN||20));
-
-  for(let i=1;i<=n;i++){
-    const b = document.createElement("button");
-    b.className = "tBtn";
-    b.id = "tbtn_"+i;
-    b.textContent = "T"+i;
-    b.onclick = ()=>{
-      selectedTable = String(i);
-      renderSelected(); // 既存データで即表示更新
-      refresh();        // 最新を取りに行く
-    };
-    root.appendChild(b);
-  }
-}
-
-function setStatus(html){ $("status").innerHTML = html || ""; }
-function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
-
-/* ===== 表示（明細） ===== */
+/* ===== 明細表示 ===== */
 function renderReceipt(req){
   if(!req){
     $("rcTable").textContent = selectedTable || "-";
@@ -297,11 +238,8 @@ function renderReceipt(req){
   $("rcToken").textContent = String(req.token || "-");
   $("rcReqAt").textContent = String(req.requestedAtText || fmtJst(req.requestedAt) || "-");
 
-  // items集計（orders配列の items を平坦化→同名同価格は合算）
-  const lines = [];
-  const map = new Map(); // key=name|price -> {name, price, qty, sub}
+  const map = new Map(); // name|price -> {name, price, qty, sub}
   const orders = Array.isArray(req.orders) ? req.orders : [];
-
   for(const o of orders){
     const items = Array.isArray(o.items) ? o.items : [];
     for(const it of items){
@@ -316,16 +254,10 @@ function renderReceipt(req){
       map.set(k, cur);
     }
   }
-  for(const v of map.values()) lines.push(v);
-
-  // 飲食カテゴリがあるなら並び替え（drink→food）任意
-  // 今回は「見やすさ重視」で名前順にする
-  lines.sort((a,b)=> (a.name||"").localeCompare(b.name||"ja"));
-
-  const total = Number(req.total || 0);
+  const lines = Array.from(map.values()).sort((a,b)=> (a.name||"").localeCompare(b.name||"ja"));
 
   if(lines.length===0){
-    $("rcLines").innerHTML = `<div class="muted"><small>明細が空です（orders/itemsが無い）</small></div>`;
+    $("rcLines").innerHTML = `<div class="muted"><small>明細が空です</small></div>`;
   }else{
     $("rcLines").innerHTML = lines.map(x=>`
       <div class="line">
@@ -338,65 +270,71 @@ function renderReceipt(req){
     `).join("");
   }
 
-  $("rcTotal").textContent = yen(total);
+  $("rcTotal").textContent = yen(Number(req.total||0));
 }
-
-let latestRequests = {};  // table -> reqObj
-let latestSessions = {};  // table -> sessionObj
 
 function renderSelected(){
-  if(!selectedTable){
-    renderReceipt(null);
+  if(!selectedTable){ renderReceipt(null); return; }
+  renderReceipt(latestRequests[selectedTable] || null);
+}
+
+/* ===== 着席中テーブルだけ表示 ===== */
+function buildActiveTableButtons(){
+  const root = $("tableGrid");
+  root.innerHTML = "";
+
+  // activeSessions の table一覧（tokenあり & active!==false）
+  const tables = Object.keys(latestSessions || {}).filter(t=>{
+    const s = latestSessions[t];
+    return s && s.token && s.active !== false;
+  }).sort((a,b)=> Number(a)-Number(b));
+
+  if(tables.length === 0){
+    root.innerHTML = `<div class="muted"><small>着席中テーブルがありません</small></div>`;
     return;
   }
-  const req = latestRequests[selectedTable] || null;
-  renderReceipt(req);
-}
 
-/* ===== 監視・更新 ===== */
-function markTableButtons(maxN){
-  const n = Math.max(1, Number(maxN||20));
-  for(let i=1;i<=n;i++){
-    const el = $("tbtn_"+i);
-    if(!el) continue;
-    el.classList.remove("tOn","tReq","tEmpty");
+  for(const t of tables){
+    const btn = document.createElement("button");
+    btn.className = "tBtn tOn";
+    btn.textContent = "T" + t;
 
-    const t = String(i);
-    const sess = latestSessions[t];
-    const req  = latestRequests[t];
-
-    const hasSess = !!(sess && sess.token && sess.active !== false);
-    const hasReq  = !!(req && req.token);
-
-    if(hasReq){
-      el.classList.add("tReq");
-    }else if(hasSess){
-      el.classList.add("tOn");
-    }else{
-      el.classList.add("tEmpty");
+    // 会計依頼があるテーブルは赤
+    if(latestRequests[t] && latestRequests[t].token){
+      btn.classList.add("tReq");
     }
+    if(String(selectedTable) === String(t)){
+      btn.classList.add("tSel");
+    }
+
+    btn.onclick = ()=>{
+      selectedTable = String(t);
+      buildActiveTableButtons();
+      renderSelected();
+    };
+    root.appendChild(btn);
   }
 }
 
-function detectNewCheckoutRequests(){
-  // table毎に requestedAt を覚えておいて、増えたら通知
+/* ===== 新規会計依頼の検知 ===== */
+function detectNewCheckout(){
   for(const [t, req] of Object.entries(latestRequests)){
     const ra = Number(req?.requestedAt || 0);
     if(!ra) continue;
-    const prev = lastReqKeyByTable.get(t) || 0;
 
-    // 初回は基準セットだけ（通知しない）
+    const prev = lastReqAt.get(t) || 0;
     if(!prev){
-      lastReqKeyByTable.set(t, ra);
+      lastReqAt.set(t, ra); // 初回は通知しない
       continue;
     }
     if(ra > prev){
-      lastReqKeyByTable.set(t, ra);
+      lastReqAt.set(t, ra);
       notifyCheckout();
     }
   }
 }
 
+/* ===== 更新 ===== */
 async function refresh(){
   const shop = getShop();
   if(!shop){
@@ -406,37 +344,42 @@ async function refresh(){
   }
   $("shopText").textContent = shop;
 
-  try{
-    setStatus(`<span class="mono">loading...</span>`);
+  setStatus(`<span class="mono">loading...</span>`);
 
-    // 1) checkoutRequests 全取得（table別）
+  // ① checkoutRequests は必ず読む（ここが命）
+  try{
     const reqObj = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
     latestRequests = (reqObj && typeof reqObj === "object") ? reqObj : {};
+    detectNewCheckout();
+  }catch(e){
+    // ここが落ちたらアラームも無理なので表示だけ出す
+    setStatus(`<span class="ngText">checkoutRequests 読込失敗</span> ${esc(e.message||e)}`);
+    latestRequests = {};
+  }
 
-    // 2) webActiveSessions 全取得（着席中）
+  // ② webActiveSessions は “失敗しても落ちない” ようにする（保険）
+  try{
     const sessObj = await rtdbGet(`webActiveSessions/${encodeURIComponent(shop)}`);
     latestSessions = (sessObj && typeof sessObj === "object") ? sessObj : {};
-
-    // 3) 新規会計依頼の検知
-    detectNewCheckoutRequests();
-
-    // 4) テーブルボタン色更新
-    const maxN = Number($("tablesMax").value || 20);
-    markTableButtons(maxN);
-
-    // 5) 選択中テーブルの明細更新
-    renderSelected();
-
-    const reqCount = Object.keys(latestRequests).length;
-    const sessCount = Object.keys(latestSessions).filter(t=>{
-      const s = latestSessions[t];
-      return s && s.token && s.active !== false;
-    }).length;
-
-    setStatus(`<span class="okText">OK</span> 会計依頼:${reqCount} / 着席:${sessCount} （${new Date().toLocaleTimeString()}）`);
-
   }catch(e){
-    setStatus(`<span class="ngText">読込失敗</span> ${esc(e.message||e)}`);
+    // ここが401でも、checkoutRequests の監視は生きる
+    latestSessions = {};
+    // 画面上には「参考」程度に出す
+    setStatus((`<span class="ngText">webActiveSessions 読込失敗</span> ${esc(e.message||e)}`));
+  }
+
+  buildActiveTableButtons();
+  renderSelected();
+
+  const reqCount = Object.keys(latestRequests).length;
+  const sessCount = Object.keys(latestSessions).filter(t=>{
+    const s = latestSessions[t];
+    return s && s.token && s.active !== false;
+  }).length;
+
+  // 両方OKのときはOK表示で上書き
+  if(sessCount >= 0){
+    setStatus(`<span class="okText">OK</span> 会計依頼:${reqCount} / 着席:${sessCount} （${new Date().toLocaleTimeString()}）`);
   }
 }
 
@@ -452,14 +395,8 @@ function setAuto(){
 /* ===== 会計確定 ===== */
 async function confirmCheckout(){
   const shop = getShop();
-  if(!shop){
-    setConfirmMsg(`<span class="ngText">未ログイン</span>`);
-    return;
-  }
-  if(!selectedTable){
-    setConfirmMsg(`<span class="ngText">テーブル未選択</span>`);
-    return;
-  }
+  if(!shop){ setConfirmMsg(`<span class="ngText">未ログイン</span>`); return; }
+  if(!selectedTable){ setConfirmMsg(`<span class="ngText">テーブル未選択</span>`); return; }
 
   const req = latestRequests[selectedTable];
   if(!req || !req.token){
@@ -474,10 +411,9 @@ async function confirmCheckout(){
   setConfirmMsg(`<span class="mono">確定処理中...</span>`);
 
   try{
-    // 1) receipts に保存（控え）
+    // receipts 保存（控え）
     const receiptKey = `${token}_${ts}`;
-    const receiptPath = `shops/${encodeURIComponent(shop)}/receipts/${encodeURIComponent(receiptKey)}`;
-    const receiptPayload = {
+    await rtdbPut(`shops/${encodeURIComponent(shop)}/receipts/${encodeURIComponent(receiptKey)}`, {
       shop,
       table: String(selectedTable),
       token,
@@ -485,28 +421,23 @@ async function confirmCheckout(){
       settledAtText: new Date(ts).toLocaleString("ja-JP"),
       total: Number(req.total||0),
       orderCount: Number(req.orderCount||0),
-      // 明細（checkoutRequestsからそのまま保存）
       orders: req.orders || [],
       requestedAt: req.requestedAt || null,
       requestedAtText: req.requestedAtText || null
-    };
-    await rtdbPut(receiptPath, receiptPayload);
+    });
 
-    // 2) checkoutRequests を削除
+    // checkoutRequests 削除
     await rtdbPut(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(selectedTable))}`, null);
 
-    // 3) orders（そのテーブル）を削除
+    // orders（そのテーブル）削除
     await rtdbPut(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(selectedTable))}`, null);
 
-    // 4) webActiveSessions（そのテーブル）を削除（次の客へ）
+    // webActiveSessions（そのテーブル）削除
     await rtdbPut(`webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(selectedTable))}`, null);
 
     setConfirmMsg(`<span class="okText">会計確定しました</span>（リセット完了）`);
-    // 画面表示も更新
     await refresh();
-
   }catch(e){
-    // 401ならここに URL 付きで出る
     setConfirmMsg(`<span class="ngText">失敗</span> ${esc(e.message||e)}`);
   }finally{
     $("btnConfirm").disabled = false;
@@ -514,35 +445,23 @@ async function confirmCheckout(){
 }
 
 /* ===== PDF ===== */
-function doPdf(){
-  // 印刷ダイアログ（iPhoneは「プリント」や「PDFとして保存」）
-  window.print();
-}
+function doPdf(){ window.print(); }
 
-/* ===== UI bind ===== */
+/* ===== bind ===== */
 $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
 $("btnRefresh").onclick = refresh;
-
 $("autoSec").onchange = setAuto;
-
-$("btnBuildTables").onclick = ()=>{
-  buildTableGrid(Number($("tablesMax").value||20));
-  refresh();
-};
-
 $("btnConfirm").onclick = confirmCheckout;
 $("btnPdf").onclick = doPdf;
 
-/* 音ON/OFF（ユーザー操作が必要） */
+/* 音ON/OFF */
 $("btnSound").onclick = async ()=>{
   soundEnabled = !soundEnabled;
   $("btnSound").textContent = soundEnabled ? "🔔音ON" : "🔔音OFF";
   if(soundEnabled){
     try{
       ensureAudio();
-      if(audioCtx && audioCtx.state === "suspended"){
-        await audioCtx.resume();
-      }
+      if(audioCtx && audioCtx.state === "suspended") await audioCtx.resume();
     }catch{}
   }
 };
@@ -552,17 +471,11 @@ $("btnBeep").onclick = ()=>{
   beep3s();
 };
 
-/* ===== boot ===== */
-(function boot(){
-  const shop = getShop();
-  $("shopText").textContent = shop || "-";
-
-  buildTableGrid(Number($("tablesMax").value||20));
-  setAuto();
-  refresh();
-})();
+setAuto();
+refresh();
 </script>
 </body>
 </html>
+
 
 

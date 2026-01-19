@@ -117,6 +117,48 @@
       <!-- 音アラーム（任意） -->
       <button id="btnSound" class="light">🔔音OFF</button>
       <button id="btnBeep" class="light">テスト</button>
+
+      <!-- ★追加：アラーム設定（軽量） -->
+      <label class="row">
+        <span class="small">回数</span>
+        <select id="alarmRepeat">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </label>
+
+      <label class="row">
+        <span class="small">間隔ms</span>
+        <select id="alarmGap">
+          <option value="100">100</option>
+          <option value="150" selected>150</option>
+          <option value="200">200</option>
+          <option value="250">250</option>
+          <option value="300">300</option>
+        </select>
+      </label>
+
+      <label class="row">
+        <span class="small">音程</span>
+        <select id="alarmFreq">
+          <option value="660">660</option>
+          <option value="880" selected>880</option>
+          <option value="1046">1046</option>
+          <option value="1320">1320</option>
+        </select>
+      </label>
+
+      <label class="row">
+        <span class="small">音量</span>
+        <select id="alarmVol">
+          <option value="0.03">小</option>
+          <option value="0.05" selected>中</option>
+          <option value="0.08">大</option>
+        </select>
+      </label>
     </div>
 
     <div id="status" class="small muted">-</div>
@@ -404,7 +446,16 @@ function ensureAudio(){
   audioCtx = new AC();
 }
 
-function beep(){
+function getAlarmSettings(){
+  const repeat = Math.max(1, Math.min(8, Number(($("alarmRepeat")?.value)||3)));
+  const gapMs  = Math.max(60, Math.min(800, Number(($("alarmGap")?.value)||150)));
+  const freq   = Math.max(200, Math.min(4000, Number(($("alarmFreq")?.value)||880)));
+  const vol    = Math.max(0.005, Math.min(0.2, Number(($("alarmVol")?.value)||0.05)));
+  return { repeat, gapMs, freq, vol };
+}
+
+/* 単発beep（超短） */
+function beepOnce(freq=880, vol=0.05, ms=180){
   if(!soundEnabled) return;
   try{
     ensureAudio();
@@ -415,12 +466,26 @@ function beep(){
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.type = "sine";
-    o.frequency.value = 880;
-    g.gain.value = 0.05;
+    o.frequency.value = freq;
+    g.gain.value = vol;
     o.connect(g); g.connect(audioCtx.destination);
     o.start();
-    setTimeout(()=>{ o.stop(); }, 180);
+    setTimeout(()=>{ try{o.stop();}catch{} }, ms);
   }catch{}
+}
+
+/* ★複数回鳴らす（＝体感で長くする / 聞き逃し防止） */
+function alarmBeep(){
+  if(!soundEnabled) return;
+  const { repeat, gapMs, freq, vol } = getAlarmSettings();
+  let i = 0;
+  const one = () => {
+    if(i >= repeat) return;
+    i++;
+    beepOnce(freq, vol, 180);
+    setTimeout(one, 180 + gapMs);
+  };
+  one();
 }
 
 function detectNewOrders(shop, allOrders){
@@ -441,7 +506,8 @@ function detectNewOrders(shop, allOrders){
   if(maxCreatedAt > last){
     showNewOrderBanner("新規オーダー！");
     try{ navigator.vibrate && navigator.vibrate([120,60,120]); }catch{}
-    beep();
+    // ★ここ：短い音を複数回
+    alarmBeep();
     saveLastMax(shop, maxCreatedAt);
   }
 }
@@ -498,7 +564,8 @@ async function refresh(){
         food: foods.length,
         filter: { table: $("tableFilter").value.trim(), hidePending: $("hidePending").value },
         path: `/shops/${shop}/orderFeed`,
-        rule: "提供済み = status:pending + deleteAt を付与 → 10秒後に orderFeed から削除"
+        rule: "提供済み = status:pending + deleteAt を付与 → 10秒後に orderFeed から削除",
+        alarm: { soundEnabled, ...getAlarmSettings() }
       }, null, 2);
     }
 
@@ -542,7 +609,8 @@ $("btnBeep").onclick = ()=>{
   // テスト（このクリックが「ユーザー操作」になる）
   soundEnabled = true;
   $("btnSound").textContent = "🔔音ON";
-  beep();
+  // ★テストも複数回
+  alarmBeep();
 };
 
 setAuto();

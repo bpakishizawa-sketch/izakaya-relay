@@ -13,8 +13,9 @@
     .card{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:12px 0}
     .ok{color:#16a34a;font-weight:800}
     .ng{color:#dc2626;font-weight:800}
-    a{display:inline-block;padding:12px 14px;border-radius:10px;background:#2563eb;color:#fff;text-decoration:none;font-weight:800;margin:6px 6px 0 0}
     .muted{color:#6b7280;font-size:12px}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
+    a{color:#2563eb}
   </style>
 </head>
 <body>
@@ -26,82 +27,128 @@
       <input id="pin"  placeholder="スタッフPIN" style="width:160px" inputmode="numeric">
       <button id="btnLogin" class="btn">ログイン</button>
     </div>
-    <div id="msg" class="muted">この端末を店用としてログインします。</div>
+    <div id="msg" class="muted">shop と PIN を入力してください。</div>
+
+    <details style="margin-top:10px">
+      <summary style="cursor:pointer;font-weight:800">デバッグ（開いて確認）</summary>
+      <pre id="debug">-</pre>
+    </details>
   </div>
 
-  <div id="menu" class="card" style="display:none;">
+  <div class="card" id="logged" style="display:none;">
     <div class="ok">ログイン中：<span id="who"></span></div>
-    <div style="margin-top:10px">
-      <a href="menu.html">メニューへ</a>
-    </div>
-    <div class="row" style="margin-top:12px">
+    <div class="row" style="margin-top:10px">
+      <a href="menu.html">menuへ</a>
       <button id="btnLogout" style="background:#ef4444;color:#fff">ログアウト</button>
     </div>
   </div>
 
-  <!-- 共通JS（localStorage版） -->
   <script src="shop_common.js"></script>
-
   <script>
-    function showMenu(){
+    const $ = (id)=>document.getElementById(id);
+
+    function showLogged(){
       const shop = getShop();
       const pin  = getPin();
       if(shop && pin){
-        document.getElementById("menu").style.display = "block";
-        document.getElementById("who").textContent = `${shop} / PIN ****`;
+        $("logged").style.display = "block";
+        $("who").textContent = `${shop} / PIN ****`;
       }else{
-        document.getElementById("menu").style.display = "none";
+        $("logged").style.display = "none";
       }
     }
 
-    // すでにログイン済みならメニュー表示
-    showMenu();
+    function normStr(v){
+      return String(v ?? "").trim();
+    }
 
-    document.getElementById("btnLogin").onclick = async () => {
-      const shop = document.getElementById("shop").value.trim();
-      const pin  = document.getElementById("pin").value.trim();
+    // ✅ 先頭0問題も吸収する比較
+    // - DBが数値(123)でも、入力が"0123"でもOKにする
+    function pinMatches(dbPin, inputPin){
+      const a = normStr(dbPin);
+      const b = normStr(inputPin);
+
+      if(!a || !b) return false;
+
+      // まずは文字列一致
+      if(a === b) return true;
+
+      // 次に数値比較（"0123" vs 123 を吸収）
+      const na = Number(a);
+      const nb = Number(b);
+      if(Number.isFinite(na) && Number.isFinite(nb) && na === nb) return true;
+
+      return false;
+    }
+
+    // すでにログイン済みなら表示
+    showLogged();
+
+    $("btnLogout").onclick = ()=>{
+      lsClearShopLogin();
+      location.reload();
+    };
+
+    $("btnLogin").onclick = async ()=>{
+      const shop = $("shop").value.trim();
+      const pin  = $("pin").value.trim();
 
       if(!shop || !pin){
-        document.getElementById("msg").innerHTML = `<span class="ng">shop と PIN を入れてください</span>`;
+        $("msg").innerHTML = `<span class="ng">shop と PIN を入れてください</span>`;
         return;
       }
 
+      $("btnLogin").disabled = true;
+      $("msg").innerHTML = `<span class="muted">照合中...</span>`;
+      $("debug").textContent = "-";
+
       try{
-        document.getElementById("btnLogin").disabled = true;
-        document.getElementById("msg").innerHTML = `<span class="muted">照合中...</span>`;
-
-        // ✅ staffPin をFBRDから取得して照合
+        // staffPin 取得
         const r = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
-        if(!r.ok){
-          document.getElementById("msg").innerHTML =
-            `<span class="ng">PIN取得に失敗</span> <span class="muted">(HTTP ${r.status})</span>`;
-          document.getElementById("btnLogin").disabled = false;
+
+        // rtdbGet は {ok,status,json,url,raw...} の想定
+        const dbg = {
+          requestShop: shop,
+          inputPin: pin,
+          staffPinPath: `shops/${shop}/staffPin`,
+          fetchStatus: r?.status,
+          ok: r?.ok,
+          url: r?.url,
+          gotJson: r?.json,
+          gotType: typeof (r?.json)
+        };
+        $("debug").textContent = JSON.stringify(dbg, null, 2);
+
+        if(!r || !r.ok){
+          $("msg").innerHTML = `<span class="ng">PIN取得に失敗</span> <span class="muted">(HTTP ${r ? r.status : "?"})</span>`;
+          $("btnLogin").disabled = false;
           return;
         }
 
-        const staffPin = (r.json ?? "");
-        if(String(staffPin).trim() !== String(pin).trim()){
-          document.getElementById("msg").innerHTML = `<span class="ng">PINが違います</span>`;
-          document.getElementById("btnLogin").disabled = false;
+        const staffPin = r.json; // ここが「1234」だったり 1234 だったり null だったりする
+        if(!normStr(staffPin)){
+          $("msg").innerHTML = `<span class="ng">staffPin が未設定</span> <span class="muted">（FBRD: shops/${shop}/staffPin を確認）</span>`;
+          $("btnLogin").disabled = false;
           return;
         }
 
-        // ✅ 一致したらログイン保存（localStorage）
+        if(!pinMatches(staffPin, pin)){
+          $("msg").innerHTML = `<span class="ng">PINが違います</span>`;
+          $("btnLogin").disabled = false;
+          return;
+        }
+
+        // ✅ 一致 → 保存
         lsSetShopLogin(shop, pin);
 
-        document.getElementById("msg").innerHTML = `<span class="ok">ログインしました</span>`;
-        showMenu();
+        $("msg").innerHTML = `<span class="ok">ログインしました</span>`;
+        showLogged();
         location.href = `menu.html?v=${Date.now()}`;
 
       }catch(e){
-        document.getElementById("msg").innerHTML = `<span class="ng">エラー</span> <span class="muted">${String(e.message||e)}</span>`;
-        document.getElementById("btnLogin").disabled = false;
+        $("msg").innerHTML = `<span class="ng">例外エラー</span> <span class="muted">${String(e.message||e)}</span>`;
+        $("btnLogin").disabled = false;
       }
-    };
-
-    document.getElementById("btnLogout").onclick = () => {
-      lsClearShopLogin();
-      location.reload();
     };
   </script>
 </body>

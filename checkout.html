@@ -8,55 +8,63 @@
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:1200px; margin:0 auto; background:#f6f7f9;}
     h1{font-size:22px;margin:0 0 8px}
     .sub{font-size:12px;color:#6b7280;margin-bottom:12px;line-height:1.6}
-    .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:10px 0;background:#fff;}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .muted{color:#6b7280}
+    .ok{color:#16a34a;font-weight:900}
+    .ng{color:#dc2626;font-weight:900}
     select,input{font-size:16px;padding:10px;border:1px solid #d1d5db;border-radius:10px;background:#fff}
     button{font-size:14px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:900}
     button.dark{background:#111827;color:#fff}
     button.light{background:#f3f4f6;color:#111827;border:1px solid #ddd}
-    button.ok{background:#16a34a;color:#fff}
-    .okText{color:#16a34a;font-weight:900}
-    .ngText{color:#dc2626;font-weight:900}
-    .muted{color:#6b7280}
-    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px;background:#fff}
+    button.green{background:#16a34a;color:#fff}
+    button.red{background:#dc2626;color:#fff}
+    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
     .grid2{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
-    @media(min-width:900px){ .grid2{grid-template-columns: 1fr 1fr;} }
+    @media(min-width:860px){ .grid2{grid-template-columns: 1fr 1fr;} }
 
-    /* 着席中テーブルのみ表示 */
-    .tableGrid{display:grid;grid-template-columns:repeat(3,1fr); gap:10px;}
-    @media(min-width:700px){ .tableGrid{grid-template-columns:repeat(6,1fr);} }
-    @media(min-width:1000px){ .tableGrid{grid-template-columns:repeat(10,1fr);} }
-    .tBtn{padding:10px;border-radius:12px;border:1px solid #e5e7eb;background:#fff;font-weight:900}
-    .tOn{border-color:#3b82f6; background:#dbeafe;}
-    .tReq{border-color:#dc2626; background:#fee2e2;}
-    .tSel{outline:3px solid rgba(17,24,39,.25);}
+    .tableGrid{display:grid;grid-template-columns: repeat(6, 1fr); gap:10px; margin-top:10px;}
+    @media(max-width:860px){ .tableGrid{grid-template-columns: repeat(4, 1fr);} }
+    .tbtn{padding:14px 10px;border-radius:12px;border:1px solid #e5e7eb;background:#fff;font-weight:900}
+    .tbtn.active{border-color:#3b82f6;background:#dbeafe}
+    .tbtn.request{border-color:#f59e0b;background:#fff7ed}
+    .tmeta{font-size:11px;color:#6b7280;margin-top:4px}
 
-    /* 明細 */
-    .receipt{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff}
-    .rcHead{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
-    .rcTitle{font-weight:900}
-    .rcMeta{font-size:12px;color:#6b7280}
-    .rcLines{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+    .lines{display:flex;flex-direction:column;gap:8px;margin-top:10px}
     .line{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed #eee;padding-top:8px}
     .line:first-child{border-top:0;padding-top:0}
     .sumBig{font-size:22px;font-weight:900}
+    .hr{height:1px;background:#eee;margin:12px 0}
 
-    /* バナー */
+    /* alert banner */
     .alertBanner{
-      position: fixed; left: 50%; transform: translateX(-50%); top: 10px; z-index: 9999;
-      background: #dc2626; color: #fff; padding: 10px 14px; border-radius: 999px;
-      font-weight: 900; box-shadow: 0 10px 30px rgba(0,0,0,.2);
-      display: none; max-width: 92vw; text-align: center;
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 10px;
+      z-index: 9999;
+      background: #dc2626;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-weight: 900;
+      box-shadow: 0 10px 30px rgba(0,0,0,.2);
+      display: none;
+      max-width: 92vw;
+      text-align: center;
     }
 
-    /* 印刷用（PDF） */
+    /* print area */
+    #printArea{background:#fff; padding:14px; border-radius:12px; border:1px solid #e5e7eb;}
     @media print{
-      body{background:#fff; padding:0; max-width:none;}
-      .noPrint{display:none !important;}
-      .card{border:0; padding:0; margin:0;}
-      .receipt{border:0;}
+      body{background:#fff}
+      .noPrint{display:none !important}
+      #printArea{border:0; padding:0}
     }
+
+    details summary{cursor:pointer;font-weight:900;color:#374151}
+    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
   </style>
 </head>
 <body>
@@ -64,89 +72,92 @@
 
   <h1>会計（Checkout）</h1>
   <div class="sub">
-    監視：<span class="mono">/shops/{shop}/checkoutRequests</span>（新規で赤バナー＋アラーム）<br>
-    会計確定で：<b>checkoutRequests削除 / orders削除 / webActiveSessions削除</b>
+    監視：<b>/shops/{shop}/checkoutRequests</b><br>
+    会計確定で <b>checkoutRequests削除 / orders削除 / webActiveSessions削除</b> を実行して次の来客に備えます。<br>
+    明細は <b>メニュー名と金額のみ</b> を表示（IDやコードは非表示）。
   </div>
 
   <div class="card noPrint">
-    <div class="row" style="justify-content:space-between">
-      <div class="row">
-        <span class="pill">shop: <b id="shopText" class="mono">-</b></span>
-        <span class="pill">監視: <b class="mono">checkoutRequests</b></span>
-      </div>
-      <div class="row">
-        <button id="btnBack" class="light">← menuへ</button>
-        <button id="btnRefresh" class="dark">更新</button>
-      </div>
-    </div>
+    <div class="row">
+      <span class="pill">shop: <b id="shopText" class="mono">-</b></span>
+      <span class="pill">選択テーブル: <b id="selTableText" class="mono">-</b></span>
 
-    <div class="row" style="margin-top:10px;">
+      <button id="btnBack" class="light">← menuへ</button>
+      <button id="btnRefresh" class="dark">更新</button>
+
       <label class="row">
-        <span class="muted" style="font-size:12px;">自動更新</span>
+        <span class="muted" style="font-size:12px">自動更新</span>
         <select id="autoSec">
           <option value="0">OFF</option>
-          <option value="2" selected>2秒</option>
+          <option value="2">2秒</option>
           <option value="5">5秒</option>
-          <option value="10">10秒</option>
+          <option value="10" selected>10秒</option>
         </select>
       </label>
 
       <button id="btnSound" class="light">🔔音OFF</button>
       <button id="btnBeep" class="light">テスト</button>
-
-      <span id="status" class="muted" style="font-size:12px;">-</span>
     </div>
+
+    <div id="status" class="muted" style="margin-top:8px;">-</div>
   </div>
 
   <div class="grid2">
-    <!-- 左：着席中テーブルのみ -->
-    <div class="card noPrint">
+    <!-- left -->
+    <div class="card">
       <div class="row" style="justify-content:space-between">
-        <div style="font-weight:900">着席中テーブル（webActiveSessions があるものだけ）</div>
-        <div class="muted" style="font-size:12px;">
-          <span class="pill">青=着席</span> <span class="pill" style="margin-left:6px;">赤=会計依頼</span>
-        </div>
+        <div style="font-weight:900">テーブル状況（着席中のみ）</div>
+        <div class="muted" style="font-size:12px">webActiveSessions に active/token があるテーブル</div>
       </div>
 
-      <div id="tableGrid" class="tableGrid" style="margin-top:10px;"></div>
+      <div class="hr"></div>
 
-      <div class="muted" style="font-size:12px;margin-top:10px;">
-        ※クリックでテーブル選択（右側に明細表示）
+      <div class="row" style="gap:8px">
+        <span class="pill">着席 <b id="activeCount" class="mono">0</b></span>
+        <span class="pill" style="background:#fff7ed;border-color:#f59e0b">会計依頼 <b id="reqCount" class="mono">0</b></span>
       </div>
+
+      <div id="tableGrid" class="tableGrid"></div>
+
+      <details class="card" style="display:none;">
+        <summary>デバッグ</summary>
+        <pre id="debug" class="mono">-</pre>
+      </details>
     </div>
 
-    <!-- 右：明細 -->
+    <!-- right -->
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <div style="font-weight:900">会計明細</div>
-        <div class="row noPrint">
+        <div class="row noPrint" style="gap:8px">
           <button id="btnPdf" class="light">PDF</button>
-          <button id="btnConfirm" class="ok">会計確定</button>
+          <button id="btnConfirm" class="green">会計確定</button>
         </div>
       </div>
 
-      <div id="receiptBox" class="receipt" style="margin-top:10px;">
-        <div class="rcHead">
-          <div class="rcTitle">テーブル <span id="rcTable" class="mono">-</span></div>
-          <div class="rcMeta">
-            token: <span id="rcToken" class="mono">-</span><br>
-            依頼時刻: <span id="rcReqAt" class="mono">-</span>
+      <div class="hr"></div>
+
+      <div id="printArea">
+        <div class="row" style="justify-content:space-between">
+          <div>
+            <div class="muted" style="font-size:12px">テーブル</div>
+            <div style="font-weight:900;font-size:18px" id="billTable">-</div>
+          </div>
+          <div style="text-align:right">
+            <div class="muted" style="font-size:12px">合計</div>
+            <div class="sumBig mono" id="billTotal">-</div>
           </div>
         </div>
 
-        <div id="rcLines" class="rcLines"></div>
+        <div class="muted" style="font-size:12px;margin-top:6px" id="billMeta">-</div>
 
-        <div style="margin-top:12px; display:flex; justify-content:space-between; align-items:center;">
-          <div class="muted">合計</div>
-          <div id="rcTotal" class="sumBig mono">0 円</div>
-        </div>
+        <div class="hr"></div>
 
-        <div class="muted" style="margin-top:8px;font-size:12px;">
-          ※メニュー名と金額のみ表示（ID/コードは非表示）
-        </div>
+        <div class="muted" style="font-size:12px;margin-bottom:6px">※メニュー名と金額のみ表示（ID/コードは非表示）</div>
+        <div id="billLines" class="lines"></div>
       </div>
 
-      <div id="confirmMsg" class="muted noPrint" style="margin-top:10px;">-</div>
+      <div class="muted noPrint" id="confirmMsg" style="margin-top:10px;">-</div>
     </div>
   </div>
 
@@ -156,53 +167,48 @@ const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 /** ============== */
 
 function $(id){ return document.getElementById(id); }
-function esc(s){ return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m])); }
-function getShop(){ return (localStorage.getItem("shopCode") || "").trim(); }
-function fmtJst(ts){ if(!ts) return "-"; try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); } }
-function yen(n){ const x = Number(n||0); return x.toLocaleString("ja-JP") + " 円"; }
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
+function now(){ return Date.now(); }
+
+function getShop(){
+  return (localStorage.getItem("shopCode") || "").trim();
+}
 
 async function rtdbGet(path){
   const url = `${DB_BASE}/${path}.json`;
   const res = await fetch(url);
   const txt = await res.text();
-  if(!res.ok) throw new Error(`GET NG ${res.status} url=${url} body=${txt}`);
-  return txt ? JSON.parse(txt) : null;
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
 }
 async function rtdbPut(path, data){
   const url = `${DB_BASE}/${path}.json`;
-  const res = await fetch(url, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(data) });
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(data)
+  });
   const txt = await res.text();
-  if(!res.ok) throw new Error(`PUT NG ${res.status} url=${url} body=${txt}`);
-  return txt ? JSON.parse(txt) : null;
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
+async function rtdbDelete(path){
+  // RTDBは PUT null で削除できる
+  return rtdbPut(path, null);
 }
 
-function setStatus(html){ $("status").innerHTML = html || ""; }
-function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
+function yen(n){
+  const x = Number(n||0);
+  return x.toLocaleString("ja-JP") + " 円";
+}
+function fmt(ts){
+  if(!ts) return "-";
+  try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); }
+}
 
-/* ===== 通知（3秒） ===== */
-let soundEnabled = false;
-let audioCtx = null;
-function ensureAudio(){
-  if(audioCtx) return;
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if(!AC) return;
-  audioCtx = new AC();
-}
-function beep3s(){
-  if(!soundEnabled) return;
-  try{
-    ensureAudio();
-    if(!audioCtx) return;
-    if(audioCtx.state === "suspended") audioCtx.resume();
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.type = "sine"; o.frequency.value = 880;
-    g.gain.value = 0.05;
-    o.connect(g); g.connect(audioCtx.destination);
-    o.start();
-    setTimeout(()=>{ try{o.stop();}catch{} }, 3000);
-  }catch{}
-}
+/* ===== 新規アラーム（3秒：バナー + 任意の音） ===== */
 function showBanner(msg){
   const el = $("alertBanner");
   el.textContent = msg || "会計依頼！";
@@ -210,180 +216,245 @@ function showBanner(msg){
   clearTimeout(showBanner._t);
   showBanner._t = setTimeout(()=>{ el.style.display = "none"; }, 3500);
 }
-function notifyCheckout(){
-  showBanner("会計依頼！");
-  try{ navigator.vibrate && navigator.vibrate([120,60,120]); }catch{}
-  beep3s();
+
+/* iOS対策：ユーザー操作後だけ鳴らせる */
+let soundEnabled = false;
+let audioCtx = null;
+
+function ensureAudio(){
+  if(audioCtx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  audioCtx = new AC();
+}
+function beepOnce(){
+  if(!soundEnabled) return;
+  try{
+    ensureAudio();
+    if(!audioCtx) return;
+    if(audioCtx.state === "suspended") audioCtx.resume();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "sine";
+    o.frequency.value = 880;
+    g.gain.value = 0.06;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    setTimeout(()=>{ o.stop(); }, 220);
+  }catch{}
+}
+function beep3sec(){
+  if(!soundEnabled) return;
+  // 3秒間、短いビープを連続（聞き逃しにくい）
+  let t = 0;
+  const pattern = [0, 350, 700, 1050, 1400, 1750, 2100, 2450, 2800];
+  for(const ms of pattern){
+    setTimeout(()=>beepOnce(), ms);
+    t = ms;
+  }
+  try{ navigator.vibrate && navigator.vibrate([120,60,120,60,120]); }catch{}
 }
 
-/* ===== 状態 ===== */
+function lastReqKey(shop){ return `checkout_lastMax_${shop}`; }
+function loadLastMax(shop){ return Number(localStorage.getItem(lastReqKey(shop)) || 0); }
+function saveLastMax(shop, n){ localStorage.setItem(lastReqKey(shop), String(Number(n||0))); }
+
+/* ===== state ===== */
 let timer = null;
 let selectedTable = "";
-let lastReqAt = new Map(); // table -> requestedAt
-let latestRequests = {};
-let latestSessions = {};
+let activeSessions = {};     // table -> session
+let checkoutRequests = {};   // table -> req
 
-/* ===== 明細表示 ===== */
-function renderReceipt(req){
-  if(!req){
-    $("rcTable").textContent = selectedTable || "-";
-    $("rcToken").textContent = "-";
-    $("rcReqAt").textContent = "-";
-    $("rcLines").innerHTML = `<div class="muted"><small>会計依頼がありません</small></div>`;
-    $("rcTotal").textContent = yen(0);
+function setStatus(html){ $("status").innerHTML = html || ""; }
+function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
+
+function pickTable(t){
+  selectedTable = String(t||"");
+  $("selTableText").textContent = selectedTable ? `T${selectedTable}` : "-";
+  renderBill();
+}
+
+function renderTables(){
+  const grid = $("tableGrid");
+  grid.innerHTML = "";
+
+  const activeTables = Object.keys(activeSessions || {}).sort((a,b)=>Number(a)-Number(b));
+  const reqTables = new Set(Object.keys(checkoutRequests || {}));
+
+  $("activeCount").textContent = String(activeTables.length);
+  $("reqCount").textContent = String(reqTables.size);
+
+  if(activeTables.length === 0){
+    grid.innerHTML = `<div class="muted"><small>着席中のテーブルがありません</small></div>`;
     return;
   }
 
-  $("rcTable").textContent = String(req.table || selectedTable || "-");
-  $("rcToken").textContent = String(req.token || "-");
-  $("rcReqAt").textContent = String(req.requestedAtText || fmtJst(req.requestedAt) || "-");
+  for(const t of activeTables){
+    const sess = activeSessions[t] || {};
+    const hasReq = reqTables.has(String(t));
 
-  const map = new Map(); // name|price -> {name, price, qty, sub}
-  const orders = Array.isArray(req.orders) ? req.orders : [];
-  for(const o of orders){
+    const btn = document.createElement("button");
+    btn.className = "tbtn" + (String(t)===String(selectedTable) ? " active" : "") + (hasReq ? " request" : "");
+    btn.innerHTML = `
+      <div>T${esc(t)}</div>
+      <div class="tmeta mono">${hasReq ? "会計依頼あり" : (sess.token ? "着席中" : "")}</div>
+    `;
+    btn.onclick = ()=> pickTable(t);
+    grid.appendChild(btn);
+  }
+
+  // 未選択なら、会計依頼があるテーブル優先で自動選択
+  if(!selectedTable){
+    const firstReq = activeTables.find(t => reqTables.has(String(t)));
+    pickTable(firstReq || activeTables[0]);
+  }else{
+    // 選択テーブルが消えたら先頭へ
+    if(!activeSessions[selectedTable]){
+      pickTable(activeTables[0]);
+    }
+  }
+}
+
+function flattenOrdersFromReq(req){
+  // req.orders: [{items:[{name,qty,price},...]}, ...]
+  const lines = [];
+  if(!req || !Array.isArray(req.orders)) return lines;
+
+  for(const o of req.orders){
     const items = Array.isArray(o.items) ? o.items : [];
     for(const it of items){
-      const name = String(it.name || "");
-      const price = Number(it.price || 0);
-      const qty = Number(it.qty || 0);
-      if(!name || qty<=0) continue;
-      const k = name + "|" + price;
-      const cur = map.get(k) || { name, price, qty:0, sub:0 };
-      cur.qty += qty;
-      cur.sub = cur.price * cur.qty;
-      map.set(k, cur);
+      const name = String(it.name||"");
+      const qty = Number(it.qty||0);
+      const price = Number(it.price||0);
+      if(!name) continue;
+      lines.push({ name, qty, price, sub: price*qty });
     }
   }
-  const lines = Array.from(map.values()).sort((a,b)=> (a.name||"").localeCompare(b.name||"ja"));
-
-  if(lines.length===0){
-    $("rcLines").innerHTML = `<div class="muted"><small>明細が空です</small></div>`;
-  }else{
-    $("rcLines").innerHTML = lines.map(x=>`
-      <div class="line">
-        <div>
-          <div style="font-weight:900">${esc(x.name)}</div>
-          <div class="muted" style="font-size:12px;">単価 ${esc(yen(x.price))} / 数量 x${esc(x.qty)}</div>
-        </div>
-        <div class="mono" style="font-weight:900">${esc(yen(x.sub))}</div>
-      </div>
-    `).join("");
-  }
-
-  $("rcTotal").textContent = yen(Number(req.total||0));
+  return lines;
 }
 
-function renderSelected(){
-  if(!selectedTable){ renderReceipt(null); return; }
-  renderReceipt(latestRequests[selectedTable] || null);
-}
+function renderBill(){
+  const t = selectedTable;
+  const req = checkoutRequests && t ? checkoutRequests[t] : null;
 
-/* ===== 着席中テーブルだけ表示 ===== */
-function buildActiveTableButtons(){
-  const root = $("tableGrid");
-  root.innerHTML = "";
+  $("billTable").textContent = t ? `T${t}` : "-";
+  $("billTotal").textContent = req ? yen(req.total||0) : "-";
 
-  // activeSessions の table一覧（tokenあり & active!==false）
-  const tables = Object.keys(latestSessions || {}).filter(t=>{
-    const s = latestSessions[t];
-    return s && s.token && s.active !== false;
-  }).sort((a,b)=> Number(a)-Number(b));
-
-  if(tables.length === 0){
-    root.innerHTML = `<div class="muted"><small>着席中テーブルがありません</small></div>`;
+  if(!req){
+    $("billMeta").textContent = "会計依頼はありません（テーブルを選択してください）";
+    $("billLines").innerHTML = `<div class="muted"><small>明細がありません</small></div>`;
+    $("btnConfirm").disabled = true;
     return;
   }
 
-  for(const t of tables){
-    const btn = document.createElement("button");
-    btn.className = "tBtn tOn";
-    btn.textContent = "T" + t;
+  $("btnConfirm").disabled = false;
 
-    // 会計依頼があるテーブルは赤
-    if(latestRequests[t] && latestRequests[t].token){
-      btn.classList.add("tReq");
-    }
-    if(String(selectedTable) === String(t)){
-      btn.classList.add("tSel");
-    }
+  const meta = `依頼時刻: ${fmt(req.requestedAt)} / token: ${String(req.token||"") ? "あり" : "-"}`;
+  $("billMeta").textContent = meta;
 
-    btn.onclick = ()=>{
-      selectedTable = String(t);
-      buildActiveTableButtons();
-      renderSelected();
-    };
-    root.appendChild(btn);
+  const lines = flattenOrdersFromReq(req);
+
+  if(lines.length === 0){
+    $("billLines").innerHTML = `<div class="muted"><small>明細がありません（ordersが空）</small></div>`;
+    return;
+  }
+
+  // 同名まとめ（見やすさ重視）
+  const map = new Map();
+  for(const x of lines){
+    const k = x.name + "|" + x.price;
+    const cur = map.get(k) || { name:x.name, price:x.price, qty:0, sub:0 };
+    cur.qty += x.qty;
+    cur.sub += x.sub;
+    map.set(k, cur);
+  }
+  const merged = Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,"ja"));
+
+  $("billLines").innerHTML = merged.map(x=>`
+    <div class="line">
+      <div>${esc(x.name)} <span class="muted">x${esc(String(x.qty))}</span></div>
+      <div class="mono">${esc(String(x.price))} / ${esc(yen(x.sub))}</div>
+    </div>
+  `).join("");
+}
+
+/* ===== refresh ===== */
+function detectNewCheckout(shop){
+  let maxRequestedAt = 0;
+  for(const t of Object.keys(checkoutRequests||{})){
+    const r = checkoutRequests[t];
+    const ts = Number(r?.requestedAt||0);
+    if(ts > maxRequestedAt) maxRequestedAt = ts;
+  }
+
+  const last = loadLastMax(shop);
+  if(!last){
+    saveLastMax(shop, maxRequestedAt);
+    return;
+  }
+  if(maxRequestedAt > last){
+    // 新規会計依頼
+    const newestTable = Object.keys(checkoutRequests||{})
+      .sort((a,b)=>Number(checkoutRequests[b]?.requestedAt||0)-Number(checkoutRequests[a]?.requestedAt||0))[0];
+    showBanner(`会計依頼！ T${newestTable || ""}`.trim());
+    beep3sec();
+    saveLastMax(shop, maxRequestedAt);
   }
 }
 
-/* ===== 新規会計依頼の検知 ===== */
-function detectNewCheckout(){
-  for(const [t, req] of Object.entries(latestRequests)){
-    const ra = Number(req?.requestedAt || 0);
-    if(!ra) continue;
-
-    const prev = lastReqAt.get(t) || 0;
-    if(!prev){
-      lastReqAt.set(t, ra); // 初回は通知しない
-      continue;
-    }
-    if(ra > prev){
-      lastReqAt.set(t, ra);
-      notifyCheckout();
-    }
-  }
-}
-
-/* ===== 更新 ===== */
 async function refresh(){
   const shop = getShop();
   if(!shop){
-    setStatus(`<span class="ngText">未ログイン</span> menu.html へ戻ります`);
+    setStatus(`<span class="ng">未ログイン</span> menu.html へ戻ります`);
     setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 400);
     return;
   }
   $("shopText").textContent = shop;
 
-  setStatus(`<span class="mono">loading...</span>`);
-
-  // ① checkoutRequests は必ず読む（ここが命）
   try{
-    const reqObj = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
-    latestRequests = (reqObj && typeof reqObj === "object") ? reqObj : {};
-    detectNewCheckout();
+    setStatus(`<span class="mono">loading...</span>`);
+
+    // 1) 着席テーブル（webActiveSessions の shop配下）
+    // ※ルールで /webActiveSessions/{shop} の read が必要
+    const sess = await rtdbGet(`webActiveSessions/${encodeURIComponent(shop)}`);
+    activeSessions = (sess && typeof sess==="object") ? sess : {};
+
+    // active=true & tokenあり のみ表示対象に
+    const filtered = {};
+    for(const [t, s] of Object.entries(activeSessions)){
+      if(!s || typeof s!=="object") continue;
+      if(s.active === false) continue;
+      if(!s.token) continue;
+      filtered[String(t)] = s;
+    }
+    activeSessions = filtered;
+
+    // 2) 会計依頼（checkoutRequests）
+    const req = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
+    checkoutRequests = (req && typeof req==="object") ? req : {};
+
+    detectNewCheckout(shop);
+
+    renderTables();
+    renderBill();
+
+    setStatus(`<span class="ok">OK</span> 着席:${Object.keys(activeSessions).length} / 会計依頼:${Object.keys(checkoutRequests).length} （${new Date().toLocaleTimeString()}）`);
+
+    const dbg = $("debug");
+    if(dbg){
+      dbg.textContent = JSON.stringify({
+        shop,
+        activeTables: Object.keys(activeSessions),
+        checkoutTables: Object.keys(checkoutRequests),
+        selectedTable
+      }, null, 2);
+    }
+
   }catch(e){
-    // ここが落ちたらアラームも無理なので表示だけ出す
-    setStatus(`<span class="ngText">checkoutRequests 読込失敗</span> ${esc(e.message||e)}`);
-    latestRequests = {};
-  }
-
-  // ② webActiveSessions は “失敗しても落ちない” ようにする（保険）
-  try{
-    const sessObj = await rtdbGet(`webActiveSessions/${encodeURIComponent(shop)}`);
-    latestSessions = (sessObj && typeof sessObj === "object") ? sessObj : {};
-  }catch(e){
-    // ここが401でも、checkoutRequests の監視は生きる
-    latestSessions = {};
-    // 画面上には「参考」程度に出す
-    setStatus((`<span class="ngText">webActiveSessions 読込失敗</span> ${esc(e.message||e)}`));
-  }
-
-  buildActiveTableButtons();
-  renderSelected();
-
-  const reqCount = Object.keys(latestRequests).length;
-  const sessCount = Object.keys(latestSessions).filter(t=>{
-    const s = latestSessions[t];
-    return s && s.token && s.active !== false;
-  }).length;
-
-  // 両方OKのときはOK表示で上書き
-  if(sessCount >= 0){
-    setStatus(`<span class="okText">OK</span> 会計依頼:${reqCount} / 着席:${sessCount} （${new Date().toLocaleTimeString()}）`);
+    setStatus(`<span class="ng">読込失敗</span> ${esc(e.message||e)}`);
   }
 }
 
-/* ===== 自動更新 ===== */
 function setAuto(){
   const sec = Number($("autoSec").value || 0);
   if(timer){ clearInterval(timer); timer = null; }
@@ -392,90 +463,87 @@ function setAuto(){
   }
 }
 
-/* ===== 会計確定 ===== */
-async function confirmCheckout(){
-  const shop = getShop();
-  if(!shop){ setConfirmMsg(`<span class="ngText">未ログイン</span>`); return; }
-  if(!selectedTable){ setConfirmMsg(`<span class="ngText">テーブル未選択</span>`); return; }
-
-  const req = latestRequests[selectedTable];
-  if(!req || !req.token){
-    setConfirmMsg(`<span class="ngText">このテーブルに会計依頼がありません</span>`);
-    return;
-  }
-
-  const token = String(req.token || "");
-  const ts = Date.now();
-
-  $("btnConfirm").disabled = true;
-  setConfirmMsg(`<span class="mono">確定処理中...</span>`);
-
-  try{
-    // receipts 保存（控え）
-    const receiptKey = `${token}_${ts}`;
-    await rtdbPut(`shops/${encodeURIComponent(shop)}/receipts/${encodeURIComponent(receiptKey)}`, {
-      shop,
-      table: String(selectedTable),
-      token,
-      settledAt: ts,
-      settledAtText: new Date(ts).toLocaleString("ja-JP"),
-      total: Number(req.total||0),
-      orderCount: Number(req.orderCount||0),
-      orders: req.orders || [],
-      requestedAt: req.requestedAt || null,
-      requestedAtText: req.requestedAtText || null
-    });
-
-    // checkoutRequests 削除
-    await rtdbPut(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(selectedTable))}`, null);
-
-    // orders（そのテーブル）削除
-    await rtdbPut(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(selectedTable))}`, null);
-
-    // webActiveSessions（そのテーブル）削除
-    await rtdbPut(`webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(selectedTable))}`, null);
-
-    setConfirmMsg(`<span class="okText">会計確定しました</span>（リセット完了）`);
-    await refresh();
-  }catch(e){
-    setConfirmMsg(`<span class="ngText">失敗</span> ${esc(e.message||e)}`);
-  }finally{
-    $("btnConfirm").disabled = false;
-  }
-}
-
-/* ===== PDF ===== */
-function doPdf(){ window.print(); }
-
-/* ===== bind ===== */
+/* ===== actions ===== */
 $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
 $("btnRefresh").onclick = refresh;
 $("autoSec").onchange = setAuto;
-$("btnConfirm").onclick = confirmCheckout;
-$("btnPdf").onclick = doPdf;
 
-/* 音ON/OFF */
 $("btnSound").onclick = async ()=>{
   soundEnabled = !soundEnabled;
   $("btnSound").textContent = soundEnabled ? "🔔音ON" : "🔔音OFF";
   if(soundEnabled){
     try{
       ensureAudio();
-      if(audioCtx && audioCtx.state === "suspended") await audioCtx.resume();
+      if(audioCtx && audioCtx.state === "suspended"){
+        await audioCtx.resume();
+      }
     }catch{}
   }
 };
 $("btnBeep").onclick = ()=>{
   soundEnabled = true;
   $("btnSound").textContent = "🔔音ON";
-  beep3s();
+  beep3sec();
 };
 
+$("btnPdf").onclick = ()=>{
+  // 端末の印刷→PDFを使う（既存と同じ方式）
+  window.print();
+};
+
+$("btnConfirm").onclick = async ()=>{
+  const shop = getShop();
+  const t = selectedTable;
+  if(!shop || !t){
+    setConfirmMsg(`<span class="ng">テーブル未選択</span>`);
+    return;
+  }
+  const req = checkoutRequests[t];
+  if(!req){
+    setConfirmMsg(`<span class="ng">このテーブルに会計依頼がありません</span>`);
+    return;
+  }
+
+  if(!confirm(`T${t} の会計を確定します。\ncheckoutRequests / orders / webActiveSessions を削除します。`)){
+    return;
+  }
+
+  $("btnConfirm").disabled = true;
+  setConfirmMsg(`<span class="mono">処理中...</span>`);
+
+  try{
+    // ★ receipts には一切書き込みません（要望どおり）
+
+    // 1) checkoutRequests を削除
+    await rtdbDelete(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(t))}`);
+
+    // 2) orders（このテーブル配下）を削除
+    await rtdbDelete(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(t))}`);
+
+    // 3) webActiveSessions（着席情報）を削除
+    await rtdbDelete(`webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(t))}`);
+
+    // ※必要なら、店側ローカルの「会計依頼済み」フラグも消したいが
+    // customer端末側ローカルなのでここでは触れない（仕様通り）
+
+    setConfirmMsg(`<span class="ok">会計確定しました</span>（T${esc(t)} をリセット）`);
+    selectedTable = "";
+    await refresh();
+
+  }catch(e){
+    setConfirmMsg(`<span class="ng">失敗</span> ${esc(e.message||e)}`);
+  }finally{
+    $("btnConfirm").disabled = false;
+  }
+};
+
+/* boot */
 setAuto();
 refresh();
 </script>
 </body>
 </html>
+
 
 
 

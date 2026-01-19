@@ -167,7 +167,20 @@ function fmtDateTime(ts){
   if(!ts) return "-";
   try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); }
 }
-
+async function rtdbPut(path, data){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(data)
+  });
+  const txt = await res.text();
+  if(!res.ok){
+    // ★ここが超大事：失敗したURLをそのまま出す
+    throw new Error(`PUT NG ${res.status} url=${url} body=${txt}`);
+  }
+  return txt ? JSON.parse(txt) : null;
+}
 async function rtdbGet(path){
   const url = `${DB_BASE}/${path}.json`;
   const res = await fetch(url);

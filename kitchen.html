@@ -25,7 +25,6 @@
     .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
-    /* 2カラム：左=drink / 右=food */
     .twoCol{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
     @media(min-width:860px){
       .twoCol{grid-template-columns: 1fr 1fr;}
@@ -36,14 +35,12 @@
     .badgeFood{background:#dcfce7;border-color:#16a34a}
     .list{display:flex;flex-direction:column;gap:10px}
 
-    /* 注文カード */
     .oCard{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff}
     .oTop{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .oName{font-weight:900;font-size:16px;margin-top:8px}
     .oMeta{font-size:12px;color:#6b7280;margin-top:4px}
     .oBtns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
 
-    /* 提供済みペンディング（10秒） */
     .pending{
       background:#f0fdf4;
       border-color:#22c55e;
@@ -53,7 +50,6 @@
     }
     .countdown{font-weight:900;}
 
-    /* 追加：新規オーダーバナー */
     .alertBanner{
       position: fixed;
       left: 50%;
@@ -73,19 +69,14 @@
   </style>
 </head>
 <body>
-  <!-- 新規オーダーバナー -->
   <div id="alertBanner" class="alertBanner">新規オーダー！</div>
 
   <h1>厨房：オーダーリスト</h1>
-  <div class="sub">
-    左＝ドリンク / 右＝フード。入った順（createdAt昇順）で表示。<br>
-    <b>提供済み</b> は 1回タップで色が変わり、<b>10秒後に自動削除</b>します（誤タップ救済として10秒以内は「取消」可能）。
-  </div>
+  <div class="sub"></div>
 
   <div class="card">
     <div class="row">
       <div>shop: <b id="shopText" class="mono">-</b></div>
-      <div class="small">（localStorage.shopCode が入っている前提）</div>
     </div>
 
     <div class="topbar">
@@ -93,7 +84,7 @@
       <button id="btnRefresh" class="dark">更新</button>
 
       <label class="row">
-        <span class="small">自動更新</span>
+        <span class="small">自動</span>
         <select id="autoSec">
           <option value="0">OFF</option>
           <option value="2" selected>2秒</option>
@@ -114,11 +105,9 @@
         </select>
       </label>
 
-      <!-- 音アラーム（任意） -->
       <button id="btnSound" class="light">🔔音OFF</button>
       <button id="btnBeep" class="light">テスト</button>
 
-      <!-- ★追加：アラーム設定（軽量） -->
       <label class="row">
         <span class="small">回数</span>
         <select id="alarmRepeat">
@@ -188,7 +177,6 @@
     </div>
   </div>
 
-  <!-- デバッグ（非表示のまま） -->
   <details class="card" style="display:none;">
     <summary>デバッグ</summary>
     <pre id="debug" class="mono">-</pre>
@@ -206,7 +194,6 @@ function esc(s){
 function now(){ return Date.now(); }
 
 async function rtdbGet(path){
-  // path は "shops/xxx/orderFeed" のように .json なしで渡す
   const url = `${DB_BASE}/${path}.json`;
   const res = await fetch(url);
   const txt = await res.text();
@@ -263,7 +250,7 @@ function normalizeOrder(pushId, o){
     qty = Number(o.items[0].qty ?? qty);
   }
 
-  const status = String(o.status ?? "new"); // "new" or "pending"
+  const status = String(o.status ?? "new");
   const providedAt = Number(o.providedAt ?? 0);
   const deleteAt = Number(o.deleteAt ?? 0);
 
@@ -271,7 +258,7 @@ function normalizeOrder(pushId, o){
 }
 
 /** 10秒後削除の管理（ローカルタイマー） */
-const deleteTimers = new Map(); // pushId -> timeoutId
+const deleteTimers = new Map();
 
 function scheduleDelete(shop, pushId, deleteAt){
   if(deleteTimers.has(pushId)) return;
@@ -279,7 +266,6 @@ function scheduleDelete(shop, pushId, deleteAt){
   const t = setTimeout(async ()=>{
     deleteTimers.delete(pushId);
     try{
-      // ★統一：/shops/{shop}/orderFeed から削除
       await rtdbPut(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(pushId)}`, null);
       await refresh();
     }catch(e){
@@ -379,7 +365,6 @@ function renderColumn(rootId, list, shop){
         if(act === "done"){
           try{
             const deleteAt = now() + 10000;
-            // ★統一：/shops/{shop}/orderFeed に反映
             await rtdbPatch(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, {
               status: "pending",
               providedAt: now(),
@@ -414,7 +399,7 @@ function renderColumn(rootId, list, shop){
   }
 }
 
-/* ===== 新規オーダー検知（バナー+任意の音） ===== */
+/* ===== バナー（既存のまま） ===== */
 function showNewOrderBanner(msg){
   const el = $("alertBanner");
   if(!el) return;
@@ -424,9 +409,8 @@ function showNewOrderBanner(msg){
   showNewOrderBanner._t = setTimeout(()=>{ el.style.display = "none"; }, 3500);
 }
 
-function getLastMaxKey(shop){
-  return `kitchen_lastMax_${shop}`;
-}
+/* ===== 新規オーダー検知（既存のまま） ===== */
+function getLastMaxKey(shop){ return `kitchen_lastMax_${shop}`; }
 function loadLastMax(shop){
   const v = localStorage.getItem(getLastMaxKey(shop));
   return v ? Number(v) : 0;
@@ -454,15 +438,12 @@ function getAlarmSettings(){
   return { repeat, gapMs, freq, vol };
 }
 
-/* 単発beep（超短） */
 function beepOnce(freq=880, vol=0.05, ms=180){
   if(!soundEnabled) return;
   try{
     ensureAudio();
     if(!audioCtx) return;
-    if(audioCtx.state === "suspended"){
-      audioCtx.resume();
-    }
+    if(audioCtx.state === "suspended"){ audioCtx.resume(); }
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.type = "sine";
@@ -474,7 +455,6 @@ function beepOnce(freq=880, vol=0.05, ms=180){
   }catch{}
 }
 
-/* ★複数回鳴らす（＝体感で長くする / 聞き逃し防止） */
 function alarmBeep(){
   if(!soundEnabled) return;
   const { repeat, gapMs, freq, vol } = getAlarmSettings();
@@ -494,21 +474,55 @@ function detectNewOrders(shop, allOrders){
     const t = Number(o.createdAt||0);
     if(t > maxCreatedAt) maxCreatedAt = t;
   }
-
   const last = loadLastMax(shop);
-
-  // 初回は通知しない（基準だけセット）
   if(!last){
     saveLastMax(shop, maxCreatedAt);
     return;
   }
-
   if(maxCreatedAt > last){
     showNewOrderBanner("新規オーダー！");
     try{ navigator.vibrate && navigator.vibrate([120,60,120]); }catch{}
-    // ★ここ：短い音を複数回
     alarmBeep();
     saveLastMax(shop, maxCreatedAt);
+  }
+}
+
+/* ===== 追加：checkoutRequests 検知（差し込み） ===== */
+function getLastCheckoutKey(shop){ return `kitchen_lastCheckout_${shop}`; }
+function loadLastCheckout(shop){
+  const v = localStorage.getItem(getLastCheckoutKey(shop));
+  return v ? Number(v) : 0;
+}
+function saveLastCheckout(shop, n){
+  localStorage.setItem(getLastCheckoutKey(shop), String(Number(n||0)));
+}
+
+function detectCheckoutRequests(shop, reqObj){
+  if(!reqObj || typeof reqObj !== "object") return;
+
+  let maxRequestedAt = 0;
+  let maxTable = "";
+  for(const [table, r] of Object.entries(reqObj)){
+    if(!r || typeof r !== "object") continue;
+    const t = Number(r.requestedAt || 0);
+    if(t > maxRequestedAt){
+      maxRequestedAt = t;
+      maxTable = String(table);
+    }
+  }
+
+  const last = loadLastCheckout(shop);
+
+  if(!last){
+    if(maxRequestedAt) saveLastCheckout(shop, maxRequestedAt);
+    return;
+  }
+
+  if(maxRequestedAt > last){
+    showNewOrderBanner(`会計依頼！ T${maxTable || "?"}`);
+    try{ navigator.vibrate && navigator.vibrate([200,80,200,80,200]); }catch{}
+    alarmBeep();
+    saveLastCheckout(shop, maxRequestedAt);
   }
 }
 /* =========================================== */
@@ -518,7 +532,7 @@ let timer = null;
 async function refresh(){
   const shop = getShop();
   if(!shop){
-    $("status").innerHTML = `<span class="ng">未ログイン</span> menu.html へ戻ります`;
+    $("status").innerHTML = `<span class="ng">未ログイン</span>`;
     setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 400);
     return;
   }
@@ -527,7 +541,6 @@ async function refresh(){
   try{
     $("status").textContent = "loading...";
 
-    // ★統一：/shops/{shop}/orderFeed を読む
     const data = await rtdbGet(`shops/${encodeURIComponent(shop)}/orderFeed`);
     const all = [];
 
@@ -538,8 +551,15 @@ async function refresh(){
       }
     }
 
-    // ★追加：新規検知 → バナー（+任意の音）
     detectNewOrders(shop, all);
+
+    // ★差し込み：会計依頼検知（失敗しても厨房表示は止めない）
+    try{
+      const req = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
+      detectCheckoutRequests(shop, req);
+    }catch(e){
+      console.log("checkoutRequests read failed", e);
+    }
 
     const drinks = all.filter(x => x.category === "drink");
     const foods  = all.filter(x => x.category === "food");
@@ -554,25 +574,8 @@ async function refresh(){
 
     $("status").innerHTML = `<span class="ok">OK</span> ${all.length} 件（${new Date().toLocaleTimeString()}）`;
 
-    // デバッグは非表示のため更新だけ残す
-    const dbg = $("debug");
-    if(dbg){
-      dbg.textContent = JSON.stringify({
-        shop,
-        total: all.length,
-        drink: drinks.length,
-        food: foods.length,
-        filter: { table: $("tableFilter").value.trim(), hidePending: $("hidePending").value },
-        path: `/shops/${shop}/orderFeed`,
-        rule: "提供済み = status:pending + deleteAt を付与 → 10秒後に orderFeed から削除",
-        alarm: { soundEnabled, ...getAlarmSettings() }
-      }, null, 2);
-    }
-
   }catch(e){
     $("status").innerHTML = `<span class="ng">読込失敗</span> ${esc(e.message||e)}`;
-    const dbg = $("debug");
-    if(dbg) dbg.textContent = String(e.stack || e);
     $("drinkList").innerHTML = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
     $("foodList").innerHTML  = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
   }
@@ -592,7 +595,6 @@ $("autoSec").onchange = setAuto;
 $("tableFilter").onchange = refresh;
 $("hidePending").onchange = refresh;
 
-/* 音ON/OFF（ユーザー操作が必要） */
 $("btnSound").onclick = async ()=>{
   soundEnabled = !soundEnabled;
   $("btnSound").textContent = soundEnabled ? "🔔音ON" : "🔔音OFF";
@@ -606,10 +608,8 @@ $("btnSound").onclick = async ()=>{
   }
 };
 $("btnBeep").onclick = ()=>{
-  // テスト（このクリックが「ユーザー操作」になる）
   soundEnabled = true;
   $("btnSound").textContent = "🔔音ON";
-  // ★テストも複数回
   alarmBeep();
 };
 
@@ -618,6 +618,7 @@ refresh();
 </script>
 </body>
 </html>
+
 
 
 

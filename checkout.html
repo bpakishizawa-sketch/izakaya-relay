@@ -3,402 +3,635 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>お会計（店側）</title>
+  <title>Checkout（会計）</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:16px; max-width:980px; margin:0 auto;}
-    .card{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin:12px 0;background:#fff;}
-    .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap;}
-    input,button{font-size:16px;padding:10px;}
-    button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:800}
-    .btn{background:#2563eb;color:#fff}
-    .btn2{background:#e5e7eb;color:#111}
-    .danger{background:#dc2626;color:#fff}
-    .dark{background:#111827;color:#fff}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
-    .ok{color:#0a7a2a;font-weight:900}
-    .ng{color:#b00020;font-weight:900}
-    small{color:#666}
-    pre{background:#f5f5f5;padding:12px;border-radius:10px;overflow:auto;white-space:pre-wrap;word-break:break-word}
-    .hr{height:1px;background:#eee;margin:12px 0}
-    .right{margin-left:auto}
-    .badge{display:inline-block;background:#111;color:#fff;padding:2px 8px;border-radius:999px;font-size:12px}
-    .muted{color:#777}
-    .holdWrap{position:relative; width:100%;}
-    .holdBar{
-      position:absolute; left:0; top:0; height:100%; width:0%;
-      background: rgba(255,255,255,.25);
-      border-radius:10px;
-      pointer-events:none;
-      transition: width .05s linear;
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:1200px; margin:0 auto; background:#f6f7f9}
+    h1{font-size:22px;margin:0 0 8px}
+    .sub{font-size:12px;color:#6b7280;margin-bottom:12px;line-height:1.6}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:10px 0;background:#fff}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .muted{color:#6b7280}
+    .small{font-size:12px;color:#6b7280}
+    .ok{color:#16a34a;font-weight:900}
+    .ng{color:#dc2626;font-weight:900}
+    button{font-size:14px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:900}
+    button.dark{background:#111827;color:#fff}
+    button.light{background:#f3f4f6;color:#111827;border:1px solid #ddd}
+    button.primary{background:#2563eb;color:#fff}
+    button.danger{background:#dc2626;color:#fff}
+    select,input{font-size:16px;padding:10px;border:1px solid #d1d5db;border-radius:10px;background:#fff}
+    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px;background:#fff}
+
+    .grid2{display:grid;grid-template-columns:1fr; gap:12px; align-items:start}
+    @media(min-width:920px){ .grid2{grid-template-columns: 1fr 1.2fr;} }
+
+    /* tables */
+    .tableGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    @media(min-width:560px){ .tableGrid{grid-template-columns:repeat(3,1fr);} }
+    @media(min-width:920px){ .tableGrid{grid-template-columns:repeat(4,1fr);} }
+    .tCard{border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff;cursor:pointer}
+    .tTop{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .tNum{font-weight:900;font-size:18px}
+    .tStat{font-size:12px;font-weight:900}
+    .tStat.on{color:#16a34a}
+    .tStat.off{color:#6b7280}
+    .tStat.req{color:#dc2626}
+    .tMeta{margin-top:6px;font-size:12px;color:#6b7280}
+
+    /* request list */
+    .reqList{display:flex;flex-direction:column;gap:10px}
+    .reqCard{border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff;cursor:pointer}
+    .reqCard.active{border-color:#2563eb; box-shadow:0 8px 25px rgba(37,99,235,.12)}
+    .reqHead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .reqTitle{font-weight:900}
+    .badgeReq{background:#fee2e2;border-color:#ef4444;color:#991b1b}
+
+    /* receipt view */
+    .receipt{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff}
+    .rHead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap}
+    .rTitle{font-weight:900;font-size:16px}
+    .rInfo{font-size:12px;color:#6b7280}
+    .lines{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+    .line{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-top:1px dashed #eee;padding-top:8px}
+    .line:first-child{border-top:0;padding-top:0}
+    .lname{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:70%}
+    .lprice{font-weight:900}
+    .sumRow{display:flex;align-items:center;justify-content:space-between;margin-top:12px;border-top:2px solid #111827;padding-top:10px}
+    .sumLabel{font-weight:900}
+    .sumVal{font-weight:900;font-size:22px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .banner{
+      position:fixed;left:50%;transform:translateX(-50%);top:10px;z-index:9999;
+      background:#dc2626;color:#fff;padding:10px 14px;border-radius:999px;font-weight:900;
+      box-shadow:0 10px 30px rgba(0,0,0,.2);display:none;max-width:92vw;text-align:center;
     }
-    .holdBtn{
-      position:relative; width:100%;
-      display:block;
-      text-align:center;
-      user-select:none;
-      -webkit-user-select:none;
-      touch-action: manipulation;
+
+    /* print */
+    @media print{
+      body{background:#fff;padding:0;max-width:none;margin:0}
+      .noPrint{display:none !important}
+      .card{border:0;border-radius:0;margin:0;padding:0}
+      .receipt{border:0;border-radius:0;padding:0}
+      .line{border-top:1px dashed #ddd}
+      .sumRow{border-top:2px solid #000}
+      .sumVal{font-size:18px}
+      .lname{max-width:68%}
     }
   </style>
 </head>
 <body>
-  <h2>お会計（店側）</h2>
+  <div id="banner" class="banner">会計依頼！</div>
 
-  <div class="card" id="shopCard">
-    <div class="row" style="margin:0;">
-      <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
-      <span class="right"></span>
-      <button id="btnBack" class="btn2">← menuへ</button>
-    </div>
-    <div><small>※ログインは sessionStorage（shop/pin）を使用</small></div>
+  <h1>会計（店側）</h1>
+  <div class="sub">
+    客席から <span class="mono">/shops/{shop}/checkoutRequests/{table}</span> に書き込みが入ると通知します。<br>
+    明細は「メニュー名 + 金額」だけ表示（コード等は非表示）。PDFは印刷でOK。
   </div>
 
-  <div class="card">
+  <div class="card noPrint">
     <div class="row">
-      <div>
-        <div class="muted"><small>テーブル番号</small></div>
-        <input id="tableNo" type="number" min="1" step="1" value="1" style="width:120px">
-      </div>
+      <span class="pill">shop: <b id="shopText" class="mono">-</b></span>
+      <button id="btnBack" class="light">← menuへ</button>
+      <button id="btnRefresh" class="dark">更新</button>
 
-      <button id="loadBtn" class="btn2">読み込み</button>
-
-      <label class="row" style="gap:8px;margin:0;">
-        <input id="autoChk" type="checkbox">
-        <span class="muted">自動更新（3秒）</span>
+      <label class="row">
+        <span class="small">自動更新</span>
+        <select id="autoSec">
+          <option value="0">OFF</option>
+          <option value="2" selected>2秒</option>
+          <option value="5">5秒</option>
+          <option value="10">10秒</option>
+        </select>
       </label>
 
-      <span class="right muted"><small id="lastRef">-</small></span>
+      <button id="btnSound" class="light">🔔音OFF</button>
+      <button id="btnTest" class="light">テスト</button>
+    </div>
+    <div id="status" class="small muted">-</div>
+  </div>
+
+  <div class="grid2">
+    <!-- left -->
+    <div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div style="font-weight:900">着席中テーブル</div>
+          <div class="small muted">webActiveSessions を表示</div>
+        </div>
+        <div class="tableGrid" id="tableGrid"></div>
+        <div class="small muted" style="margin-top:8px">
+          ※赤 = 会計依頼あり / 緑 = 着席中 / 灰 = 空席（sessionなし）
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div style="font-weight:900">会計依頼一覧</div>
+          <div class="small muted">checkoutRequests</div>
+        </div>
+        <div class="reqList" id="reqList"></div>
+      </div>
     </div>
 
-    <div class="hr"></div>
+    <!-- right -->
+    <div>
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div style="font-weight:900">会計明細</div>
+          <div class="small muted">選択したテーブルの明細を表示</div>
+        </div>
 
-    <div class="row">
-      <div style="flex:1; min-width:260px;">
-        <div><b>セッション（token）</b></div>
-        <div id="sessLine" class="mono">-</div>
-        <div id="sessMeta"><small class="muted">-</small></div>
-      </div>
-      <div style="flex:1; min-width:260px;">
-        <div><b>注文合計</b></div>
-        <div id="sumLine" class="mono" style="font-size:20px;font-weight:900;">0</div>
-        <div id="countLine"><small class="muted">-</small></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="row" style="margin-top:0;">
-        <b>注文履歴（このテーブル）</b>
-        <span class="badge" id="ordersBadge">0件</span>
-      </div>
-      <div id="ordersList"></div>
-      <pre id="ordersRaw" style="display:none;"></pre>
-    </div>
-
-    <div id="status"></div>
-
-    <div class="hr"></div>
-
-    <div class="card">
-      <div><b>会計確定（長押し 1.2秒）</b></div>
-      <small class="muted">
-        実行内容：①レシート保存 → ②orders削除 → ③token削除（次回入店で新規token）
-      </small>
-
-      <div style="margin-top:10px;" class="holdWrap">
-        <div class="holdBar" id="holdBar"></div>
-        <button id="checkoutBtn" class="danger holdBtn" disabled>長押しで会計確定</button>
-      </div>
-
-      <div style="margin-top:8px;">
-        <small class="muted" id="holdHint">注文を読み込むと押せるようになります。</small>
+        <div id="receiptWrap">
+          <div class="muted"><small>左の一覧からテーブルを選択してください</small></div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- 共通JS（必須） -->
-  <script src="shop_common.js"></script>
-
 <script>
-(() => {
-  const $ = (id)=>document.getElementById(id);
+/** ====== 設定ここだけ ====== */
+const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ===================== */
 
-  function must(fnName){
-    if(typeof window[fnName] !== "function"){
-      throw new Error(`shop_common.js の ${fnName}() が見つかりません`);
-    }
-  }
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
+function now(){ return Date.now(); }
+function yen(n){
+  const x = Number(n||0);
+  try{ return x.toLocaleString("ja-JP") + " 円"; }catch{ return String(x) + " 円"; }
+}
+function fmtDateTime(ts){
+  if(!ts) return "-";
+  try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); }
+}
 
-  must("requireLogin");
-  must("getShop");
-  must("rtdbGet");
-  must("rtdbPut");
-  must("rtdbPost");
-  must("esc");
-
-  // ログイン必須
-  if(!requireLogin()) return;
-
-  const shop = getShop();
-  $("shopText").textContent = shop || "(missing)";
-
-  // menuへ戻る
-  $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-
-  let autoTimer = null;
-  let lastLoaded = null; // {table, sessObj, ordersObj, total, count}
-
-  function clampTable(){
-    let n = parseInt(String($("tableNo").value || "").trim(), 10);
-    if(!Number.isFinite(n) || n < 1) n = 1;
-    $("tableNo").value = String(n);
-    return String(n);
-  }
-
-  function jst(ts){
-    try{
-      return new Date(Number(ts||0)).toLocaleString("ja-JP");
-    }catch{
-      return String(ts||"");
-    }
-  }
-
-  function setStatus(html){ $("status").innerHTML = html || ""; }
-  function setLastRef(msg){ $("lastRef").textContent = msg || "-"; }
-
-  function yen(n){
-    const x = Number(n||0);
-    return x.toLocaleString("ja-JP") + " 円";
-  }
-
-  function calcTotal(ordersObj){
-    if(!ordersObj || typeof ordersObj !== "object") return { total:0, count:0, lines:[] };
-
-    const lines = [];
-    for(const [key, o] of Object.entries(ordersObj)){
-      const createdAt = o && o.createdAt ? o.createdAt : 0;
-      const total = (o && typeof o.total !== "undefined") ? Number(o.total||0) : 0;
-      const items = (o && Array.isArray(o.items)) ? o.items : [];
-      lines.push({ key, createdAt, total, items, raw:o });
-    }
-    lines.sort((a,b)=> Number(a.createdAt||0) - Number(b.createdAt||0));
-    const sum = lines.reduce((s,x)=> s + Number(x.total||0), 0);
-    return { total:sum, count:lines.length, lines };
-  }
-
-  function renderOrders(lines){
-    const wrap = $("ordersList");
-    wrap.innerHTML = "";
-
-    if(!lines || lines.length === 0){
-      wrap.innerHTML = `<div class="muted"><small>このテーブルの注文はありません</small></div>`;
-      return;
-    }
-
-    for(const x of lines){
-      const items = x.items || [];
-      const itemText = items.map(it => {
-        const name = (it && it.name) ? String(it.name) : "";
-        const qty  = (it && typeof it.qty !== "undefined") ? Number(it.qty||0) : 0;
-        const price= (it && typeof it.price !== "undefined") ? Number(it.price||0) : 0;
-        return `- ${name} x${qty} (${price})`;
-      }).join("\n");
-
-      const div = document.createElement("div");
-      div.className = "card";
-      div.innerHTML = `
-        <div class="row" style="margin:0;">
-          <div class="mono"><b>${esc(x.key)}</b></div>
-          <div class="right muted"><small>${esc(jst(x.createdAt))}</small></div>
-        </div>
-        <div class="row" style="margin:8px 0 0 0;">
-          <div class="mono" style="font-weight:900;">${esc(yen(x.total))}</div>
-        </div>
-        <pre class="mono" style="margin:10px 0 0 0;">${esc(itemText || "(itemsなし)")}</pre>
-      `;
-      wrap.appendChild(div);
-    }
-  }
-
-  async function loadAll(){
-    try{
-      if(!requireLogin()) return;
-
-      const table = clampTable();
-      if(!shop || !table) return;
-
-      setStatus(`<span class="mono">loading...</span>`);
-      $("checkoutBtn").disabled = true;
-
-      // 1) session (token)
-      const sessPath = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(table)}`;
-      const sess = await rtdbGet(sessPath);
-
-      // 2) orders
-      const ordersPath = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(table)}`;
-      const orders = await rtdbGet(ordersPath);
-
-      const sessObj = (sess && sess.ok) ? sess.json : null;
-      const ordersObj = (orders && orders.ok) ? orders.json : null;
-
-      const c = calcTotal(ordersObj);
-
-      $("sessLine").textContent = sessObj && sessObj.token ? String(sessObj.token) : "(tokenなし)";
-      $("sessMeta").innerHTML = `<small class="muted">
-        updatedAt: ${esc(sessObj && sessObj.updatedAt ? jst(sessObj.updatedAt) : "-")}
-      </small>`;
-
-      $("sumLine").textContent = yen(c.total);
-      $("countLine").innerHTML = `<small class="muted">注文件数: ${esc(String(c.count))}</small>`;
-      $("ordersBadge").textContent = `${c.count}件`;
-
-      renderOrders(c.lines);
-
-      lastLoaded = { table, sessObj, ordersObj, total:c.total, count:c.count };
-      setLastRef(`更新: ${new Date().toLocaleTimeString("ja-JP")}`);
-
-      // 注文0でも「会計リセット」できる方が運用的に便利
-      $("checkoutBtn").disabled = false;
-      $("holdHint").textContent = "長押しで会計確定（orders削除＋token削除）します。";
-
-      setStatus(`<span class="ok">OK</span>`);
-    }catch(e){
-      setStatus(`<span class="ng">NG</span> <small>${esc(String(e.message||e))}</small>`);
-      $("checkoutBtn").disabled = true;
-    }
-  }
-
-  // 自動更新
-  $("autoChk").addEventListener("change", ()=>{
-    if($("autoChk").checked){
-      if(autoTimer) clearInterval(autoTimer);
-      autoTimer = setInterval(loadAll, 3000);
-    }else{
-      if(autoTimer) clearInterval(autoTimer);
-      autoTimer = null;
-    }
+async function rtdbGet(path){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url);
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
+async function rtdbPut(path, data){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method:"PUT",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(data)
   });
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
+async function rtdbPost(path, data){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(data)
+  });
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
 
-  $("loadBtn").addEventListener("click", loadAll);
+function getShop(){
+  return (localStorage.getItem("shopCode") || "").trim();
+}
 
-  // ----- 長押し会計（1.2秒） -----
-  const HOLD_MS = 1200;
-  let holdT = null;
-  let holdStart = 0;
-  let holding = false;
+/* ======= アラーム（kitchen同等：3秒程度 / iPhone対策） ======= */
+let soundEnabled = false;
+let audioCtx = null;
 
-  function setHoldBar(pct){
-    const p = Math.max(0, Math.min(100, pct));
-    $("holdBar").style.width = p + "%";
-  }
+function ensureAudio(){
+  if(audioCtx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  audioCtx = new AC();
+}
 
-  async function checkoutReset(){
-    try{
-      if(!requireLogin()) return;
+function beepOnce(freq=880, vol=0.05, ms=200){
+  if(!soundEnabled) return;
+  try{
+    ensureAudio();
+    if(!audioCtx) return;
+    if(audioCtx.state === "suspended"){ audioCtx.resume(); }
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "sine";
+    o.frequency.value = freq;
+    g.gain.value = vol;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    setTimeout(()=>{ try{o.stop();}catch{} }, ms);
+  }catch{}
+}
 
-      if(!lastLoaded){
-        setStatus(`<span class="ng">NG</span> <small>先に読み込みしてください</small>`);
-        return;
-      }
+function alarm3s(){
+  if(!soundEnabled) return;
+  // だいたい3秒：10回 (200ms鳴らす + 100ms休む) = 3s前後
+  let i = 0;
+  const repeat = 10;
+  const gap = 100;
+  const one = ()=>{
+    if(i >= repeat) return;
+    i++;
+    beepOnce(880, 0.06, 200);
+    setTimeout(one, 200 + gap);
+  };
+  one();
+}
 
-      const table = lastLoaded.table;
+function showBanner(msg){
+  const el = $("banner");
+  el.textContent = msg || "会計依頼！";
+  el.style.display = "block";
+  clearTimeout(showBanner._t);
+  showBanner._t = setTimeout(()=>{ el.style.display = "none"; }, 3500);
+}
+/* ===================================================== */
 
-      $("checkoutBtn").disabled = true;
-      setStatus(`<span class="mono">会計処理中...</span>`);
+let timer = null;
+let state = {
+  shop: "",
+  sessions: {},          // webActiveSessions/{shop}
+  checkoutRequests: {},  // shops/{shop}/checkoutRequests
+  selectedTable: "",
+  selectedReq: null,
+};
 
-      // 0) 最新を取り直す（安全）
-      await loadAll();
+/* ====== 明細整形（メニュー名 + 金額だけ） ====== */
+function aggregateLinesFromRequest(req){
+  // req.orders[].items[] から名寄せして合算
+  const map = new Map(); // key=name -> sum
+  let total = Number(req?.total || 0);
 
-      const sessObj = lastLoaded.sessObj || null;
-      const ordersObj = lastLoaded.ordersObj || null;
-      const total = Number(lastLoaded.total||0);
-      const count = Number(lastLoaded.count||0);
-      const now = Date.now();
-
-      // 1) レシート保存（アーカイブ）
-      const receipt = {
-        shop,
-        table: String(table),
-        token: sessObj && sessObj.token ? String(sessObj.token) : "",
-        closedAt: now,
-        closedAtText: jst(now),
-        total,
-        orderCount: count,
-        orders: ordersObj || null
-      };
-
-      const rcptPath = `shops/${encodeURIComponent(shop)}/receipts/${encodeURIComponent(String(table))}`;
-      const rcptRes = await rtdbPost(rcptPath, receipt);
-      if(!rcptRes || rcptRes.ok !== true){
-        const info = rcptRes || {};
-        throw new Error(`レシート保存失敗: HTTP ${info.status} ${info.url}`);
-      }
-
-      // 2) orders削除
-      const ordersPath = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
-      const delOrders = await rtdbPut(ordersPath, null);
-      if(!delOrders || delOrders.ok !== true){
-        throw new Error(`orders削除失敗: HTTP ${delOrders.status} ${delOrders.url}`);
-      }
-
-      // 3) token削除（webActiveSessions削除）
-      const sessPath = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`;
-      const delSess = await rtdbPut(sessPath, null);
-      if(!delSess || delSess.ok !== true){
-        throw new Error(`token削除失敗: HTTP ${delSess.status} ${delSess.url}`);
-      }
-
-      setStatus(`<span class="ok">OK</span> 会計完了（レシート保存 → orders削除 → token削除）`);
-      setHoldBar(0);
-
-      await loadAll();
-
-    }catch(e){
-      setStatus(`<span class="ng">NG</span> <small>${esc(String(e.message||e))}</small>`);
-      setHoldBar(0);
-      $("checkoutBtn").disabled = false;
+  const orders = Array.isArray(req?.orders) ? req.orders : [];
+  for(const o of orders){
+    const items = Array.isArray(o?.items) ? o.items : [];
+    for(const it of items){
+      const name = String(it?.name || "").trim();
+      const qty  = Number(it?.qty || 0);
+      const price= Number(it?.price || 0);
+      if(!name) continue;
+      const sub = price * qty;
+      map.set(name, (map.get(name)||0) + sub);
     }
   }
 
-  function startHold(){
-    if($("checkoutBtn").disabled) return;
-    if(holding) return;
-    holding = true;
-    holdStart = Date.now();
-    setHoldBar(0);
+  // totalが0なら map合計で再計算
+  if(!total){
+    total = Array.from(map.values()).reduce((s,v)=>s+Number(v||0),0);
+  }
 
-    const tick = () => {
-      if(!holding) return;
-      const elapsed = Date.now() - holdStart;
-      const pct = Math.floor((elapsed / HOLD_MS) * 100);
-      setHoldBar(pct);
+  const lines = Array.from(map.entries())
+    .map(([name, sum])=>({ name, sum:Number(sum||0) }))
+    .sort((a,b)=> b.sum - a.sum);
 
-      if(elapsed >= HOLD_MS){
-        holding = false;
-        setHoldBar(100);
-        checkoutReset();
-        return;
-      }
-      holdT = setTimeout(tick, 16);
+  return { lines, total };
+}
+
+function renderReceipt(shop, table, req){
+  const wrap = $("receiptWrap");
+  if(!req){
+    wrap.innerHTML = `<div class="muted"><small>左の一覧からテーブルを選択してください</small></div>`;
+    return;
+  }
+
+  const { lines, total } = aggregateLinesFromRequest(req);
+  const reqAt = Number(req?.requestedAt || 0);
+  const token = String(req?.token || ""); // 表示しない（内部で使う）
+
+  const linesHtml = lines.length
+    ? lines.map(x=>`
+      <div class="line">
+        <div class="lname">${esc(x.name)}</div>
+        <div class="lprice mono">${esc(yen(x.sum))}</div>
+      </div>
+    `).join("")
+    : `<div class="muted"><small>明細が空です（orders/items が無い可能性）</small></div>`;
+
+  wrap.innerHTML = `
+    <div class="receipt" id="receipt">
+      <div class="rHead">
+        <div>
+          <div class="rTitle">会計明細（T${esc(table)}）</div>
+          <div class="rInfo">${esc(shop)} / ${esc(fmtDateTime(reqAt))}</div>
+        </div>
+        <div class="rInfo">※コード/トークン等は非表示</div>
+      </div>
+
+      <div class="lines">
+        ${linesHtml}
+      </div>
+
+      <div class="sumRow">
+        <div class="sumLabel">合計</div>
+        <div class="sumVal mono">${esc(yen(total))}</div>
+      </div>
+
+      <div class="actions noPrint">
+        <button class="light" id="btnPrint">PDF（印刷）</button>
+        <button class="danger" id="btnConfirm">会計確定（リセット）</button>
+      </div>
+
+      <div class="small muted" id="confirmMsg" style="margin-top:10px">-</div>
+    </div>
+  `;
+
+  $("btnPrint").onclick = ()=>{
+    // 印刷用のタイトルは receipt に含めてあるのでそのまま window.print
+    setTimeout(()=>window.print(), 30);
+  };
+
+  $("btnConfirm").onclick = async ()=>{
+    const ok = confirm(`T${table} を会計確定します。\nこのテーブルのセッション/履歴をリセットします。よろしいですか？`);
+    if(!ok) return;
+
+    $("btnConfirm").disabled = true;
+    $("btnPrint").disabled = true;
+    $("confirmMsg").innerHTML = `<span class="mono">処理中...</span>`;
+
+    try{
+      await confirmAndReset(shop, table, token, req);
+      $("confirmMsg").innerHTML = `<span class="ok">完了</span> リセットしました`;
+      // 選択解除
+      state.selectedReq = null;
+      state.selectedTable = "";
+      renderReceipt(shop, "", null);
+      await refresh();
+    }catch(e){
+      $("confirmMsg").innerHTML = `<span class="ng">失敗</span> ${esc(e.message||e)}`;
+      $("btnConfirm").disabled = false;
+      $("btnPrint").disabled = false;
+    }
+  };
+}
+
+/* ===== 会計確定：保存(任意)→リセット一式 ===== */
+async function confirmAndReset(shop, table, token, req){
+  const ts = now();
+
+  // 0) 売上を receipts に保存（後で必要になるのでおすすめ）
+  //    失敗しても会計自体は進めたいので try/catch
+  try{
+    const { lines, total } = aggregateLinesFromRequest(req);
+    const receiptPayload = {
+      shop,
+      table: String(table),
+      token: String(token||""),
+      confirmedAt: ts,
+      confirmedAtText: fmtDateTime(ts),
+      total: Number(total||0),
+      lines: lines.map(x=>({ name:x.name, sum:Number(x.sum||0) })),
+      requestedAt: Number(req?.requestedAt||0),
+      orderCount: Number(req?.orderCount||0),
     };
-    tick();
+    await rtdbPost(`shops/${encodeURIComponent(shop)}/receipts`, receiptPayload);
+  }catch(_e){}
+
+  // 1) checkoutRequests/{table} を削除
+  await rtdbPut(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(table))}`, null);
+
+  // 2) webActiveSessions/{shop}/{table} を削除（次の来客で新規token）
+  await rtdbPut(`webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`, null);
+
+  // 3) orders/{table} を削除（履歴リセット）
+  await rtdbPut(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`, null);
+
+  // 4) kitchenの orderFeed も同テーブル分を掃除（残ってたら）
+  //    ※ データ量が多い店はここを後で最適化する（今は実装優先）
+  try{
+    const feed = await rtdbGet(`shops/${encodeURIComponent(shop)}/orderFeed`);
+    if(feed && typeof feed === "object"){
+      const tasks = [];
+      for(const [pushId, obj] of Object.entries(feed)){
+        if(!obj || typeof obj !== "object") continue;
+        const t = String(obj.table ?? "");
+        const tk = String(obj.token ?? "");
+        if(String(t) === String(table) && (!token || tk === String(token))){
+          tasks.push(rtdbPut(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(pushId)}`, null));
+        }
+      }
+      // まとめて実行（Promise.all）
+      if(tasks.length) await Promise.all(tasks);
+    }
+  }catch(_e){}
+}
+
+/* ===== 新規会計依頼の検知 ===== */
+function lastKey(shop){ return `checkout_lastReq_${shop}`; }
+function loadLast(shop){ return Number(localStorage.getItem(lastKey(shop)) || 0); }
+function saveLast(shop, n){ localStorage.setItem(lastKey(shop), String(Number(n||0))); }
+
+function detectNewCheckout(shop, reqObj){
+  // reqObj は { table: { requestedAt: ... } } の形
+  let maxTs = 0;
+  if(reqObj && typeof reqObj === "object"){
+    for(const v of Object.values(reqObj)){
+      const t = Number(v?.requestedAt || 0);
+      if(t > maxTs) maxTs = t;
+    }
   }
 
-  function endHold(){
-    holding = false;
-    if(holdT) clearTimeout(holdT);
-    holdT = null;
-    setHoldBar(0);
+  const last = loadLast(shop);
+  if(!last){
+    saveLast(shop, maxTs);
+    return;
   }
 
-  const btn = $("checkoutBtn");
-  btn.addEventListener("pointerdown", (e)=>{ e.preventDefault(); startHold(); });
-  btn.addEventListener("pointerup", (e)=>{ e.preventDefault(); endHold(); });
-  btn.addEventListener("pointerleave", ()=>{ endHold(); });
-  btn.addEventListener("pointercancel", ()=>{ endHold(); });
+  if(maxTs > last){
+    showBanner("会計依頼！");
+    try{ navigator.vibrate && navigator.vibrate([120,60,120]); }catch{}
+    alarm3s();
+    saveLast(shop, maxTs);
+  }
+}
 
-  // 初期読み込み
-  loadAll();
-})();
+/* ===== 表示：着席テーブル ===== */
+function renderTables(shop){
+  const grid = $("tableGrid");
+  grid.innerHTML = "";
+
+  // sessions: { "2": {active:true, token:...}, ... }
+  const sessions = state.sessions && typeof state.sessions === "object" ? state.sessions : {};
+  const reqs = state.checkoutRequests && typeof state.checkoutRequests === "object" ? state.checkoutRequests : {};
+
+  const tables = new Set([
+    ...Object.keys(sessions),
+    ...Object.keys(reqs),
+  ]);
+
+  // 表示が空だと寂しいので、最低でも "1..6" を出す（必要なら後で増やせる）
+  if(tables.size === 0){
+    ["1","2","3","4","5","6"].forEach(t=>tables.add(t));
+  }
+
+  const list = Array.from(tables).sort((a,b)=> Number(a)-Number(b));
+
+  for(const t of list){
+    const sess = sessions[t];
+    const hasSess = !!sess;
+    const hasReq = !!reqs[t];
+
+    const statClass = hasReq ? "req" : (hasSess ? "on" : "off");
+    const statText  = hasReq ? "会計依頼" : (hasSess ? "着席中" : "空席");
+
+    const div = document.createElement("div");
+    div.className = "tCard";
+    div.innerHTML = `
+      <div class="tTop">
+        <div class="tNum">T${esc(t)}</div>
+        <div class="tStat ${statClass}">${esc(statText)}</div>
+      </div>
+      <div class="tMeta">
+        ${hasReq ? `依頼: ${esc(fmtDateTime(reqs[t]?.requestedAt || 0))}` : ""}
+        ${(!hasReq && hasSess) ? `更新: ${esc(fmtDateTime(sess?.updatedAt || sess?.createdAt || 0))}` : ""}
+      </div>
+    `;
+
+    div.onclick = ()=>{
+      // 依頼があるならそれを選ぶ（なければテーブルだけ選択）
+      if(reqs[t]){
+        state.selectedTable = String(t);
+        state.selectedReq = reqs[t];
+        highlightSelected();
+        renderReceipt(shop, t, reqs[t]);
+      }else{
+        state.selectedTable = String(t);
+        state.selectedReq = null;
+        highlightSelected();
+        renderReceipt(shop, t, null);
+      }
+    };
+
+    grid.appendChild(div);
+  }
+}
+
+/* ===== 表示：会計依頼一覧 ===== */
+function renderRequests(shop){
+  const wrap = $("reqList");
+  wrap.innerHTML = "";
+
+  const reqs = state.checkoutRequests && typeof state.checkoutRequests === "object" ? state.checkoutRequests : {};
+  const keys = Object.keys(reqs).sort((a,b)=> Number(a)-Number(b));
+
+  if(keys.length === 0){
+    wrap.innerHTML = `<div class="muted"><small>会計依頼はありません</small></div>`;
+    return;
+  }
+
+  for(const t of keys){
+    const req = reqs[t];
+    const active = (String(state.selectedTable||"") === String(t)) && !!state.selectedReq;
+
+    const div = document.createElement("div");
+    div.className = "reqCard" + (active ? " active" : "");
+    div.innerHTML = `
+      <div class="reqHead">
+        <div class="reqTitle">T${esc(t)} の会計</div>
+        <span class="pill badgeReq">依頼</span>
+      </div>
+      <div class="small muted">依頼時刻: ${esc(fmtDateTime(req?.requestedAt || 0))}</div>
+      <div class="small muted">合計: <b>${esc(yen(req?.total || 0))}</b></div>
+    `;
+    div.onclick = ()=>{
+      state.selectedTable = String(t);
+      state.selectedReq = req;
+      highlightSelected();
+      renderReceipt(shop, t, req);
+    };
+    wrap.appendChild(div);
+  }
+}
+
+function highlightSelected(){
+  // reqList の active 表示を更新（簡易：再描画）
+  renderRequests(state.shop);
+}
+
+/* ===== refresh ===== */
+async function refresh(){
+  const shop = getShop();
+  if(!shop){
+    $("status").innerHTML = `<span class="ng">未ログイン</span> menu.html へ戻ります`;
+    setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 400);
+    return;
+  }
+  state.shop = shop;
+  $("shopText").textContent = shop;
+
+  try{
+    $("status").textContent = "loading...";
+
+    // 着席中
+    const sess = await rtdbGet(`webActiveSessions/${encodeURIComponent(shop)}`); // object or null
+    state.sessions = (sess && typeof sess === "object") ? sess : {};
+
+    // 会計依頼
+    const req = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
+    state.checkoutRequests = (req && typeof req === "object") ? req : {};
+
+    // 新規検知（バナー+3秒音）
+    detectNewCheckout(shop, state.checkoutRequests);
+
+    renderTables(shop);
+    renderRequests(shop);
+
+    // 選択中テーブルがまだ存在するなら明細を再描画（更新）
+    if(state.selectedTable && state.checkoutRequests[state.selectedTable]){
+      state.selectedReq = state.checkoutRequests[state.selectedTable];
+      renderReceipt(shop, state.selectedTable, state.selectedReq);
+    }
+
+    $("status").innerHTML = `<span class="ok">OK</span> 更新: ${esc(new Date().toLocaleTimeString("ja-JP"))}`;
+  }catch(e){
+    $("status").innerHTML = `<span class="ng">失敗</span> ${esc(e.message||e)}`;
+  }
+}
+
+function setAuto(){
+  const sec = Number($("autoSec").value || 0);
+  if(timer){ clearInterval(timer); timer = null; }
+  if(sec > 0){
+    timer = setInterval(refresh, sec * 1000);
+  }
+}
+
+/* ===== events ===== */
+$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+$("btnRefresh").onclick = refresh;
+$("autoSec").onchange = setAuto;
+
+$("btnSound").onclick = async ()=>{
+  soundEnabled = !soundEnabled;
+  $("btnSound").textContent = soundEnabled ? "🔔音ON" : "🔔音OFF";
+  if(soundEnabled){
+    try{
+      ensureAudio();
+      if(audioCtx && audioCtx.state === "suspended"){
+        await audioCtx.resume();
+      }
+    }catch{}
+  }
+};
+
+$("btnTest").onclick = ()=>{
+  // クリックが「ユーザー操作」になるので iPhone でも鳴りやすい
+  soundEnabled = true;
+  $("btnSound").textContent = "🔔音ON";
+  showBanner("テスト");
+  alarm3s();
+};
+
+/* ===== boot ===== */
+setAuto();
+refresh();
 </script>
 </body>
 </html>
+

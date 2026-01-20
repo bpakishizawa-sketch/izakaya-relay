@@ -18,20 +18,19 @@
     .ok{color:#16a34a;font-weight:900}
     .ng{color:#dc2626;font-weight:900}
     .small{font-size:12px;color:#6b7280}
-    details summary{cursor:pointer;font-weight:900;color:#374151}
-    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
+    .hidden{display:none !important;}
   </style>
 
-  <!-- Firebase (CDN / compat) ※GitHub Pagesでもそのまま動く方式 -->
+  <!-- Firebase (CDN / compat) -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 </head>
 <body>
   <h1>店側ログイン</h1>
   <div class="sub">
-    shopコード と staffPin を入力してログインします。<br>
-    成功すると <b>localStorage</b> に保存し、menu.html に移動します。<br>
-    ※裏側で Firebase Authentication もサインインします（セキュリティ強化用）
+    shopコード と staffPin を入力してログイン。<br>
+    成功すると <b>localStorage</b> に保存して menu.html へ移動します。<br>
+    ※裏側で Firebase Authentication も通します（セキュリティ用）
   </div>
 
   <div class="card">
@@ -41,34 +40,17 @@
       <button id="btnLogin" class="btn">ログイン</button>
     </div>
 
-    <div style="margin-top:10px;" class="small">
-      <!-- Authは見た目を崩さないため details に隠す（必要なら閉じたまま運用OK） -->
-      <details>
-        <summary>Auth（管理用）</summary>
-        <div class="row" style="margin-top:10px;">
-          <input id="authEmail" placeholder="Authメール（例：owner@xxx.com）" autocomplete="email" />
-          <input id="authPass" placeholder="Authパスワード" type="password" autocomplete="current-password" />
-        </div>
-        <div class="small" style="margin-top:8px;">
-          ※ここは “店の身分証” 用。PINと別物です。<br>
-          ※とりあえず動作確認のため、あなたが作ったAuthユーザーのメール/パスを入れてOK。
-        </div>
-      </details>
+    <div class="row" style="margin-top:10px;">
+      <input id="authEmail" placeholder="Authメール" autocomplete="email" />
+      <input id="authPass" placeholder="Authパスワード" type="password" autocomplete="current-password" />
     </div>
 
     <div id="msg" style="margin-top:10px;" class="small">-</div>
   </div>
 
-  <details class="card">
-    <summary>デバッグ（開いて確認）</summary>
-    <pre id="debug" class="mono">-</pre>
-  </details>
-
 <script>
 /** ===== 設定（ここだけ） ===== */
 const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
-
-/* Firebase config（あなたが貼ったやつをそのまま） */
 const firebaseConfig = {
   apiKey: "AIzaSyCZTWH0Lv1EfUiW5iSX1skQ9MvUao6Dx10",
   authDomain: "izakayaorder.firebaseapp.com",
@@ -81,7 +63,11 @@ const firebaseConfig = {
 };
 /** ============================ */
 
-firebase.initializeApp(firebaseConfig);
+try{
+  firebase.initializeApp(firebaseConfig);
+}catch(e){
+  // すでに初期化済みでもOK（GitHub Pagesで戻る/進む等）
+}
 const auth = firebase.auth();
 
 const $ = (id)=>document.getElementById(id);
@@ -97,27 +83,13 @@ function normalizePin(x){
   return String(x).trim();
 }
 
-/* ===== localStorage login ===== */
+/* ===== localStorage ===== */
 function lsSetShopLogin(shop, pin){
   localStorage.setItem("shopCode", String(shop||"").trim());
   localStorage.setItem("shopPin",  String(pin||"").trim());
 }
-function lsClearShopLogin(){
-  localStorage.removeItem("shopCode");
-  localStorage.removeItem("shopPin");
-}
-function getShop(){ return (localStorage.getItem("shopCode")||"").trim(); }
-function getPin(){  return (localStorage.getItem("shopPin")||"").trim(); }
-
-/* Authトークン保存（次のStepでRTDBアクセスに使う） */
 function lsSetAuthToken(idToken){
   localStorage.setItem("authIdToken", String(idToken||""));
-}
-function lsGetAuthToken(){
-  return (localStorage.getItem("authIdToken")||"").trim();
-}
-function lsClearAuthToken(){
-  localStorage.removeItem("authIdToken");
 }
 
 /* ===== RTDB REST ===== */
@@ -134,18 +106,15 @@ async function rtdbGet(path){
 async function doLogin(){
   const shop = ($("shopInp").value || "").trim();
   const pin  = ($("pinInp").value  || "").trim();
-  const email = ($("authEmail").value || "").trim();
-  const pass  = ($("authPass").value  || "").trim();
+  const email= ($("authEmail").value || "").trim();
+  const pass = ($("authPass").value  || "").trim();
 
   if(!shop || !pin){
     setMsg(`<span class="ng">NG</span> shop と PIN を入力してください`);
     return;
   }
-
-  // Authは本番では必須にする前提だが、今は「入力されてたらサインイン」でもOK
-  // ただし“あなたが今やりたいのはAuth動作確認”なので、ここでは必須にしてます。
   if(!email || !pass){
-    setMsg(`<span class="ng">NG</span> Authメール/パスワードも入力してください（動作確認のため）`);
+    setMsg(`<span class="ng">NG</span> Authメール/パスワードも入力してください`);
     return;
   }
 
@@ -153,62 +122,47 @@ async function doLogin(){
   setMsg(`<span class="mono">確認中...</span>`);
 
   try{
-    // 1) Authサインイン → idToken取得してlocalStorageへ保存
+    // 1) Auth
     const cred = await auth.signInWithEmailAndPassword(email, pass);
     const user = cred.user;
     const idToken = await user.getIdToken(true);
     lsSetAuthToken(idToken);
 
-    // 2) 既存のPIN判定（今まで通り）
+    // 2) PIN確認（今まで通り）
     const staffPinPath = `shops/${encodeURIComponent(shop)}/staffPin`;
     const r = await rtdbGet(staffPinPath);
 
-    const dbg = {
-      requestShop: shop,
-      inputPin: pin,
-      authEmail: email,
-      authUid: user ? user.uid : null,
-      idTokenSaved: !!idToken,
-      staffPinPath,
-      fetchStatus: r.status,
-      ok: r.ok,
-      url: r.url,
-      gotJson: r.json,
-      gotType: typeof r.json,
-      storedShop_before: getShop(),
-      storedPin_before: getPin(),
-      tokenPreview: (lsGetAuthToken() || "").slice(0, 18) + "..."
-    };
-    $("debug").textContent = JSON.stringify(dbg, null, 2);
-
     if(!r.ok){
-      setMsg(`<span class="ng">NG</span> staffPin取得失敗（HTTP ${r.status}）`);
-      $("btnLogin").disabled = false;
-      return;
+      throw new Error(`staffPin取得失敗 HTTP ${r.status} / ${r.raw}`);
     }
 
     const serverPin = normalizePin(r.json);
     const inputPin  = normalizePin(pin);
 
     if(!serverPin){
-      setMsg(`<span class="ng">NG</span> staffPin が未設定です（/shops/${esc(shop)}/staffPin）`);
-      $("btnLogin").disabled = false;
-      return;
+      throw new Error(`staffPin 未設定: /shops/${shop}/staffPin`);
     }
-
     if(serverPin !== inputPin){
-      setMsg(`<span class="ng">NG</span> PINが違います`);
-      $("btnLogin").disabled = false;
-      return;
+      throw new Error(`PINが違います`);
     }
 
-    // 3) 既存ロジック通り localStorage保存 → menuへ
+    // OK
     lsSetShopLogin(shop, inputPin);
     setMsg(`<span class="ok">OK</span> ログインしました → menuへ移動します`);
     setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 150);
 
   }catch(e){
-    setMsg(`<span class="ng">例外エラー</span> ${esc(e.message || e)}`);
+    // Firebase Auth は e.code が重要
+    const code = e && e.code ? String(e.code) : "";
+    const msg  = e && e.message ? String(e.message) : String(e);
+
+    setMsg(
+      `<span class="ng">例外エラー</span><br>` +
+      `<span class="mono">${esc(code || "(no code)")}</span><br>` +
+      `<span class="mono">${esc(msg)}</span>`
+    );
+
+    console.log("LOGIN ERROR", e);
     $("btnLogin").disabled = false;
   }
 }
@@ -218,7 +172,7 @@ $("pinInp").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); })
 </script>
 </body>
 </html>
-
+このスレッドで削除されたメールは 1 件あります。 メールを表示、または完全に削除
 
 
 

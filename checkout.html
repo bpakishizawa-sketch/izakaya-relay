@@ -7,6 +7,7 @@
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:1200px; margin:0 auto; background:#f6f7f9;}
     h1{font-size:22px;margin:0 0 8px}
+    .sub{font-size:12px;color:#6b7280;margin-bottom:12px;line-height:1.6}
     .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:10px 0;background:#fff;}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
@@ -70,6 +71,11 @@
   <div id="alertBanner" class="alertBanner">会計依頼！</div>
 
   <h1>会計（Checkout）</h1>
+  <div class="sub">
+    監視：<b>/shops/{shop}/checkoutRequests</b><br>
+    会計確定で <b>checkoutRequests削除 / orders削除 / webActiveSessions削除</b> を実行して次の来客に備えます。<br>
+    明細は <b>メニュー名と金額のみ</b> を表示（IDやコードは非表示）。
+  </div>
 
   <div class="card noPrint">
     <div class="row">
@@ -155,382 +161,393 @@
     </div>
   </div>
 
-  <!-- common を先に読む（requireAuth / getShop / rtdbGet/Put など） -->
-  <script src="shop_common.js"></script>
+<script>
+/** ===== 設定 ===== */
+const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ============== */
 
-  <script>
-  (async () => {
-    await requireAuth();
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
+function now(){ return Date.now(); }
 
-    function $(id){ return document.getElementById(id); }
-    function escLocal(s){
-      return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+function getShop(){
+  return (localStorage.getItem("shopCode") || "").trim();
+}
+
+async function rtdbGet(path){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url);
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
+async function rtdbPut(path, data){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(data)
+  });
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
+async function rtdbDelete(path){
+  // RTDBは PUT null で削除できる
+  return rtdbPut(path, null);
+}
+
+function yen(n){
+  const x = Number(n||0);
+  return x.toLocaleString("ja-JP") + " 円";
+}
+function fmt(ts){
+  if(!ts) return "-";
+  try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); }
+}
+
+/* ===== 新規アラーム（3秒：バナー + 任意の音） ===== */
+function showBanner(msg){
+  const el = $("alertBanner");
+  el.textContent = msg || "会計依頼！";
+  el.style.display = "block";
+  clearTimeout(showBanner._t);
+  showBanner._t = setTimeout(()=>{ el.style.display = "none"; }, 3500);
+}
+
+/* iOS対策：ユーザー操作後だけ鳴らせる */
+let soundEnabled = false;
+let audioCtx = null;
+
+function ensureAudio(){
+  if(audioCtx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if(!AC) return;
+  audioCtx = new AC();
+}
+function beepOnce(){
+  if(!soundEnabled) return;
+  try{
+    ensureAudio();
+    if(!audioCtx) return;
+    if(audioCtx.state === "suspended") audioCtx.resume();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = "sine";
+    o.frequency.value = 880;
+    g.gain.value = 0.06;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start();
+    setTimeout(()=>{ o.stop(); }, 220);
+  }catch{}
+}
+function beep3sec(){
+  if(!soundEnabled) return;
+  // 3秒間、短いビープを連続（聞き逃しにくい）
+  let t = 0;
+  const pattern = [0, 350, 700, 1050, 1400, 1750, 2100, 2450, 2800];
+  for(const ms of pattern){
+    setTimeout(()=>beepOnce(), ms);
+    t = ms;
+  }
+  try{ navigator.vibrate && navigator.vibrate([120,60,120,60,120]); }catch{}
+}
+
+function lastReqKey(shop){ return `checkout_lastMax_${shop}`; }
+function loadLastMax(shop){ return Number(localStorage.getItem(lastReqKey(shop)) || 0); }
+function saveLastMax(shop, n){ localStorage.setItem(lastReqKey(shop), String(Number(n||0))); }
+
+/* ===== state ===== */
+let timer = null;
+let selectedTable = "";
+let activeSessions = {};     // table -> session
+let checkoutRequests = {};   // table -> req
+
+function setStatus(html){ $("status").innerHTML = html || ""; }
+function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
+
+function pickTable(t){
+  selectedTable = String(t||"");
+  $("selTableText").textContent = selectedTable ? `T${selectedTable}` : "-";
+  renderBill();
+}
+
+function renderTables(){
+  const grid = $("tableGrid");
+  grid.innerHTML = "";
+
+  const activeTables = Object.keys(activeSessions || {}).sort((a,b)=>Number(a)-Number(b));
+  const reqTables = new Set(Object.keys(checkoutRequests || {}));
+
+  $("activeCount").textContent = String(activeTables.length);
+  $("reqCount").textContent = String(reqTables.size);
+
+  if(activeTables.length === 0){
+    grid.innerHTML = `<div class="muted"><small>着席中のテーブルがありません</small></div>`;
+    return;
+  }
+
+  for(const t of activeTables){
+    const sess = activeSessions[t] || {};
+    const hasReq = reqTables.has(String(t));
+
+    const btn = document.createElement("button");
+    btn.className = "tbtn" + (String(t)===String(selectedTable) ? " active" : "") + (hasReq ? " request" : "");
+    btn.innerHTML = `
+      <div>T${esc(t)}</div>
+      <div class="tmeta mono">${hasReq ? "会計依頼あり" : (sess.token ? "着席中" : "")}</div>
+    `;
+    btn.onclick = ()=> pickTable(t);
+    grid.appendChild(btn);
+  }
+
+  // 未選択なら、会計依頼があるテーブル優先で自動選択
+  if(!selectedTable){
+    const firstReq = activeTables.find(t => reqTables.has(String(t)));
+    pickTable(firstReq || activeTables[0]);
+  }else{
+    // 選択テーブルが消えたら先頭へ
+    if(!activeSessions[selectedTable]){
+      pickTable(activeTables[0]);
     }
-    const esc2 = (typeof esc === "function") ? esc : escLocal;
-    function now(){ return Date.now(); }
+  }
+}
 
-    // common に getShop があれば使う（無ければ localStorage から）
-    function getShopLocal(){
-      return (localStorage.getItem("shopCode") || "").trim();
+function flattenOrdersFromReq(req){
+  // req.orders: [{items:[{name,qty,price},...]}, ...]
+  const lines = [];
+  if(!req || !Array.isArray(req.orders)) return lines;
+
+  for(const o of req.orders){
+    const items = Array.isArray(o.items) ? o.items : [];
+    for(const it of items){
+      const name = String(it.name||"");
+      const qty = Number(it.qty||0);
+      const price = Number(it.price||0);
+      if(!name) continue;
+      lines.push({ name, qty, price, sub: price*qty });
     }
-    const getShop2 = (typeof getShop === "function") ? getShop : getShopLocal;
+  }
+  return lines;
+}
 
-    // common に rtdbGet/Put があれば使う（無ければこのページ内でREST）
-    const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+function renderBill(){
+  const t = selectedTable;
+  const req = checkoutRequests && t ? checkoutRequests[t] : null;
 
-    async function rtdbGetLocal(path){
-      const url = `${DB_BASE}/${path}.json`;
-      const res = await fetch(url);
-      const txt = await res.text();
-      if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-      return JSON.parse(txt || "null");
+  $("billTable").textContent = t ? `T${t}` : "-";
+  $("billTotal").textContent = req ? yen(req.total||0) : "-";
+
+  if(!req){
+    $("billMeta").textContent = "会計依頼はありません（テーブルを選択してください）";
+    $("billLines").innerHTML = `<div class="muted"><small>明細がありません</small></div>`;
+    $("btnConfirm").disabled = true;
+    return;
+  }
+
+  $("btnConfirm").disabled = false;
+
+  const meta = `依頼時刻: ${fmt(req.requestedAt)} / token: ${String(req.token||"") ? "あり" : "-"}`;
+  $("billMeta").textContent = meta;
+
+  const lines = flattenOrdersFromReq(req);
+
+  if(lines.length === 0){
+    $("billLines").innerHTML = `<div class="muted"><small>明細がありません（ordersが空）</small></div>`;
+    return;
+  }
+
+  // 同名まとめ（見やすさ重視）
+  const map = new Map();
+  for(const x of lines){
+    const k = x.name + "|" + x.price;
+    const cur = map.get(k) || { name:x.name, price:x.price, qty:0, sub:0 };
+    cur.qty += x.qty;
+    cur.sub += x.sub;
+    map.set(k, cur);
+  }
+  const merged = Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,"ja"));
+
+  $("billLines").innerHTML = merged.map(x=>`
+    <div class="line">
+      <div>${esc(x.name)} <span class="muted">x${esc(String(x.qty))}</span></div>
+      <div class="mono">${esc(String(x.price))} / ${esc(yen(x.sub))}</div>
+    </div>
+  `).join("");
+}
+
+/* ===== refresh ===== */
+function detectNewCheckout(shop){
+  let maxRequestedAt = 0;
+  for(const t of Object.keys(checkoutRequests||{})){
+    const r = checkoutRequests[t];
+    const ts = Number(r?.requestedAt||0);
+    if(ts > maxRequestedAt) maxRequestedAt = ts;
+  }
+
+  const last = loadLastMax(shop);
+  if(!last){
+    saveLastMax(shop, maxRequestedAt);
+    return;
+  }
+  if(maxRequestedAt > last){
+    // 新規会計依頼
+    const newestTable = Object.keys(checkoutRequests||{})
+      .sort((a,b)=>Number(checkoutRequests[b]?.requestedAt||0)-Number(checkoutRequests[a]?.requestedAt||0))[0];
+    showBanner(`会計依頼！ T${newestTable || ""}`.trim());
+    beep3sec();
+    saveLastMax(shop, maxRequestedAt);
+  }
+}
+
+async function refresh(){
+  const shop = getShop();
+  if(!shop){
+    setStatus(`<span class="ng">未ログイン</span> menu.html へ戻ります`);
+    setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 400);
+    return;
+  }
+  $("shopText").textContent = shop;
+
+  try{
+    setStatus(`<span class="mono">loading...</span>`);
+
+    // 1) 着席テーブル（webActiveSessions の shop配下）
+    // ※ルールで /webActiveSessions/{shop} の read が必要
+    const sess = await rtdbGet(`webActiveSessions/${encodeURIComponent(shop)}`);
+    activeSessions = (sess && typeof sess==="object") ? sess : {};
+
+    // active=true & tokenあり のみ表示対象に
+    const filtered = {};
+    for(const [t, s] of Object.entries(activeSessions)){
+      if(!s || typeof s!=="object") continue;
+      if(s.active === false) continue;
+      if(!s.token) continue;
+      filtered[String(t)] = s;
     }
-    async function rtdbPutLocal(path, data){
-      const url = `${DB_BASE}/${path}.json`;
-      const res = await fetch(url, {
-        method: "PUT",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(data)
-      });
-      const txt = await res.text();
-      if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-      return JSON.parse(txt || "null");
-    }
+    activeSessions = filtered;
 
-    async function rtdbGet2(path){
-      if(typeof rtdbGet === "function"){
-        const r = await rtdbGet(path);
-        return (r && typeof r === "object" && "json" in r) ? r.json : r;
-      }
-      return rtdbGetLocal(path);
-    }
-    async function rtdbPut2(path, data){
-      if(typeof rtdbPut === "function"){
-        const r = await rtdbPut(path, data);
-        return (r && typeof r === "object" && "json" in r) ? r.json : r;
-      }
-      return rtdbPutLocal(path, data);
-    }
-    async function rtdbDelete(path){
-      return rtdbPut2(path, null);
-    }
+    // 2) 会計依頼（checkoutRequests）
+    const req = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
+    checkoutRequests = (req && typeof req==="object") ? req : {};
 
-    function yen(n){
-      const x = Number(n||0);
-      return x.toLocaleString("ja-JP") + " 円";
-    }
-    function fmt(ts){
-      if(!ts) return "-";
-      try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); }
-    }
+    detectNewCheckout(shop);
 
-    function showBanner(msg){
-      const el = $("alertBanner");
-      el.textContent = msg || "会計依頼！";
-      el.style.display = "block";
-      clearTimeout(showBanner._t);
-      showBanner._t = setTimeout(()=>{ el.style.display = "none"; }, 3500);
-    }
+    renderTables();
+    renderBill();
 
-    let soundEnabled = false;
-    let audioCtx = null;
+    setStatus(`<span class="ok">OK</span> 着席:${Object.keys(activeSessions).length} / 会計依頼:${Object.keys(checkoutRequests).length} （${new Date().toLocaleTimeString()}）`);
 
-    function ensureAudio(){
-      if(audioCtx) return;
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if(!AC) return;
-      audioCtx = new AC();
-    }
-    function beepOnce(){
-      if(!soundEnabled) return;
-      try{
-        ensureAudio();
-        if(!audioCtx) return;
-        if(audioCtx.state === "suspended") audioCtx.resume();
-        const o = audioCtx.createOscillator();
-        const g = audioCtx.createGain();
-        o.type = "sine";
-        o.frequency.value = 880;
-        g.gain.value = 0.06;
-        o.connect(g); g.connect(audioCtx.destination);
-        o.start();
-        setTimeout(()=>{ o.stop(); }, 220);
-      }catch{}
-    }
-    function beep3sec(){
-      if(!soundEnabled) return;
-      const pattern = [0, 350, 700, 1050, 1400, 1750, 2100, 2450, 2800];
-      for(const ms of pattern){
-        setTimeout(()=>beepOnce(), ms);
-      }
-      try{ navigator.vibrate && navigator.vibrate([120,60,120,60,120]); }catch{}
-    }
-
-    function lastReqKey(shop){ return `checkout_lastMax_${shop}`; }
-    function loadLastMax(shop){ return Number(localStorage.getItem(lastReqKey(shop)) || 0); }
-    function saveLastMax(shop, n){ localStorage.setItem(lastReqKey(shop), String(Number(n||0))); }
-
-    let timer = null;
-    let selectedTable = "";
-    let activeSessions = {};
-    let checkoutRequests = {};
-
-    function setStatus(html){ $("status").innerHTML = html || ""; }
-    function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
-
-    function pickTable(t){
-      selectedTable = String(t||"");
-      $("selTableText").textContent = selectedTable ? `T${selectedTable}` : "-";
-      renderBill();
-    }
-
-    function renderTables(){
-      const grid = $("tableGrid");
-      grid.innerHTML = "";
-
-      const activeTables = Object.keys(activeSessions || {}).sort((a,b)=>Number(a)-Number(b));
-      const reqTables = new Set(Object.keys(checkoutRequests || {}));
-
-      $("activeCount").textContent = String(activeTables.length);
-      $("reqCount").textContent = String(reqTables.size);
-
-      if(activeTables.length === 0){
-        grid.innerHTML = `<div class="muted"><small>着席中のテーブルがありません</small></div>`;
-        return;
-      }
-
-      for(const t of activeTables){
-        const sess = activeSessions[t] || {};
-        const hasReq = reqTables.has(String(t));
-
-        const btn = document.createElement("button");
-        btn.className = "tbtn" + (String(t)===String(selectedTable) ? " active" : "") + (hasReq ? " request" : "");
-        btn.innerHTML = `
-          <div>T${esc2(t)}</div>
-          <div class="tmeta mono">${hasReq ? "会計依頼あり" : (sess.token ? "着席中" : "")}</div>
-        `;
-        btn.onclick = ()=> pickTable(t);
-        grid.appendChild(btn);
-      }
-
-      if(!selectedTable){
-        const firstReq = activeTables.find(t => reqTables.has(String(t)));
-        pickTable(firstReq || activeTables[0]);
-      }else{
-        if(!activeSessions[selectedTable]){
-          pickTable(activeTables[0]);
-        }
-      }
-    }
-
-    function flattenOrdersFromReq(req){
-      const lines = [];
-      if(!req || !Array.isArray(req.orders)) return lines;
-
-      for(const o of req.orders){
-        const items = Array.isArray(o.items) ? o.items : [];
-        for(const it of items){
-          const name = String(it.name||"");
-          const qty = Number(it.qty||0);
-          const price = Number(it.price||0);
-          if(!name) continue;
-          lines.push({ name, qty, price, sub: price*qty });
-        }
-      }
-      return lines;
-    }
-
-    function renderBill(){
-      const t = selectedTable;
-      const req = checkoutRequests && t ? checkoutRequests[t] : null;
-
-      $("billTable").textContent = t ? `T${t}` : "-";
-      $("billTotal").textContent = req ? yen(req.total||0) : "-";
-
-      if(!req){
-        $("billMeta").textContent = "会計依頼はありません（テーブルを選択してください）";
-        $("billLines").innerHTML = `<div class="muted"><small>明細がありません</small></div>`;
-        $("btnConfirm").disabled = true;
-        return;
-      }
-
-      $("btnConfirm").disabled = false;
-
-      const meta = `依頼時刻: ${fmt(req.requestedAt)} / token: ${String(req.token||"") ? "あり" : "-"}`;
-      $("billMeta").textContent = meta;
-
-      const lines = flattenOrdersFromReq(req);
-
-      if(lines.length === 0){
-        $("billLines").innerHTML = `<div class="muted"><small>明細がありません（ordersが空）</small></div>`;
-        return;
-      }
-
-      const map = new Map();
-      for(const x of lines){
-        const k = x.name + "|" + x.price;
-        const cur = map.get(k) || { name:x.name, price:x.price, qty:0, sub:0 };
-        cur.qty += x.qty;
-        cur.sub += x.sub;
-        map.set(k, cur);
-      }
-      const merged = Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,"ja"));
-
-      $("billLines").innerHTML = merged.map(x=>`
-        <div class="line">
-          <div>${esc2(x.name)} <span class="muted">x${esc2(String(x.qty))}</span></div>
-          <div class="mono">${esc2(String(x.price))} / ${esc2(yen(x.sub))}</div>
-        </div>
-      `).join("");
-    }
-
-    function detectNewCheckout(shop){
-      let maxRequestedAt = 0;
-      for(const t of Object.keys(checkoutRequests||{})){
-        const r = checkoutRequests[t];
-        const ts = Number(r?.requestedAt||0);
-        if(ts > maxRequestedAt) maxRequestedAt = ts;
-      }
-
-      const last = loadLastMax(shop);
-      if(!last){
-        saveLastMax(shop, maxRequestedAt);
-        return;
-      }
-      if(maxRequestedAt > last){
-        const newestTable = Object.keys(checkoutRequests||{})
-          .sort((a,b)=>Number(checkoutRequests[b]?.requestedAt||0)-Number(checkoutRequests[a]?.requestedAt||0))[0];
-        showBanner(`会計依頼！ T${newestTable || ""}`.trim());
-        beep3sec();
-        saveLastMax(shop, maxRequestedAt);
-      }
-    }
-
-    async function refresh(){
-      const shop = getShop2();
-      if(!shop){
-        setStatus(`<span class="ng">未ログイン</span> menu.html へ戻ります`);
-        setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 400);
-        return;
-      }
-      $("shopText").textContent = shop;
-
-      try{
-        setStatus(`<span class="mono">loading...</span>`);
-
-        const sess = await rtdbGet2(`webActiveSessions/${encodeURIComponent(shop)}`);
-        activeSessions = (sess && typeof sess==="object") ? sess : {};
-
-        const filtered = {};
-        for(const [t, s] of Object.entries(activeSessions)){
-          if(!s || typeof s!=="object") continue;
-          if(s.active === false) continue;
-          if(!s.token) continue;
-          filtered[String(t)] = s;
-        }
-        activeSessions = filtered;
-
-        const req = await rtdbGet2(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
-        checkoutRequests = (req && typeof req==="object") ? req : {};
-
-        detectNewCheckout(shop);
-
-        renderTables();
-        renderBill();
-
-        setStatus(`<span class="ok">OK</span> 着席:${Object.keys(activeSessions).length} / 会計依頼:${Object.keys(checkoutRequests).length} （${new Date().toLocaleTimeString()}）`);
-
-        const dbg = $("debug");
-        if(dbg){
-          dbg.textContent = JSON.stringify({
-            shop,
-            activeTables: Object.keys(activeSessions),
-            checkoutTables: Object.keys(checkoutRequests),
-            selectedTable
-          }, null, 2);
-        }
-
-      }catch(e){
-        setStatus(`<span class="ng">読込失敗</span> ${esc2(e.message||e)}`);
-      }
+    const dbg = $("debug");
+    if(dbg){
+      dbg.textContent = JSON.stringify({
+        shop,
+        activeTables: Object.keys(activeSessions),
+        checkoutTables: Object.keys(checkoutRequests),
+        selectedTable
+      }, null, 2);
     }
 
-    function setAuto(){
-      const sec = Number($("autoSec").value || 0);
-      if(timer){ clearInterval(timer); timer = null; }
-      if(sec > 0){
-        timer = setInterval(refresh, sec * 1000);
+  }catch(e){
+    setStatus(`<span class="ng">読込失敗</span> ${esc(e.message||e)}`);
+  }
+}
+
+function setAuto(){
+  const sec = Number($("autoSec").value || 0);
+  if(timer){ clearInterval(timer); timer = null; }
+  if(sec > 0){
+    timer = setInterval(refresh, sec * 1000);
+  }
+}
+
+/* ===== actions ===== */
+$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+$("btnRefresh").onclick = refresh;
+$("autoSec").onchange = setAuto;
+
+$("btnSound").onclick = async ()=>{
+  soundEnabled = !soundEnabled;
+  $("btnSound").textContent = soundEnabled ? "🔔音ON" : "🔔音OFF";
+  if(soundEnabled){
+    try{
+      ensureAudio();
+      if(audioCtx && audioCtx.state === "suspended"){
+        await audioCtx.resume();
       }
-    }
+    }catch{}
+  }
+};
+$("btnBeep").onclick = ()=>{
+  soundEnabled = true;
+  $("btnSound").textContent = "🔔音ON";
+  beep3sec();
+};
 
-    $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-    $("btnRefresh").onclick = refresh;
-    $("autoSec").onchange = setAuto;
+$("btnPdf").onclick = ()=>{
+  // 端末の印刷→PDFを使う（既存と同じ方式）
+  window.print();
+};
 
-    $("btnSound").onclick = async ()=>{
-      soundEnabled = !soundEnabled;
-      $("btnSound").textContent = soundEnabled ? "🔔音ON" : "🔔音OFF";
-      if(soundEnabled){
-        try{
-          ensureAudio();
-          if(audioCtx && audioCtx.state === "suspended"){
-            await audioCtx.resume();
-          }
-        }catch{}
-      }
-    };
-    $("btnBeep").onclick = ()=>{
-      soundEnabled = true;
-      $("btnSound").textContent = "🔔音ON";
-      beep3sec();
-    };
+$("btnConfirm").onclick = async ()=>{
+  const shop = getShop();
+  const t = selectedTable;
+  if(!shop || !t){
+    setConfirmMsg(`<span class="ng">テーブル未選択</span>`);
+    return;
+  }
+  const req = checkoutRequests[t];
+  if(!req){
+    setConfirmMsg(`<span class="ng">このテーブルに会計依頼がありません</span>`);
+    return;
+  }
 
-    $("btnPdf").onclick = ()=>{
-      window.print();
-    };
+  if(!confirm(`T${t} の会計を確定します。\ncheckoutRequests / orders / webActiveSessions を削除します。`)){
+    return;
+  }
 
-    $("btnConfirm").onclick = async ()=>{
-      const shop = getShop2();
-      const t = selectedTable;
-      if(!shop || !t){
-        setConfirmMsg(`<span class="ng">テーブル未選択</span>`);
-        return;
-      }
-      const req = checkoutRequests[t];
-      if(!req){
-        setConfirmMsg(`<span class="ng">このテーブルに会計依頼がありません</span>`);
-        return;
-      }
+  $("btnConfirm").disabled = true;
+  setConfirmMsg(`<span class="mono">処理中...</span>`);
 
-      if(!confirm(`T${t} の会計を確定します。\ncheckoutRequests / orders / webActiveSessions を削除します。`)){
-        return;
-      }
+  try{
+    // ★ receipts には一切書き込みません（要望どおり）
 
-      $("btnConfirm").disabled = true;
-      setConfirmMsg(`<span class="mono">処理中...</span>`);
+    // 1) checkoutRequests を削除
+    await rtdbDelete(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(t))}`);
 
-      try{
-        await rtdbDelete(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(t))}`);
-        await rtdbDelete(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(t))}`);
-        await rtdbDelete(`webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(t))}`);
+    // 2) orders（このテーブル配下）を削除
+    await rtdbDelete(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(t))}`);
 
-        setConfirmMsg(`<span class="ok">会計確定しました</span>（T${esc2(t)} をリセット）`);
-        selectedTable = "";
-        await refresh();
+    // 3) webActiveSessions（着席情報）を削除
+    await rtdbDelete(`webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(t))}`);
 
-      }catch(e){
-        setConfirmMsg(`<span class="ng">失敗</span> ${esc2(e.message||e)}`);
-      }finally{
-        $("btnConfirm").disabled = false;
-      }
-    };
+    // ※必要なら、店側ローカルの「会計依頼済み」フラグも消したいが
+    // customer端末側ローカルなのでここでは触れない（仕様通り）
 
-    setAuto();
-    refresh();
-  })();
-  </script>
+    setConfirmMsg(`<span class="ok">会計確定しました</span>（T${esc(t)} をリセット）`);
+    selectedTable = "";
+    await refresh();
+
+  }catch(e){
+    setConfirmMsg(`<span class="ng">失敗</span> ${esc(e.message||e)}`);
+  }finally{
+    $("btnConfirm").disabled = false;
+  }
+};
+
+/* boot */
+setAuto();
+refresh();
+</script>
 </body>
 </html>
+
+
+
+
+
 
 
 

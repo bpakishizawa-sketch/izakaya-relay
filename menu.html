@@ -28,6 +28,10 @@
 </head>
 <body>
   <h1>店側メニュー</h1>
+  <div class="sub">
+    この端末は shopコード＋PIN でログイン済み。ここから各機能ページへ移動します。<br>
+    ※ログイン情報は <b>localStorage</b> に保存（端末固定運用向け）
+  </div>
 
   <div class="card">
     <div>shop: <b id="shopText" class="mono">-</b></div>
@@ -58,19 +62,15 @@
       return "*".repeat(Math.min(String(pin).length, 8));
     }
 
-    (async () => {
-      // ① Auth ガード（未ログインなら login.html へ）
-      // shop_common.js 側の requireAuth() を使用
+    (async function boot(){
+      // ✅ ここが重要：Auth復元を待ってから判定する
+      // （復元前に requireLogin すると「未ログイン判定→loginへ戻る」事故が起きる）
       if(typeof requireAuth === "function"){
         const ok = await requireAuth();
-        if(!ok) return; // requireAuth内でリダイレクト済み想定
-      }else{
-        // requireAuth が無い/読み込み失敗なら安全側で戻す
-        location.href = "login.html?v=" + Date.now();
-        return;
+        if(!ok) return; // requireAuth 内で login に飛ぶ
       }
 
-      // ② 旧ローカルログイン（shopCode/shopPin）が無ければ login.htmlへ
+      // ローカルの shop/pin が無ければ login へ
       if(!requireLogin()) return;
 
       const shop = getShop();
@@ -80,36 +80,26 @@
       $("pinText").textContent  = maskPin(pin);
       $("status").innerHTML = `<span class="ok">OK</span> ログイン状態`;
 
-      // ③ ログアウト（Auth + localStorage 両方）
+      // ✅ログアウト（Auth + localStorage 両方）
       $("btnLogout").onclick = async ()=>{
         try{
-          // shop_common.js の doLogout() があれば最優先
           if(typeof doLogout === "function"){
-            await doLogout(); // doLogout内でリダイレクトする想定
+            await doLogout(); // shop_common.js 側のAuthログアウトがあれば使う
             return;
           }
-
-          // doLogoutが無い場合の保険（Auth→localStorage）
-          if(typeof firebase !== "undefined" && firebase.auth){
-            try{ await firebase.auth().signOut(); }catch{}
+        }catch(e){}
+        try{
+          if(typeof lsClearShopLogin === "function"){
+            lsClearShopLogin();
           }
-
-          // 念のため混在キーも全消し
           localStorage.removeItem("shopCode");
           localStorage.removeItem("shopPin");
-          localStorage.removeItem("shop");
-          localStorage.removeItem("pin");
-
-          sessionStorage.removeItem("shopCode");
-          sessionStorage.removeItem("shopPin");
-          sessionStorage.removeItem("shop");
-          sessionStorage.removeItem("pin");
         }catch(e){}
-
         location.href = "login.html?v=" + Date.now();
       };
 
-      // ④ 接続チェック（staffPinを読む）
+      // 接続チェック（画面表示だけ）
+
       $("btnCheck").onclick = async ()=>{
         try{
           const r = await rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`);
@@ -123,6 +113,5 @@
   </script>
 </body>
 </html>
-
 
 

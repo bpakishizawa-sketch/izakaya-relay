@@ -25,44 +25,70 @@
     .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
+    /* 2カラム：左=drink / 右=food */
     .twoCol{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
-    @media(min-width:860px){ .twoCol{grid-template-columns: 1fr 1fr;} }
+    @media(min-width:860px){
+      .twoCol{grid-template-columns: 1fr 1fr;}
+    }
     .colHead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
     .colTitle{font-weight:900;font-size:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .badgeDrink{background:#dbeafe;border-color:#3b82f6}
     .badgeFood{background:#dcfce7;border-color:#16a34a}
     .list{display:flex;flex-direction:column;gap:10px}
 
+    /* 注文カード */
     .oCard{border:1px solid #e5e7eb;border-radius:12px;padding:12px;background:#fff}
     .oTop{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .oName{font-weight:900;font-size:16px;margin-top:8px}
     .oMeta{font-size:12px;color:#6b7280;margin-top:4px}
     .oBtns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
 
-    .pending{background:#f0fdf4;border-color:#22c55e;}
-    .pending .pillPending{background:#dcfce7;border-color:#22c55e;}
+    /* 提供済みペンディング（10秒） */
+    .pending{
+      background:#f0fdf4;
+      border-color:#22c55e;
+    }
+    .pending .pillPending{
+      background:#dcfce7;border-color:#22c55e;
+    }
     .countdown{font-weight:900;}
 
+    /* 新規オーダーバナー */
     .alertBanner{
-      position: fixed; left: 50%; transform: translateX(-50%); top: 10px; z-index: 9999;
-      background: #dc2626; color: #fff; padding: 10px 14px; border-radius: 999px;
-      font-weight: 900; box-shadow: 0 10px 30px rgba(0,0,0,.2);
-      display: none; max-width: 92vw; text-align: center;
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 10px;
+      z-index: 9999;
+      background: #dc2626;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-weight: 900;
+      box-shadow: 0 10px 30px rgba(0,0,0,.2);
+      display: none;
+      max-width: 92vw;
+      text-align: center;
     }
+
+    /* 会計依頼が残っている間ずっと出す固定バナー */
     .checkoutBanner{
-      position: fixed; left: 50%; transform: translateX(-50%); top: 56px; z-index: 9998;
-      background: #7c3aed; color: #fff; padding: 10px 14px; border-radius: 999px;
-      font-weight: 900; box-shadow: 0 10px 30px rgba(0,0,0,.18);
-      display: none; max-width: 92vw; text-align: center;
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      top: 56px;
+      z-index: 9998;
+      background: #7c3aed;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-weight: 900;
+      box-shadow: 0 10px 30px rgba(0,0,0,.18);
+      display: none;
+      max-width: 92vw;
+      text-align: center;
     }
   </style>
-
-  <!-- ✅ Firebase (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-
-  <!-- ✅ 共通（requireAuth/getShop 等） -->
-  <script src="shop_common.js"></script>
 </head>
 <body>
   <div id="alertBanner" class="alertBanner">新規オーダー！</div>
@@ -180,36 +206,48 @@
   </details>
 
 <script>
-/** ✅ ここが重要：ページ起動時に Auth を必ず確認 */
-(async ()=>{
-  try{
-    await requireAuth();     // Auth未ログインなら login に戻る
-    if(!requireLogin()) return; // shopCode未保存なら login に戻る
-    boot();                  // 本体起動
-  }catch(e){
-    location.href = "login.html?v=" + Date.now();
-  }
-})();
-
-/** ===== ここから下は、あなたの既存ロジック（構造そのまま） ===== */
+/** ===== 設定 ===== */
+const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ============== */
 
 function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
 function now(){ return Date.now(); }
 
 async function rtdbGet(path){
-  const r = await window.rtdbGet(path); // shop_common.js の rtdbGet を使う
-  if(!r.ok) throw new Error(`HTTP ${r.status} ${r.raw || ""}`);
-  return r.json;
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url);
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
 }
 async function rtdbPatch(path, obj){
-  const r = await window.rtdbPatch(path, obj);
-  if(!r.ok) throw new Error(`HTTP ${r.status} ${r.raw || ""}`);
-  return r.json;
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(obj)
+  });
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
 }
 async function rtdbPut(path, data){
-  const r = await window.rtdbPut(path, data);
-  if(!r.ok) throw new Error(`HTTP ${r.status} ${r.raw || ""}`);
-  return r.json;
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(data)
+  });
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
+
+function getShop(){
+  return (localStorage.getItem("shopCode") || "").trim();
 }
 
 function fmtTime(ts){
@@ -242,6 +280,7 @@ function normalizeOrder(pushId, o){
   return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt };
 }
 
+/** 10秒後削除の管理（ローカルタイマー） */
 const deleteTimers = new Map();
 
 function scheduleDelete(shop, pushId, deleteAt){
@@ -383,6 +422,7 @@ function renderColumn(rootId, list, shop){
   }
 }
 
+/* ===== バナー ===== */
 function showNewOrderBanner(msg){
   const el = $("alertBanner");
   if(!el) return;
@@ -403,6 +443,7 @@ function setCheckoutBanner(visible, msg){
   }
 }
 
+/* ===== 新規検知キー ===== */
 function getLastMaxKey(shop){ return `kitchen_lastMax_${shop}`; }
 function loadLastMax(shop){ const v = localStorage.getItem(getLastMaxKey(shop)); return v ? Number(v) : 0; }
 function saveLastMax(shop, n){ localStorage.setItem(getLastMaxKey(shop), String(Number(n||0))); }
@@ -411,6 +452,7 @@ function getLastCheckoutKey(shop){ return `kitchen_lastCheckout_${shop}`; }
 function loadLastCheckout(shop){ const v = localStorage.getItem(getLastCheckoutKey(shop)); return v ? Number(v) : 0; }
 function saveLastCheckout(shop, n){ localStorage.setItem(getLastCheckoutKey(shop), String(Number(n||0))); }
 
+/* iPhone対策：ユーザー操作後だけ鳴らせる */
 let soundEnabled = false;
 let audioCtx = null;
 
@@ -459,6 +501,7 @@ function alarmBeep(){
   one();
 }
 
+/* ===== 新規オーダー検知 ===== */
 function detectNewOrders(shop, allOrders){
   let maxCreatedAt = 0;
   for(const o of allOrders){
@@ -481,6 +524,7 @@ function detectNewOrders(shop, allOrders){
   }
 }
 
+/* ===== 会計依頼検知（残っている間ずっと表示） ===== */
 function detectCheckoutRequests(shop, reqs){
   if(reqs.length > 0){
     const tables = Array.from(new Set(reqs.map(x => String(x.table||"")).filter(Boolean)))
@@ -551,10 +595,12 @@ async function refresh(){
     renderColumn("drinkList", drinks, shop);
     renderColumn("foodList", foods, shop);
 
+    // checkoutRequests を読む → バナーを「消えるまで表示」
     let reqObj = null;
     try{
       reqObj = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
     }catch(e){
+      // 読めない場合はバナーを消しておく（権限等）
       reqObj = null;
       setCheckoutBanner(false, "");
     }
@@ -563,6 +609,7 @@ async function refresh(){
     if(reqObj && typeof reqObj === "object"){
       for(const [table, r] of Object.entries(reqObj)){
         if(!r || typeof r !== "object") continue;
+        // table はキー or r.table のどちらでも
         reqs.push({
           table: String(r.table ?? table ?? ""),
           requestedAt: Number(r.requestedAt ?? r.requestedAtMs ?? r.createdAt ?? 0),
@@ -576,8 +623,24 @@ async function refresh(){
 
     $("status").innerHTML = `<span class="ok">OK</span> ${all.length} 件（${new Date().toLocaleTimeString()}）`;
 
+    const dbg = $("debug");
+    if(dbg){
+      dbg.textContent = JSON.stringify({
+        shop,
+        total: all.length,
+        drink: drinks.length,
+        food: foods.length,
+        checkoutReqs: reqs.length,
+        filter: { table: $("tableFilter").value.trim(), hidePending: $("hidePending").value },
+        path: `/shops/${shop}/orderFeed`,
+        alarm: { soundEnabled, ...getAlarmSettings() }
+      }, null, 2);
+    }
+
   }catch(e){
     $("status").innerHTML = `<span class="ng">読込失敗</span> ${esc(e.message||e)}`;
+    const dbg = $("debug");
+    if(dbg) dbg.textContent = String(e.stack || e);
     $("drinkList").innerHTML = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
     $("foodList").innerHTML  = `<div class="muted"><small>読み込みに失敗しました</small></div>`;
     setCheckoutBanner(false, "");
@@ -592,38 +655,37 @@ function setAuto(){
   }
 }
 
-function boot(){
-  $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-  $("btnRefresh").onclick = refresh;
-  $("autoSec").onchange = setAuto;
-  $("tableFilter").onchange = refresh;
-  $("hidePending").onchange = refresh;
+$("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+$("btnRefresh").onclick = refresh;
+$("autoSec").onchange = setAuto;
+$("tableFilter").onchange = refresh;
+$("hidePending").onchange = refresh;
 
-  $("btnSound").onclick = async ()=>{
-    soundEnabled = !soundEnabled;
-    $("btnSound").textContent = soundEnabled ? "🔔音ON" : "🔔音OFF";
-    if(soundEnabled){
-      try{
-        ensureAudio();
-        if(audioCtx && audioCtx.state === "suspended"){
-          await audioCtx.resume();
-        }
-      }catch{}
-    }
-  };
+$("btnSound").onclick = async ()=>{
+  soundEnabled = !soundEnabled;
+  $("btnSound").textContent = soundEnabled ? "🔔音ON" : "🔔音OFF";
+  if(soundEnabled){
+    try{
+      ensureAudio();
+      if(audioCtx && audioCtx.state === "suspended"){
+        await audioCtx.resume();
+      }
+    }catch{}
+  }
+};
 
-  $("btnBeep").onclick = ()=>{
-    soundEnabled = true;
-    $("btnSound").textContent = "🔔音ON";
-    alarmBeep();
-  };
+$("btnBeep").onclick = ()=>{
+  soundEnabled = true;
+  $("btnSound").textContent = "🔔音ON";
+  alarmBeep();
+};
 
-  setAuto();
-  refresh();
-}
+setAuto();
+refresh();
 </script>
 </body>
 </html>
+
 
 
 

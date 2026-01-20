@@ -1,3 +1,33 @@
+/** ====== 設定ここだけ ====== */
+const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ======================== */
+
+/* =========================
+   Firebase 初期化（compat）
+   ※各HTMLで firebase-app-compat.js / firebase-auth-compat.js を読み込んだ後に
+     この shop_common.js を読み込むこと！
+   ========================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCZTWH0Lv1EfUiW5iSX1skQ9MvUao6Dx10",
+  authDomain: "izakayaorder.firebaseapp.com",
+  databaseURL: "https://izakayaorder-default-rtdb.firebaseio.com",
+  projectId: "izakayaorder",
+  storageBucket: "izakayaorder.firebasestorage.app",
+  messagingSenderId: "1083271376500",
+  appId: "1:1083271376500:web:248f32d5aa470be087ab21",
+  measurementId: "G-009BPY8BFP"
+};
+
+(function initFirebaseOnce(){
+  try{
+    if(typeof firebase === "undefined") return;          // SDK未読込なら何もしない
+    if(firebase.apps && firebase.apps.length > 0) return; // 初期化済みなら何もしない
+    firebase.initializeApp(firebaseConfig);
+  }catch(e){
+    console.log("firebase init error:", e);
+  }
+})();
+
 /** localStorage 統一キー（店側） */
 const KEY_SHOP = "shopCode";
 const KEY_PIN  = "shopPin";
@@ -21,8 +51,8 @@ function requireLogin(){
 
 /* ===== Auth ガード（店側） =====
   使い方：
-  - kitchen/checkout/menu などの先頭で  await requireAuth();
-  - これで「Auth未ログインなら login.html に強制戻し」になる
+  - kitchen / checkout / menu などの先頭で  await requireAuth();
+  - Auth未ログインなら login.html に強制戻し
 */
 async function requireAuth(){
   if(typeof firebase === "undefined" || !firebase.auth){
@@ -30,12 +60,21 @@ async function requireAuth(){
     return false;
   }
 
-  const user = firebase.auth().currentUser;
-  if(user) return true;
+  // 初期化されてない/失敗してる場合を確実に弾く
+  try{ firebase.auth(); }catch(e){
+    location.href = "login.html?v=" + Date.now();
+    return false;
+  }
 
+  // 既にログイン済みならOK
+  const u = firebase.auth().currentUser;
+  if(u) return true;
+
+  // 復元待ちを必ず待つ
   return new Promise((resolve)=>{
-    firebase.auth().onAuthStateChanged(u=>{
-      if(u){
+    const unsub = firebase.auth().onAuthStateChanged(user=>{
+      try{ unsub && unsub(); }catch{}
+      if(user){
         resolve(true);
       }else{
         location.href = "login.html?v=" + Date.now();
@@ -56,49 +95,9 @@ async function doLogout(){
   location.href = "login.html?v=" + Date.now();
 }
 
-/* ===== Authトークン取得（RTDB REST用） ===== */
-let _idTokenCache = "";
-let _idTokenAt = 0;
-
-async function getIdToken(){
-  // firebase auth が無ければ空（＝公開ルールの時だけ動く）
-  if(typeof firebase === "undefined" || !firebase.auth) return "";
-
-  const u = firebase.auth().currentUser;
-  if(!u) return "";
-
-  const now = Date.now();
-  // 45秒以内ならキャッシュを使う（連打で重くならない）
-  if(_idTokenCache && (now - _idTokenAt) < 45000){
-    return _idTokenCache;
-  }
-
-  try{
-    const t = await u.getIdToken(/* forceRefresh */ false);
-    _idTokenCache = String(t || "");
-    _idTokenAt = now;
-    return _idTokenCache;
-  }catch{
-    return "";
-  }
-}
-
-async function buildAuthQS(){
-  const t = await getIdToken();
-  if(!t) return "";
-  return "auth=" + encodeURIComponent(t);
-}
-
-async function buildUrl(path){
-  // path は "shops/xxx/orderFeed" のように .json なしで渡す
-  const base = `${RTDB_BASE}/${path}.json`;
-  const qs = await buildAuthQS();
-  return qs ? `${base}?${qs}` : base;
-}
-
-/* ===== RTDB REST（Authトークン付き） ===== */
+/* ===== RTDB REST ===== */
 async function rtdbGet(path){
-  const url = await buildUrl(path);
+  const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, { method:"GET" });
   const text = await res.text();
   let json; try{ json = JSON.parse(text); }catch{ json = null; }
@@ -106,7 +105,7 @@ async function rtdbGet(path){
 }
 
 async function rtdbPut(path, data){
-  const url = await buildUrl(path);
+  const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, {
     method:"PUT",
     headers:{ "Content-Type":"application/json" },
@@ -118,7 +117,7 @@ async function rtdbPut(path, data){
 }
 
 async function rtdbPatch(path, data){
-  const url = await buildUrl(path);
+  const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, {
     method:"PATCH",
     headers:{ "Content-Type":"application/json" },
@@ -130,7 +129,7 @@ async function rtdbPatch(path, data){
 }
 
 async function rtdbPost(path, data){
-  const url = await buildUrl(path);
+  const url = `${RTDB_BASE}/${path}.json`;
   const res = await fetch(url, {
     method:"POST",
     headers:{ "Content-Type":"application/json" },
@@ -146,4 +145,5 @@ function esc(s){
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[m]));
 }
+
 

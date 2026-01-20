@@ -25,6 +25,10 @@
     button.dark{background:#111827;color:#fff}
     .small{font-size:12px;color:#6b7280}
   </style>
+
+  <!-- ✅ 追加：Firebase Auth（compat）※店側ページ全部に必要 -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 </head>
 <body>
   <h1>店側メニュー</h1>
@@ -63,14 +67,12 @@
     }
 
     (async function boot(){
-      // ✅ ここが重要：Auth復元を待ってから判定する
-      // （復元前に requireLogin すると「未ログイン判定→loginへ戻る」事故が起きる）
+      // ✅ Auth復元を待つ（firebaseが読めている前提になる）
       if(typeof requireAuth === "function"){
         const ok = await requireAuth();
         if(!ok) return; // requireAuth 内で login に飛ぶ
       }
 
-      // ローカルの shop/pin が無ければ login へ
       if(!requireLogin()) return;
 
       const shop = getShop();
@@ -80,25 +82,19 @@
       $("pinText").textContent  = maskPin(pin);
       $("status").innerHTML = `<span class="ok">OK</span> ログイン状態`;
 
-      // ✅ログアウト（Auth + localStorage 両方）
       $("btnLogout").onclick = async ()=>{
         try{
           if(typeof doLogout === "function"){
-            await doLogout(); // shop_common.js 側のAuthログアウトがあれば使う
+            await doLogout();
             return;
           }
         }catch(e){}
         try{
-          if(typeof lsClearShopLogin === "function"){
-            lsClearShopLogin();
-          }
           localStorage.removeItem("shopCode");
           localStorage.removeItem("shopPin");
         }catch(e){}
         location.href = "login.html?v=" + Date.now();
       };
-
-      // 接続チェック（画面表示だけ）
 
       $("btnCheck").onclick = async ()=>{
         try{
@@ -113,5 +109,6 @@
   </script>
 </body>
 </html>
+
 
 

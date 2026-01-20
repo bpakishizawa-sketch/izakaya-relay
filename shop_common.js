@@ -2,47 +2,22 @@
 const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
 /** ======================== */
 
-/* =========================
-   Firebase 初期化（compat）
-   ※各HTMLで firebase-app-compat.js / firebase-auth-compat.js を読み込んだ後に
-     この shop_common.js を読み込むこと！
-   ========================= */
-const firebaseConfig = {
-  apiKey: "AIzaSyCZTWH0Lv1EfUiW5iSX1skQ9MvUao6Dx10",
-  authDomain: "izakayaorder.firebaseapp.com",
-  databaseURL: "https://izakayaorder-default-rtdb.firebaseio.com",
-  projectId: "izakayaorder",
-  storageBucket: "izakayaorder.firebasestorage.app",
-  messagingSenderId: "1083271376500",
-  appId: "1:1083271376500:web:248f32d5aa470be087ab21",
-  measurementId: "G-009BPY8BFP"
-};
-
-(function initFirebaseOnce(){
-  try{
-    if(typeof firebase === "undefined") return;          // SDK未読込なら何もしない
-    if(firebase.apps && firebase.apps.length > 0) return; // 初期化済みなら何もしない
-    firebase.initializeApp(firebaseConfig);
-  }catch(e){
-    console.log("firebase init error:", e);
-  }
-})();
-
 /** localStorage 統一キー（店側） */
-const KEY_SHOP = "shopCode";
-const KEY_PIN  = "shopPin";
+const KEY_SHOP = "shopCode";   // shopコードだけ必須（PINは使わない）
 
 function lsGet(k){ return (localStorage.getItem(k) || "").trim(); }
-function lsSet(k,v){ localStorage.setItem(k, String(v||"")); }
-function lsClear(){ localStorage.removeItem(KEY_SHOP); localStorage.removeItem(KEY_PIN); }
+function lsSet(k,v){ localStorage.setItem(k, String(v||"").trim()); }
+function lsClear(){
+  localStorage.removeItem(KEY_SHOP);
+}
 
+/** 取得 */
 function getShop(){ return lsGet(KEY_SHOP); }
-function getPin(){ return lsGet(KEY_PIN); } // 数字/英字どちらでもOK
 
-function requireLogin(){
+/** shopCode ガード（未設定なら loginへ） */
+function requireShop(){
   const shop = getShop();
-  const pin  = getPin();
-  if(!shop || !pin){
+  if(!shop){
     location.href = "login.html?v=" + Date.now();
     return false;
   }
@@ -51,8 +26,8 @@ function requireLogin(){
 
 /* ===== Auth ガード（店側） =====
   使い方：
-  - kitchen / checkout / menu などの先頭で  await requireAuth();
-  - Auth未ログインなら login.html に強制戻し
+  - 各ページ先頭で  await requireAuth();
+  - Auth未ログインなら login.html に戻す
 */
 async function requireAuth(){
   if(typeof firebase === "undefined" || !firebase.auth){
@@ -60,21 +35,12 @@ async function requireAuth(){
     return false;
   }
 
-  // 初期化されてない/失敗してる場合を確実に弾く
-  try{ firebase.auth(); }catch(e){
-    location.href = "login.html?v=" + Date.now();
-    return false;
-  }
+  const user = firebase.auth().currentUser;
+  if(user) return true;
 
-  // 既にログイン済みならOK
-  const u = firebase.auth().currentUser;
-  if(u) return true;
-
-  // 復元待ちを必ず待つ
   return new Promise((resolve)=>{
-    const unsub = firebase.auth().onAuthStateChanged(user=>{
-      try{ unsub && unsub(); }catch{}
-      if(user){
+    firebase.auth().onAuthStateChanged(u=>{
+      if(u){
         resolve(true);
       }else{
         location.href = "login.html?v=" + Date.now();
@@ -84,7 +50,14 @@ async function requireAuth(){
   });
 }
 
-/* ログアウト（Auth + localStorage両方） */
+/** Auth + shop 両方チェック（店側ページ共通） */
+async function requireStaff(){
+  const ok = await requireAuth();
+  if(!ok) return false;
+  return requireShop();
+}
+
+/* ログアウト（Auth + localStorage） */
 async function doLogout(){
   try{
     if(typeof firebase !== "undefined" && firebase.auth){
@@ -145,5 +118,3 @@ function esc(s){
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[m]));
 }
-
-

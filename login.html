@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>店側ログイン</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:720px; margin:0 auto; background:#f6f7f9;}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:720px; margin:0 auto;}
     h1{font-size:22px;margin:0 0 10px}
     .sub{font-size:12px;color:#6b7280;margin-bottom:14px;line-height:1.6}
     .card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;background:#fff;}
@@ -13,7 +13,7 @@
     input,button{font-size:16px;padding:12px;border-radius:12px}
     input{border:1px solid #d1d5db; background:#fff; width:100%; box-sizing:border-box}
     button{cursor:pointer;border:0;font-weight:900}
-    .btn{background:#111827;color:#fff; min-width:140px}
+    .btn{background:#111827;color:#fff}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     .ok{color:#16a34a;font-weight:900}
     .ng{color:#dc2626;font-weight:900}
@@ -21,123 +21,123 @@
     details summary{cursor:pointer;font-weight:900;color:#374151}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
   </style>
-
-  <!-- ✅ Firebase (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 </head>
 <body>
   <h1>店側ログイン</h1>
   <div class="sub">
-    shopコード と（Authの）メール/パスワードでログインします。<br>
-    成功すると <b>localStorage.shopCode</b> を保存して menu.html に移動します。
+    shopコード と staffPin を入力してログインします。<br>
+    成功すると <b>localStorage</b> に保存し、menu.html に移動します。
   </div>
 
   <div class="card">
     <div class="row">
       <input id="shopInp" placeholder="shopコード（例：daboya）" autocomplete="username" />
-      <input id="emailInp" placeholder="メール（Auth）" inputmode="email" autocomplete="email" />
-      <input id="passInp" placeholder="パスワード（Auth）" type="password" autocomplete="current-password" style="max-width:240px" />
-      <button id="btnLogin" class="btn">ログイン</button>
+      <input id="pinInp" placeholder="PIN（例：1111）" inputmode="numeric" autocomplete="current-password" style="max-width:160px" />
+      <button id="btnLogin" class="btn" style="max-width:160px">ログイン</button>
     </div>
 
     <div id="msg" style="margin-top:10px;" class="small">-</div>
   </div>
 
+  <!-- デバッグ（必要な時だけ開く） -->
   <details class="card">
     <summary>デバッグ（開いて確認）</summary>
     <pre id="debug" class="mono">-</pre>
   </details>
 
-<script>
-/** ===== 設定（ここだけ） ===== */
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCZTWH0Lv1EfUiW5iSX1skQ9MvUao6Dx10",
-  authDomain: "izakayaorder.firebaseapp.com",
-  databaseURL: "https://izakayaorder-default-rtdb.firebaseio.com",
-  projectId: "izakayaorder",
-  storageBucket: "izakayaorder.firebasestorage.app",
-  messagingSenderId: "1083271376500",
-  appId: "1:1083271376500:web:248f32d5aa470be087ab21",
-  measurementId: "G-009BPY8BFP"
-};
-/** ============================ */
+  <!-- 共通JS（必須） -->
+  <script src="shop_common.js"></script>
 
-const $ = (id)=>document.getElementById(id);
+  <script>
+    const $ = (id)=>document.getElementById(id);
 
-function esc(s){
-  return String(s ?? "").replace(/[&<>"']/g, m => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-  }[m]));
-}
-function setMsg(html){ $("msg").innerHTML = html; }
+    function esc(s){
+      return String(s ?? "").replace(/[&<>"']/g, m => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      }[m]));
+    }
 
-/** localStorage（店側） */
-const KEY_SHOP = "shopCode";
-const KEY_PIN  = "shopPin"; // 互換維持用（Auth運用なら固定値でOK）
-function lsSet(k,v){ localStorage.setItem(k, String(v||"")); }
-function lsGet(k){ return (localStorage.getItem(k)||"").trim(); }
+    function setMsg(html){ $("msg").innerHTML = html; }
 
-function initFirebaseOnce(){
-  if(typeof firebase === "undefined") throw new Error("firebase SDK が読み込まれていません");
-  if(!firebase.apps || firebase.apps.length === 0){
-    firebase.initializeApp(FIREBASE_CONFIG);
-  }
-}
+    function normalizePin(x){
+      // FBRDが number でも string でも同じ比較にする
+      if(x === null || x === undefined) return "";
+      return String(x).trim();
+    }
 
-async function doLogin(){
-  const shop = ($("shopInp").value || "").trim();
-  const email = ($("emailInp").value || "").trim();
-  const pass  = ($("passInp").value || "").trim();
+    function getVal(){
+      const shop = ($("shopInp").value || "").trim();
+      const pin  = ($("pinInp").value  || "").trim();
+      return { shop, pin };
+    }
 
-  if(!shop){
-    setMsg(`<span class="ng">NG</span> shopコードを入力してください`);
-    return;
-  }
-  if(!email || !pass){
-    setMsg(`<span class="ng">NG</span> メール/パスワードを入力してください`);
-    return;
-  }
+    async function doLogin(){
+      const { shop, pin } = getVal();
 
-  $("btnLogin").disabled = true;
-  setMsg(`<span class="mono">ログイン中...</span>`);
+      if(!shop || !pin){
+        setMsg(`<span class="ng">NG</span> shop と PIN を入力してください`);
+        return;
+      }
 
-  try{
-    initFirebaseOnce();
+      $("btnLogin").disabled = true;
+      setMsg(`<span class="mono">確認中...</span>`);
 
-    const cred = await firebase.auth().signInWithEmailAndPassword(email, pass);
+      try{
+        // staffPin を確認
+        const staffPinPath = `shops/${encodeURIComponent(shop)}/staffPin`;
+        const r = await rtdbGet(staffPinPath);
 
-    // ✅ ここが重要：shopCode を必ず保存
-    lsSet(KEY_SHOP, shop);
+        const dbg = {
+          requestShop: shop,
+          inputPin: pin,
+          staffPinPath,
+          fetchStatus: r.status,
+          ok: r.ok,
+          url: r.url,
+          gotJson: r.json,
+          gotType: typeof r.json
+        };
+        $("debug").textContent = JSON.stringify(dbg, null, 2);
 
-    // ✅ 互換のため pin も埋める（requireLogin対策）
-    lsSet(KEY_PIN, "AUTH");
+        if(!r.ok){
+          setMsg(`<span class="ng">NG</span> PIN取得に失敗しました（HTTP ${r.status}）`);
+          $("btnLogin").disabled = false;
+          return;
+        }
 
-    const dbg = {
-      shopSaved: lsGet(KEY_SHOP),
-      pinSaved: lsGet(KEY_PIN),
-      user: { uid: cred.user?.uid || "-", email: cred.user?.email || "-" }
-    };
-    $("debug").textContent = JSON.stringify(dbg, null, 2);
+        const serverPin = normalizePin(r.json);
+        const inputPin  = normalizePin(pin);
 
-    setMsg(`<span class="ok">OK</span> ログインしました → menuへ移動します`);
-    setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 150);
+        if(!serverPin){
+          setMsg(`<span class="ng">NG</span> staffPin が未設定です（/shops/${esc(shop)}/staffPin）`);
+          $("btnLogin").disabled = false;
+          return;
+        }
 
-  }catch(e){
-    setMsg(`<span class="ng">NG</span> ${esc(e.message || e)}`);
-    $("btnLogin").disabled = false;
-  }
-}
+        if(serverPin !== inputPin){
+          setMsg(`<span class="ng">NG</span> PINが違います`);
+          $("btnLogin").disabled = false;
+          return;
+        }
 
-$("btnLogin").onclick = doLogin;
-$("passInp").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
+        // ✅ ここが今回の修正点：
+        // ❌ IsSetShopLogin(...) ではなく、✅ lsSetShopLogin(...) を使う
+        lsSetShopLogin(shop, inputPin);
 
-(function boot(){
-  // shopCodeが残ってるならshop入力へ反映（便利）
-  const s = lsGet(KEY_SHOP);
-  if(s) $("shopInp").value = s;
-})();
-</script>
+        setMsg(`<span class="ok">OK</span> ログインしました → menuへ移動します`);
+        setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 150);
+
+      }catch(e){
+        setMsg(`<span class="ng">例外エラー</span> ${esc(e.message || e)}`);
+        $("btnLogin").disabled = false;
+      }
+    }
+
+    $("btnLogin").onclick = doLogin;
+    $("pinInp").addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") doLogin();
+    });
+  </script>
 </body>
 </html>
 

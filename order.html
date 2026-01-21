@@ -163,10 +163,6 @@
     <div class="hr"></div>
 
     <div style="font-weight:900;margin-bottom:6px;">お会計（長押し 1.2秒）</div>
-    <div class="muted" style="margin-bottom:10px;">
-      送信内容：テーブル / token / 注文履歴 / 累計合計 / お会計依頼時刻 を保存します（店側が読み込み）。
-    </div>
-
     <div class="holdWrap">
       <div class="holdBar" id="holdBar"></div>
       <button id="btnCheckout" class="danger holdBtn">長押しでお会計を依頼</button>
@@ -174,11 +170,6 @@
 
     <div class="muted" id="checkoutMsg" style="margin-top:8px;">-</div>
   </div>
-
-  <details class="card">
-    <summary>デバッグ（必要な時だけ）</summary>
-    <pre id="debug">-</pre>
-  </details>
 
 <script>
 /** ====== 設定ここだけ ====== */
@@ -391,7 +382,6 @@ async function loadMenu(){
 
   if(!d.ok || !f.ok){
     setStatus(`<span class="ng">NG</span> メニュー取得失敗（${d.status}/${f.status}）`);
-    $("debug").textContent = JSON.stringify({ d, f }, null, 2);
     return;
   }
 
@@ -404,11 +394,6 @@ async function loadMenu(){
   rebuildItemSelect();
 
   setStatus(`<span class="ok">OK</span> メニュー読み込み完了`);
-  $("debug").textContent = JSON.stringify({
-    shop, table, token,
-    drinkKeys: menu.drinkKeys.length,
-    foodKeys: menu.foodKeys.length
-  }, null, 2);
 }
 
 /* ====== add to cart ====== */
@@ -524,7 +509,6 @@ async function refreshHistory(){
   const r = await rtdbGet(path);
   if(!r.ok){
     setSendMsg(`<span class="ng">履歴読込失敗</span> HTTP ${r.status}`);
-    $("debug").textContent = JSON.stringify({ historyRead: r }, null, 2);
     return;
   }
 
@@ -583,7 +567,6 @@ async function sendOrder(){
   if(!r1.ok){
     setSendMsg(`<span class="ng">送信失敗 orders POST</span> HTTP ${r1.status}`);
     $("btnSend").disabled = false;
-    $("debug").textContent = JSON.stringify({ ordersPost: r1, payload: orderPayload }, null, 2);
     return;
   }
 
@@ -620,7 +603,6 @@ async function sendOrder(){
       // ここで落ちた場合でも orders は入っている（安全）
       setSendMsg(`<span class="ng">送信失敗 orderFeed POST</span> HTTP ${r2.status}`);
       $("btnSend").disabled = false;
-      $("debug").textContent = JSON.stringify({ orderFeedPost: r2, feedPayload }, null, 2);
       return;
     }
   }
@@ -687,7 +669,6 @@ async function requestCheckout(){
 
   if(!r.ok){
     setCheckoutMsg(`<span class="ng">会計依頼 失敗</span> HTTP ${r.status}`);
-    $("debug").textContent = JSON.stringify({ checkoutPut: r, payload }, null, 2);
     return;
   }
 
@@ -761,9 +742,6 @@ $("btnCheckout").addEventListener("pointercancel", ()=> endHold());
 </script>
 </body>
 </html>
-
-
-
 
 
 

@@ -16,7 +16,6 @@
       border-radius:50%; animation: rot .8s linear infinite; vertical-align:-2px; margin-right:8px;
     }
     @keyframes rot { to { transform: rotate(360deg);} }
-    pre { white-space: pre-wrap; word-break: break-word; background: #f7f7f7; padding: 10px; border-radius: 10px; overflow:auto; }
     a,button { color:#2563eb; }
     button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:900;background:#111827;color:#fff}
     .muted{color:#6b7280}
@@ -31,14 +30,10 @@
       <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
       <div><b>table:</b> <span id="tableText" class="mono">-</span></div>
       <div><b>token:</b> <span id="tokenText" class="mono">-</span></div>
-      <div style="margin-top:8px;"><small id="hrefText" class="mono">-</small></div>
     </div>
-  </div>
 
-  <div class="card" id="resultCard" style="display:none;">
-    <div id="resultLine" class="mono"></div>
-    <pre id="resultJson" class="mono"></pre>
-    <div id="retryBox" style="margin-top:10px;"></div>
+    <div id="actionBox" style="margin-top:12px;"></div>
+    <div id="hint" class="muted" style="margin-top:8px;"></div>
   </div>
 
 <script>
@@ -61,14 +56,8 @@ function getParam(name) {
 }
 
 function genToken(shop, table) {
-  const n = Math.floor(100000 + Math.random() * 900000); // 6桁にして衝突を減らす
+  const n = Math.floor(100000 + Math.random() * 900000); // 6桁
   return `${shop}-${table}-${n}`;
-}
-
-function showResult(ok, line, obj) {
-  $("resultCard").style.display = "block";
-  $("resultLine").innerHTML = ok ? `<span class="ok">OK</span> ${line}` : `<span class="ng">NG</span> ${line}`;
-  $("resultJson").textContent = JSON.stringify(obj, null, 2);
 }
 
 async function rtdbGet(path){
@@ -109,14 +98,14 @@ const table = getParam("table");
 
 $("shopText").textContent = shop || "(missing)";
 $("tableText").textContent = table || "(missing)";
-$("hrefText").textContent = location.href;
+
+function setAction(html){ $("actionBox").innerHTML = html || ""; }
+function setHint(html){ $("hint").innerHTML = html || ""; }
 
 if (!shop || !table) {
   $("line1").innerHTML = `<span class="ng">NG</span> URL params が不足です（shop/table）`;
-  showResult(false, "missing params: shop / table", {
-    example: `${location.origin}${location.pathname}?shop=daboya&table=1`
-  });
-  $("retryBox").innerHTML = `<a href="${esc(location.origin + location.pathname)}">戻る</a>`;
+  setHint(`例：?shop=daboya&table=1`);
+  setAction(`<button onclick="location.href='customer.html?v='+Date.now()">戻る</button>`);
 } else {
   (async ()=>{
     const now = Date.now();
@@ -131,8 +120,8 @@ if (!shop || !table) {
         const token = String(g.json.token).trim();
         $("tokenText").textContent = token;
         $("line1").innerHTML = `<span class="ok">OK</span> 既存セッションを再利用（2秒後に注文画面）`;
-        showResult(true, `既存セッション利用: ${g.url}`, g.json);
-        $("retryBox").innerHTML = `<button id="goBtn">今すぐ注文画面へ</button> <span class="muted">（2秒後に自動遷移）</span>`;
+        setAction(`<button id="goBtn">今すぐ注文画面へ</button> <span class="muted">（2秒後に自動遷移）</span>`);
+        setHint(``);
         setTimeout(()=> jumpToOrder(shop, table, token), 2000);
         setTimeout(()=> { const b=$("goBtn"); if(b) b.onclick=()=>jumpToOrder(shop,table,token); }, 0);
         return;
@@ -156,36 +145,36 @@ if (!shop || !table) {
 
       if (!p.ok) {
         $("line1").innerHTML = `<span class="ng">NG</span> セッション作成失敗（Permission denied等）`;
-        showResult(false, `PUT失敗: HTTP ${p.status} ${p.url}`, { payload, response: p.json, raw: p.raw });
-        $("retryBox").innerHTML = `<button onclick="location.reload()">再試行</button>`;
+        setAction(`<button onclick="location.reload()">再試行</button>`);
+        setHint(`HTTP ${p.status}`);
         return;
       }
 
-      // 3) 直後に読み戻して「本当に書けたか」確認（ここ重要）
+      // 3) 直後に読み戻して確認
       const g2 = await rtdbGet(sessPath);
       if(!(g2.ok && g2.json && g2.json.token)){
         $("line1").innerHTML = `<span class="ng">NG</span> 書き込み後の読み戻しで確認できませんでした`;
-        showResult(false, `PUTは成功したがGETで確認できない`, { put: payload, get: g2 });
-        $("retryBox").innerHTML = `<button onclick="location.reload()">再試行</button>`;
+        setAction(`<button onclick="location.reload()">再試行</button>`);
+        setHint(`PUTは成功したがGETで確認不可`);
         return;
       }
 
       $("line1").innerHTML = `<span class="ok">OK</span> セッション新規作成（2秒後に注文画面）`;
-      showResult(true, `新規作成→確認OK: ${g2.url}`, g2.json);
-
-      $("retryBox").innerHTML = `<button id="goBtn">今すぐ注文画面へ</button> <span class="muted">（2秒後に自動遷移）</span>`;
+      setAction(`<button id="goBtn">今すぐ注文画面へ</button> <span class="muted">（2秒後に自動遷移）</span>`);
+      setHint(``);
       setTimeout(()=> jumpToOrder(shop, table, token), 2000);
       setTimeout(()=> { const b=$("goBtn"); if(b) b.onclick=()=>jumpToOrder(shop,table,token); }, 0);
 
     } catch (e) {
       $("line1").innerHTML = `<span class="ng">NG</span> 例外エラー（通信/CORS等）`;
-      showResult(false, "例外エラー", { message: String(e), stack: (e && e.stack) ? String(e.stack) : "" });
-      $("retryBox").innerHTML = `<button onclick="location.reload()">再試行</button>`;
+      setAction(`<button onclick="location.reload()">再試行</button>`);
+      setHint(esc(String(e)));
     }
   })();
 }
 </script>
 </body>
 </html>
+
 
 

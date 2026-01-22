@@ -33,7 +33,6 @@
     .cartItem{border:1px solid #e5e7eb;border-radius:12px;padding:10px}
     .cartTop{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between}
     .name{font-weight:900}
-    .right{margin-left:auto}
     .qtyBox{display:flex;gap:8px;align-items:center}
     .qtyBtn{padding:8px 10px;border-radius:10px;border:1px solid #d1d5db;background:#fff;font-weight:900}
     .qtyNum{min-width:28px;text-align:center;font-weight:900}
@@ -65,22 +64,49 @@
       touch-action: manipulation;
     }
 
-    details summary{cursor:pointer;font-weight:900;color:#374151}
-    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
+    /* ===== 見せ方：テーブル番号を大きく ===== */
+    .tableBigWrap{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+    .tableBigLabel{font-size:12px; color:#6b7280; font-weight:900; letter-spacing:.08em}
+    .tableBigNum{
+      font-size:40px;
+      font-weight:1000;
+      line-height:1;
+      padding:8px 14px;
+      border-radius:14px;
+      border:2px solid #111827;
+      background:#fff;
+      color:#111827;
+    }
+    @media(min-width:860px){
+      .tableBigNum{font-size:52px;}
+    }
+
+    /* ===== お客に見せないUI ===== */
+    .customerHide{display:none !important;}
   </style>
 </head>
 <body>
   <h1>注文</h1>
 
   <div class="card">
-    <div class="row">
+    <!-- お客に必要なのはテーブルだけ：大きく表示 -->
+    <div class="tableBigWrap">
+      <div class="tableBigLabel">TABLE</div>
+      <div class="tableBigNum mono" id="tableBig">-</div>
+    </div>
+
+    <!-- 内部情報は非表示（必要ならcustomerHideを外す） -->
+    <div class="row customerHide" style="margin-top:10px">
       <span class="pill">shop: <b id="shopText" class="mono">-</b></span>
       <span class="pill">table: <b id="tableText" class="mono">-</b></span>
       <span class="pill">token: <b id="tokenText" class="mono">-</b></span>
       <button id="btnBack" class="btn2" style="width:auto">← 戻る</button>
     </div>
-    <div id="status" class="muted">-</div>
-    <div id="checkoutBanner" class="muted" style="margin-top:8px; display:none;">
+
+    <!-- ステータスも非表示（エラーだけ出したいならcustomerHide外してOK） -->
+    <div id="status" class="muted customerHide">-</div>
+
+    <div id="checkoutBanner" class="muted" style="margin-top:10px; display:none;">
       <span class="ok">会計依頼済み</span> 店員さんがお会計処理をします。必要ならこのまま画面を閉じてOKです。
     </div>
   </div>
@@ -94,6 +120,11 @@
         <select id="catSel" style="width:180px">
           <option value="drink">ドリンク</option>
           <option value="food">フード</option>
+        </select>
+
+        <!-- ★追加：カテゴリ（タグから自動抽出） -->
+        <select id="subCatSel" style="width:200px">
+          <option value="__ALL__">（カテゴリ：すべて）</option>
         </select>
 
         <select id="itemSel" style="flex:1;min-width:240px">
@@ -111,10 +142,6 @@
 
       <div class="row">
         <button id="btnReloadMenu" class="btn2">メニュー再読み込み</button>
-      </div>
-
-      <div class="muted" style="margin-top:8px;">
-        ※プルダウンは「ID：名前（価格）」で出します。
       </div>
     </div>
 
@@ -149,7 +176,7 @@
   <!-- history + checkout -->
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <div style="font-weight:900">注文履歴（このtoken）</div>
+      <div style="font-weight:900">注文履歴</div>
       <div class="muted">件数: <span id="histCount" class="mono">0</span></div>
     </div>
 
@@ -163,6 +190,7 @@
     <div class="hr"></div>
 
     <div style="font-weight:900;margin-bottom:6px;">お会計（長押し 1.2秒）</div>
+
     <div class="holdWrap">
       <div class="holdBar" id="holdBar"></div>
       <button id="btnCheckout" class="danger holdBtn">長押しでお会計を依頼</button>
@@ -261,14 +289,33 @@ let menu = { drink:{}, food:{}, drinkKeys:[], foodKeys:[] };
 let cart = []; // [{id, name, price, qty, category}]
 let lastHistory = { orders: {}, list: [], sum:0, count:0 };
 
+/* ====== カテゴリ（タグ）抽出 ======
+   メニュー名が「【一品】唐揚げ」なら
+   tag="一品", title="唐揚げ"
+   タグなしは tag="その他"
+*/
+const DEFAULT_TAG = "その他";
+function parseTagName(fullName){
+  const s = String(fullName || "").trim();
+  const m = s.match(/^【([^】]+)】\s*(.*)$/);
+  if(m){
+    const tag = String(m[1] || "").trim() || DEFAULT_TAG;
+    const title = String(m[2] || "").trim() || s;
+    return { tag, title };
+  }
+  return { tag: DEFAULT_TAG, title: s };
+}
+
 function setStatus(html){ $("status").innerHTML = html || ""; }
 function setSendMsg(html){ $("sendMsg").innerHTML = html || ""; }
 function setCheckoutMsg(html){ $("checkoutMsg").innerHTML = html || ""; }
 
-/* ====== init ====== */
+/* ====== init (表示) ====== */
 $("shopText").textContent = shop || "(missing)";
 $("tableText").textContent = table || "(missing)";
 $("tokenText").textContent = token || "(missing)";
+$("tableBig").textContent = table ? `T${table}` : "-";
+
 $("btnBack").onclick = ()=>{
   location.href = `customer.html?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(String(table))}&v=${Date.now()}`;
 };
@@ -352,8 +399,44 @@ function renderCart(){
 }
 
 /* ====== menu ====== */
+function rebuildSubCategorySelect(){
+  const cat = $("catSel").value; // drink/food
+  const keys = cat === "drink" ? menu.drinkKeys : menu.foodKeys;
+  const src  = cat === "drink" ? menu.drink : menu.food;
+
+  const set = new Set();
+  for(const id of keys){
+    const v = parseMenuValue(src[id]);
+    const p = parseTagName(v.name);
+    if(p.title) set.add(p.tag || DEFAULT_TAG);
+  }
+
+  const tags = Array.from(set).sort((a,b)=>a.localeCompare(b,"ja"));
+
+  const sel = $("subCatSel");
+  const cur = sel.value || "__ALL__";
+  sel.innerHTML = "";
+
+  const optAll = document.createElement("option");
+  optAll.value = "__ALL__";
+  optAll.textContent = "（カテゴリ：すべて）";
+  sel.appendChild(optAll);
+
+  for(const t of tags){
+    const opt = document.createElement("option");
+    opt.value = t;
+    opt.textContent = t; // ★カッコなし
+    sel.appendChild(opt);
+  }
+
+  // なるべく元の選択を維持
+  if(tags.includes(cur)) sel.value = cur;
+  else sel.value = "__ALL__";
+}
+
 function rebuildItemSelect(){
   const cat = $("catSel").value; // drink/food
+  const sub = $("subCatSel").value; // __ALL__ or tag
   const keys = cat === "drink" ? menu.drinkKeys : menu.foodKeys;
   const src  = cat === "drink" ? menu.drink : menu.food;
 
@@ -365,10 +448,18 @@ function rebuildItemSelect(){
   sel.appendChild(opt0);
 
   for(const id of keys){
-    const v = parseMenuValue(src[id]);
+    const v0 = parseMenuValue(src[id]);
+    const p = parseTagName(v0.name);
+    const tag = p.tag || DEFAULT_TAG;
+    const title = p.title || "";
+
+    if(!title) continue;
+    if(sub !== "__ALL__" && tag !== sub) continue;
+
     const opt = document.createElement("option");
     opt.value = id;
-    opt.textContent = `${id}：${v.name || "-"}（${v.price||0}）`;
+    // 表示：名前（価格） ※IDは出さない方が分かりやすいので外す（必要なら戻して）
+    opt.textContent = `${title}（${v0.price||0}）`;
     sel.appendChild(opt);
   }
 }
@@ -391,13 +482,19 @@ async function loadMenu(){
   menu.drinkKeys = Object.keys(menu.drink).sort((a,b)=>idNum(a)-idNum(b));
   menu.foodKeys  = Object.keys(menu.food).sort((a,b)=>idNum(a)-idNum(b));
 
+  rebuildSubCategorySelect();
   rebuildItemSelect();
 
   setStatus(`<span class="ok">OK</span> メニュー読み込み完了`);
 }
 
 /* ====== add to cart ====== */
-$("catSel").onchange = rebuildItemSelect;
+$("catSel").onchange = ()=>{
+  rebuildSubCategorySelect();
+  rebuildItemSelect();
+};
+
+$("subCatSel").onchange = rebuildItemSelect;
 
 $("btnAdd").onclick = ()=>{
   const cat = $("catSel").value;
@@ -411,7 +508,9 @@ $("btnAdd").onclick = ()=>{
 
   const src = cat === "drink" ? menu.drink : menu.food;
   const v = parseMenuValue(src[id]);
-  if(!v.name){
+  const p = parseTagName(v.name);
+
+  if(!p.title){
     setSendMsg(`<span class="ng">メニュー情報が不正です</span>`);
     return;
   }
@@ -421,7 +520,7 @@ $("btnAdd").onclick = ()=>{
   if(found){
     found.qty = Number(found.qty||1) + qty;
   }else{
-    cart.push({ id, name:v.name, price:Number(v.price||0), qty, category:cat });
+    cart.push({ id, name:p.title, price:Number(v.price||0), qty, category:cat });
   }
 
   saveCart();
@@ -595,12 +694,10 @@ async function sendOrder(){
       items: [ { name: it.name, qty: Number(it.qty||0), price: Number(it.price||0), category: it.category } ]
     };
 
-    // ★ここが変更点：/shops/{shop}/orderFeed に POST
     const feedPath = `shops/${encodeURIComponent(shop)}/orderFeed`;
     const r2 = await rtdbPost(feedPath, feedPayload);
 
     if(!r2.ok){
-      // ここで落ちた場合でも orders は入っている（安全）
       setSendMsg(`<span class="ng">送信失敗 orderFeed POST</span> HTTP ${r2.status}`);
       $("btnSend").disabled = false;
       return;
@@ -612,7 +709,7 @@ async function sendOrder(){
   saveCart();
   renderCart();
 
-  setSendMsg(`<span class="ok">注文を送信しました</span>（厨房へ反映）`);
+  setSendMsg(`<span class="ok">注文を送信しました</span>`);
   $("btnSend").disabled = false;
 
   await refreshHistory();
@@ -679,7 +776,7 @@ async function requestCheckout(){
   setSendMsg(`<span class="muted">会計依頼済みのため、注文はできません（店側が会計確定後に再入店）</span>`);
 
   // 履歴を“見た目だけ”消す（実データは残す）
-  $("histList").innerHTML = `<div class="muted"><small>会計依頼済み（表示リセット）</small></div>`;
+  $("histList").innerHTML = `<div class="muted"><small>会計依頼済み</small></div>`;
   $("histCount").textContent = "0";
   $("histSum").textContent = yen(0);
 }
@@ -742,6 +839,7 @@ $("btnCheckout").addEventListener("pointercancel", ()=> endHold());
 </script>
 </body>
 </html>
+
 
 
 

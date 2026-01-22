@@ -16,6 +16,7 @@
     button{font-size:14px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:900}
     button.dark{background:#111827;color:#fff}
     button.light{background:#f3f4f6;color:#111827;border:1px solid #ddd}
+    button.warn{background:#fef3c7;color:#111827;border:1px solid #f59e0b}
     button.done{background:#16a34a;color:#fff}
     button.cancel{background:#ef4444;color:#fff}
     .ok{color:#16a34a;font-weight:900}
@@ -104,6 +105,7 @@
 
     <div class="topbar">
       <button id="btnBack" class="light">← menuへ</button>
+      <button id="btnCheckout" class="warn">会計へ</button>
       <button id="btnRefresh" class="dark">更新</button>
 
       <label class="row">
@@ -656,6 +658,7 @@ function setAuto(){
 }
 
 $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+$("btnCheckout").onclick = ()=> location.href = `checkout.html?v=${Date.now()}`;
 $("btnRefresh").onclick = refresh;
 $("autoSec").onchange = setAuto;
 $("tableFilter").onchange = refresh;
@@ -685,6 +688,7 @@ refresh();
 </script>
 </body>
 </html>
+
 
 
 

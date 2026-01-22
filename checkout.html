@@ -20,6 +20,7 @@
     button.light{background:#f3f4f6;color:#111827;border:1px solid #ddd}
     button.green{background:#16a34a;color:#fff}
     button.red{background:#dc2626;color:#fff}
+    button.kitchen{background:#dbeafe;color:#111827;border:1px solid #3b82f6}
     .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
     .grid2{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
     @media(min-width:860px){ .grid2{grid-template-columns: 1fr 1fr;} }
@@ -80,6 +81,7 @@
       <span class="pill">選択テーブル: <b id="selTableText" class="mono">-</b></span>
 
       <button id="btnBack" class="light">← menuへ</button>
+      <button id="btnKitchen" class="kitchen">厨房へ</button>
       <button id="btnRefresh" class="dark">更新</button>
 
       <label class="row">
@@ -463,6 +465,7 @@ function setAuto(){
 
 /* ===== actions ===== */
 $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+$("btnKitchen").onclick = ()=> location.href = `kitchen.html?v=${Date.now()}`;
 $("btnRefresh").onclick = refresh;
 $("autoSec").onchange = setAuto;
 

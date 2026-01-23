@@ -24,6 +24,13 @@
     input,select{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
     input{width:100%;box-sizing:border-box}
 
+    /* ===== 追加：メニュー名入力欄を大きく ===== */
+    #inpName{
+      font-size:18px;
+      padding:12px 12px;
+      height:52px;
+    }
+
     .tabs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
     .tab{padding:10px 14px;border-radius:999px;border:1px solid #d1d5db;background:#fff;font-weight:900}
     .tab.on{background:#111827;color:#fff;border-color:#111827}
@@ -44,7 +51,13 @@
     .pillD{background:#dbeafe;border-color:#3b82f6}
     .pillF{background:#dcfce7;border-color:#16a34a}
     .id{font-weight:900}
-    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+
+    /* ついで改善：一覧の名前が切れすぎるので少し広げる */
+    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px}
+    @media(max-width:420px){
+      .name{max-width:240px}
+    }
+
     .price{font-weight:900}
 
     .editBox{display:grid;grid-template-columns:1fr;gap:10px}
@@ -55,6 +68,23 @@
     details{margin-top:10px}
     details summary{cursor:pointer;color:#374151;font-weight:900}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
+
+    /* ===== 追加：タグ説明ボックス ===== */
+    .hintBox{
+      border:1px dashed #d1d5db;
+      border-radius:12px;
+      padding:12px;
+      background:#fafafa;
+      margin-top:10px;
+    }
+    .hintTitle{font-weight:900;margin-bottom:6px}
+    .hintBox .mono{font-weight:900}
+    .hintBox .ex{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      margin-top:6px;
+    }
 
     /* ===== 印刷最適化（Safariで2回目以降も崩れない方式） ===== */
     @media print{
@@ -156,6 +186,21 @@
       </div>
     </div>
 
+    <!-- ★追加：タグ入力説明 -->
+    <div class="hintBox">
+      <div class="hintTitle">カテゴリ（タグ）入力のやり方</div>
+      <div class="muted" style="line-height:1.7">
+        メニュー名の先頭に <span class="mono">【カテゴリ名】</span> を付けると、注文画面のカテゴリ絞り込みに出ます。<br>
+        例：<span class="mono">【一品】唐揚げ</span> / <span class="mono">【デザート】アイス</span> / <span class="mono">【サワー】レモンサワー</span><br>
+        タグなしは自動で <span class="mono">その他</span> 扱いになります。
+      </div>
+      <div class="ex muted">
+        <div>・カテゴリ名は自由（店ごとに好きな名前OK）</div>
+        <div>・カッコは「全角の角カッコ」<span class="mono">【 】</span> を使う</div>
+        <div>・【】の後ろの名前が、注文画面に表示されるメニュー名になります</div>
+      </div>
+    </div>
+
     <details>
       <summary>デバッグ（必要な時だけ開く）</summary>
       <pre id="debug" class="mono">-</pre>
@@ -206,7 +251,7 @@ async function rtdbPut(path, data){
 
 function parseMenuValue(v){
   if(v && typeof v === "object"){
-    return { name: String(v.name ?? ""), price: Number(v.price ?? 0) };
+    return { name: String(v.name?? ""), price: Number(v.price ?? 0) };
   }
   if(typeof v === "string"){
     return { name: v, price: 0 };
@@ -437,6 +482,7 @@ loadAll();
 </script>
 </body>
 </html>
+
 
 
 

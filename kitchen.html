@@ -5,13 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kitchen - Order Feed</title>
   <style>
-    /* ★全体の横幅を少し広げる & 余白を詰める（③） */
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:14px; max-width:1400px; margin:0 auto;}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:1200px; margin:0 auto;}
     h1{font-size:22px;margin:0 0 8px}
-    .sub{font-size:12px;color:#6b7280;margin-bottom:10px;line-height:1.6}
-    .topbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
-    .card{border:1px solid #ddd;border-radius:12px;padding:10px;margin:8px 0;background:#fff;}
-    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .sub{font-size:12px;color:#6b7280;margin-bottom:12px;line-height:1.6}
+    .topbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}
+    .card{border:1px solid #ddd;border-radius:12px;padding:12px;margin:10px 0;background:#fff;}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     select,input{font-size:16px;padding:10px;border:1px solid #ccc;border-radius:10px}
     button{font-size:14px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:900}
@@ -26,8 +25,8 @@
     .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
-    /* 2カラム：左=drink / 右=food（gapも詰める） */
-    .twoCol{display:grid;grid-template-columns:1fr; gap:10px; align-items:start;}
+    /* 2カラム：左=drink / 右=food */
+    .twoCol{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
     @media(min-width:860px){
       .twoCol{grid-template-columns: 1fr 1fr;}
     }
@@ -35,34 +34,18 @@
     .colTitle{font-weight:900;font-size:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .badgeDrink{background:#dbeafe;border-color:#3b82f6}
     .badgeFood{background:#dcfce7;border-color:#16a34a}
+    .list{display:flex;flex-direction:column;gap:8px}
 
-    /* ★カードを詰める（③） */
-    .list{display:flex;flex-direction:column;gap:7px}
-    .oCard{border:1px solid #e5e7eb;border-radius:12px;padding:9px;background:#fff}
-    .oTop{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
-    .oName{font-weight:900;font-size:15px;margin-top:5px;line-height:1.2}
-    .oMeta{font-size:12px;color:#6b7280;margin-top:2px}
-    .oBtns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:7px}
-
-    /* ★テーブル＆数量をデカく（見やすさ） */
-    .bigT{
-      font-size:16px;
-      padding:7px 12px;
-      border-radius:999px;
-      border:1px solid #ddd;
-      font-weight:900;
+    /* 注文カード（コンパクト） */
+    .oCard{
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      padding:10px 10px;
       background:#fff;
     }
-    .bigQty{
-      font-size:16px;
-      padding:7px 12px;
-      border-radius:999px;
-      border:1px solid #111827;
-      font-weight:900;
-      background:#111827;
-      color:#fff;
-    }
-    .timePill{font-size:12px}
+    .oTop{display:flex;flex-direction:column;gap:6px}
+    .oName{font-weight:900;font-size:15px;line-height:1.25}
+    .oMeta{font-size:12px;color:#6b7280}
 
     /* 提供済みペンディング（10秒） */
     .pending{
@@ -109,6 +92,48 @@
       max-width: 92vw;
       text-align: center;
     }
+
+    /* 見やすいバッジ（T と 数量 同格） */
+    .bigT,.bigQty{
+      font-size:16px;
+      padding:7px 12px;
+      border-radius:999px;
+      border:1px solid #111827;
+      font-weight:900;
+      background:#111827;
+      color:#fff;
+      white-space:nowrap;
+    }
+    .timePill{
+      font-size:12px;
+      padding:6px 10px;
+    }
+
+    /* 1行目ボタンを小さめに */
+    .miniBtn{
+      padding:8px 10px;
+      border-radius:10px;
+      font-size:13px;
+      white-space:nowrap;
+    }
+
+    /* 2行目を「名前＋取消」左右に */
+    .line2{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+    }
+    .line2 .nameWrap{
+      min-width:0;
+      flex:1;
+    }
+    .line2 .nameWrap .oName{
+      margin:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
   </style>
 </head>
 <body>
@@ -125,9 +150,7 @@
 
     <div class="topbar">
       <button id="btnBack" class="light">← menuへ</button>
-      <!-- ★② 会計へボタン復活 -->
       <button id="btnCheckout" class="light">会計へ</button>
-
       <button id="btnRefresh" class="dark">更新</button>
 
       <label class="row">
@@ -269,9 +292,6 @@ async function rtdbPut(path, data){
   if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
   return JSON.parse(txt || "null");
 }
-async function rtdbDelete(path){
-  return rtdbPut(path, null);
-}
 
 function getShop(){
   return (localStorage.getItem("shopCode") || "").trim();
@@ -304,12 +324,7 @@ function normalizeOrder(pushId, o){
   const providedAt = Number(o.providedAt ?? 0);
   const deleteAt = Number(o.deleteAt ?? 0);
 
-  // ★order.html 側の feedPayload にある情報（あれば使う）
-  const orderKey = String(o.orderKey ?? "");
-  const token = String(o.token ?? "");
-  const orderPath = String(o.orderPath ?? ""); // 例: /shops/{shop}/orders/{table}/{orderKey}
-
-  return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt, orderKey, token, orderPath };
+  return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt };
 }
 
 /** 10秒後削除の管理（ローカルタイマー） */
@@ -321,7 +336,7 @@ function scheduleDelete(shop, pushId, deleteAt){
   const t = setTimeout(async ()=>{
     deleteTimers.delete(pushId);
     try{
-      await rtdbDelete(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(pushId)}`);
+      await rtdbPut(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(pushId)}`, null);
       await refresh();
     }catch(e){
       console.log("delete failed", e);
@@ -350,174 +365,6 @@ function sumByTable(list){
   return arr.map(([t,q])=>`T${t}:${q}`).join(" / ");
 }
 
-/* =========================
-   ★① 誤オーダー取消：orderFeedだけでなく
-      orders も減らす/消す
-      さらに checkoutRequests があるなら再計算
-   ========================= */
-
-function matchItem(it, o){
-  const n1 = String(it?.name ?? "");
-  const n2 = String(o?.name ?? "");
-  const c1 = String(it?.category ?? "").toLowerCase();
-  const c2 = String(o?.category ?? "").toLowerCase();
-  const p1 = Number(it?.price ?? 0);
-  const p2 = Number(o?.price ?? 0);
-  return (n1 === n2) && (c1 === c2) && (p1 === p2);
-}
-
-async function applyCancelToOrders(shop, o){
-  // orderKey と table が無ければ触れない（feedだけ消す）
-  const table = String(o.table||"");
-  const orderKey = String(o.orderKey||"");
-  if(!table || !orderKey) return;
-
-  const orderPath = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(table)}/${encodeURIComponent(orderKey)}`;
-
-  // 1) 該当オーダーを読む
-  let orderObj = null;
-  try{
-    orderObj = await rtdbGet(orderPath);
-  }catch(e){
-    // 既に無い等
-    return;
-  }
-  if(!orderObj || typeof orderObj !== "object") return;
-
-  const items = Array.isArray(orderObj.items) ? orderObj.items.slice() : [];
-  if(items.length === 0) return;
-
-  // 2) items の中から該当を qty 分だけ減らす（同一商品を想定）
-  const decQty = Number(o.qty||0) || 0;
-  let changed = false;
-
-  const newItems = [];
-  for(const it of items){
-    if(!changed && matchItem(it, o) && decQty > 0){
-      const q = Number(it.qty||0);
-      const q2 = q - decQty;
-      changed = true;
-      if(q2 > 0){
-        newItems.push({ ...it, qty: q2 });
-      } // 0以下なら消す
-    }else{
-      newItems.push(it);
-    }
-  }
-
-  // 見つからなかった場合、名前一致だけで減らす保険（価格/カテゴリ無しの古いデータ向け）
-  if(!changed){
-    for(let i=0;i<newItems.length;i++){
-      const it = newItems[i];
-      if(String(it?.name??"") === String(o.name??"")){
-        const q = Number(it.qty||0);
-        const q2 = q - decQty;
-        changed = true;
-        if(q2 > 0) newItems[i] = { ...it, qty: q2 };
-        else newItems.splice(i,1);
-        break;
-      }
-    }
-  }
-
-  if(!changed) return;
-
-  // 3) total/itemsCount 再計算して PUT
-  const total = newItems.reduce((s,x)=> s + Number(x.price||0)*Number(x.qty||0), 0);
-  const itemsCount = newItems.reduce((s,x)=> s + Number(x.qty||0), 0);
-
-  if(newItems.length === 0){
-    // 1レコード空なら消す
-    await rtdbDelete(orderPath);
-  }else{
-    await rtdbPut(orderPath, {
-      ...orderObj,
-      items: newItems,
-      total,
-      itemsCount
-    });
-  }
-}
-
-async function rebuildCheckoutRequestIfExists(shop, table){
-  const t = String(table||"");
-  if(!t) return;
-
-  let req = null;
-  try{
-    req = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(t)}`);
-  }catch(e){
-    req = null;
-  }
-  if(!req || typeof req !== "object") return;
-
-  const token = String(req.token||"");
-  const requestedAt = Number(req.requestedAt||0);
-
-  // orders を読み直して token 一致だけ集計し直す
-  let ordersObj = null;
-  try{
-    ordersObj = await rtdbGet(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(t)}`);
-  }catch(e){
-    ordersObj = null;
-  }
-
-  const list = [];
-  if(ordersObj && typeof ordersObj === "object"){
-    for(const [key, o] of Object.entries(ordersObj)){
-      if(!o || typeof o !== "object") continue;
-      if(token && String(o.token||"") !== token) continue;
-      list.push({
-        key,
-        createdAt: Number(o.createdAt||0),
-        total: Number(o.total||0),
-        items: Array.isArray(o.items) ? o.items.map(x=>({
-          name: String(x.name||""),
-          qty: Number(x.qty||0),
-          price: Number(x.price||0),
-          category: String(x.category||"")
-        })) : []
-      });
-    }
-  }
-
-  // もう明細ゼロなら会計依頼自体を消す（＝取り消し完了）
-  if(list.length === 0){
-    await rtdbDelete(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(t)}`);
-    return;
-  }
-
-  const total = list.reduce((s,x)=> s + Number(x.total||0), 0);
-
-  const payload = {
-    ...req,
-    shop,
-    table: t,
-    token,
-    requestedAt,
-    requestedAtText: req.requestedAtText || "",
-    total,
-    orderCount: list.length,
-    orders: list.sort((a,b)=>a.createdAt-b.createdAt)
-  };
-
-  await rtdbPut(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(t)}`, payload);
-}
-
-async function cancelOrderFully(shop, o){
-  // 1) feed を消す（即）
-  await rtdbDelete(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(o.pushId)}`);
-
-  // 2) orders を減らす/消す（これが本命）
-  await applyCancelToOrders(shop, o);
-
-  // 3) 会計依頼が出ているテーブルなら、明細を再計算して更新（これで会計にも反映）
-  if(o.table){
-    await rebuildCheckoutRequestIfExists(shop, o.table);
-  }
-}
-
-/* ========== 描画 ========== */
 function renderColumn(rootId, list, shop){
   const root = $(rootId);
   root.innerHTML = "";
@@ -551,29 +398,28 @@ function renderColumn(rootId, list, shop){
 
     div.innerHTML = `
       <div class="oTop">
-        <div class="row" style="gap:8px; align-items:center;">
+        <!-- 1行目：T / 数量 / 時間 / 済み(または戻す) -->
+        <div class="row" style="gap:8px; align-items:center; flex-wrap:wrap;">
           <span class="bigT">T${esc(o.table || "?")}</span>
           <span class="bigQty">数量 ${esc(o.qty)}</span>
           <span class="pill mono timePill">${esc(fmtTime(o.createdAt))}</span>
+
           ${
             isPending
-            ? `<span class="pill pillPending">提供処理中 <span class="countdown">${left}s</span></span>`
-            : `<span class="pill" style="background:#fff7ed;border-color:#f59e0b">未提供</span>`
+            ? `<span class="pill pillPending">提供中 <span class="countdown">${left}s</span></span>
+               <button class="cancel miniBtn" data-act="undo" data-id="${esc(o.pushId)}">戻す</button>`
+            : `<button class="done miniBtn" data-act="done" data-id="${esc(o.pushId)}">済み</button>`
           }
         </div>
-      </div>
 
-      <div class="oName">${esc(o.name || "(no name)")}</div>
-      <div class="oMeta">${o.price!=="" ? `単価：<b>${esc(o.price)}</b>` : ""}</div>
-
-      <div class="oBtns">
-        ${
-          isPending
-          ? `<button class="cancel" data-act="undo" data-id="${esc(o.pushId)}">取消</button>`
-          : `<button class="done" data-act="done" data-id="${esc(o.pushId)}">提供済み</button>`
-        }
-        <!-- ★① RTDBのordersまで反映する「誤オーダー取消」 -->
-        <button class="cancel" data-act="cancelOrder" data-id="${esc(o.pushId)}">誤オーダー取消</button>
+        <!-- 2行目：メニュー名 / 取消（FBRD削除） -->
+        <div class="line2">
+          <div class="nameWrap">
+            <div class="oName">${esc(o.name || "(no name)")}</div>
+            <div class="oMeta">${o.price!=="" ? `単価：<b>${esc(o.price)}</b>` : ""}</div>
+          </div>
+          <button class="cancel miniBtn" data-act="cancelOrder" data-id="${esc(o.pushId)}">取消</button>
+        </div>
       </div>
     `;
 
@@ -614,18 +460,16 @@ function renderColumn(rootId, list, shop){
         }
 
         if(act === "cancelOrder"){
+          // ★誤オーダー取消：FBRDから削除（会計にも残らない）
+          if(!confirm("このオーダーを取消します（FBRDから削除）\nよろしいですか？")){
+            return;
+          }
           try{
-            if(!confirm("このオーダーを誤オーダーとして取消します。\n会計にも反映するため、orders/checkoutRequests も更新します。\nよろしいですか？")) return;
-
             cancelScheduledDelete(id);
-
-            // o を特定（pushIdで）
-            const target = o; // このループの o を使う
-            await cancelOrderFully(shop, target);
-
+            await rtdbPut(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, null);
             await refresh();
           }catch(e){
-            $("status").innerHTML = `<span class="ng">取消失敗</span> ${esc(e.message||e)}`;
+            $("status").innerHTML = `<span class="ng">削除失敗</span> ${esc(e.message||e)}`;
           }
           return;
         }
@@ -852,9 +696,7 @@ function setAuto(){
 }
 
 $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
-/* ★② 会計へ */
 $("btnCheckout").onclick = ()=> location.href = `checkout.html?v=${Date.now()}`;
-
 $("btnRefresh").onclick = refresh;
 $("autoSec").onchange = setAuto;
 $("tableFilter").onchange = refresh;
@@ -884,6 +726,7 @@ refresh();
 </script>
 </body>
 </html>
+
 
 
 

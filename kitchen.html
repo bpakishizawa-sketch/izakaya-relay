@@ -44,7 +44,13 @@
       background:#fff;
     }
     .oTop{display:flex;flex-direction:column;gap:6px}
-    .oName{font-weight:900;font-size:15px;line-height:1.25}
+
+    /* ★メニュー名を大きく */
+    .oName{
+      font-weight:900;
+      font-size:18px;
+      line-height:1.25;
+    }
     .oMeta{font-size:12px;color:#6b7280}
 
     /* 提供済みペンディング（10秒） */
@@ -318,13 +324,18 @@ function normalizeOrder(pushId, o){
   if((!name || !qty) && Array.isArray(o.items) && o.items.length){
     name = o.items[0].name ?? name;
     qty = Number(o.items[0].qty ?? qty);
+    // price が items にある場合の補完
+    if(price === "" && o.items[0].price !== undefined) price = o.items[0].price;
   }
 
   const status = String(o.status ?? "new");
   const providedAt = Number(o.providedAt ?? 0);
   const deleteAt = Number(o.deleteAt ?? 0);
 
-  return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt };
+  // ★order連携用
+  const orderKey = String(o.orderKey ?? "");
+  const orderPath = String(o.orderPath ?? ""); // 例: "/shops/{shop}/orders/{table}/{orderKey}"
+  return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt, orderKey, orderPath };
 }
 
 /** 10秒後削除の管理（ローカルタイマー） */
@@ -363,6 +374,124 @@ function sumByTable(list){
   const arr = Array.from(m.entries()).sort((a,b)=>Number(a[0]) - Number(b[0]));
   if(arr.length===0) return "-";
   return arr.map(([t,q])=>`T${t}:${q}`).join(" / ");
+}
+
+/* ===== 取消: orders 側も消す（1品だけ） ===== */
+function stripSlash(p){
+  p = String(p||"");
+  if(p.startsWith("/")) p = p.slice(1);
+  return p;
+}
+
+function guessOrderPath(shop, table, orderKey){
+  if(!shop || !table || !orderKey) return "";
+  return `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}/${encodeURIComponent(String(orderKey))}`;
+}
+
+// 「ordersレコード」から該当1品を削除して total/itemsCount を更新。itemsが空ならレコード削除。
+async function cancelFromOrders(shop, o){
+  // 1) orderPath があれば優先（先頭/ を除去）
+  let path = "";
+  if(o.orderPath){
+    path = stripSlash(o.orderPath);
+    // URLエンコード済みとは限らないので、ここではそのまま使う（元が /shops/... 形式想定）
+  }else{
+    // 2) fallback: orderKey + table から生成
+    path = guessOrderPath(shop, o.table, o.orderKey);
+  }
+  if(!path) return;
+
+  // GET order record
+  let order = null;
+  try{
+    order = await rtdbGet(path);
+  }catch(e){
+    // 見つからない/読めないならスキップ（orderFeedだけは消えている）
+    return;
+  }
+  if(!order || typeof order !== "object") return;
+
+  const items = Array.isArray(order.items) ? order.items.slice() : [];
+  if(items.length === 0){
+    // itemsが無い形式なら、レコードごと削除（安全側）
+    await rtdbPut(path, null);
+    return;
+  }
+
+  // マッチ条件（なるべく強め）
+  const tgtName = String(o.name||"");
+  const tgtPrice = Number(o.price||0);
+  const tgtCat = String(o.category||"");
+  const tgtQty = Number(o.qty||0);
+
+  let removed = false;
+  const newItems = [];
+  for(const it of items){
+    if(removed){
+      newItems.push(it);
+      continue;
+    }
+    const name = String(it?.name ?? "");
+    const price = Number(it?.price ?? 0);
+    const cat = String(it?.category ?? "");
+    const qty = Number(it?.qty ?? 0);
+
+    // まず厳密一致（name+price+cat+qty）
+    const strict = (name===tgtName && price===tgtPrice && String(cat)===tgtCat && qty===tgtQty);
+    // strictが無理な時もあるので、次に name+price+cat
+    const loose  = (name===tgtName && price===tgtPrice && String(cat)===tgtCat);
+
+    if(strict || loose){
+      removed = true; // 先頭一致1件だけ削除
+      continue;
+    }
+    newItems.push(it);
+  }
+
+  if(!removed){
+    // それでも見つからない場合：nameだけ一致で1件削除（最後の救済）
+    const new2 = [];
+    removed = false;
+    for(const it of newItems.length ? newItems : items){
+      if(!removed && String(it?.name??"") === tgtName){
+        removed = true;
+        continue;
+      }
+      new2.push(it);
+    }
+    if(removed){
+      // newItems が空のときは items から削った結果を採用
+      if(newItems.length===0) {
+        // itemsから削ったので new2 が正
+        // eslint的に気になるがOK
+        // newItemsを上書きするためにreturnせず進める
+        order.items = new2;
+      }else{
+        order.items = new2;
+      }
+    }else{
+      // 見つからないなら触らない（事故防止）
+      return;
+    }
+  }else{
+    order.items = newItems;
+  }
+
+  // itemsCount / total 更新
+  const finalItems = Array.isArray(order.items) ? order.items : [];
+  const itemsCount = finalItems.reduce((s,x)=> s + Number(x?.qty||0), 0);
+  const total = finalItems.reduce((s,x)=> s + (Number(x?.price||0) * Number(x?.qty||0)), 0);
+
+  order.itemsCount = itemsCount;
+  order.total = total;
+
+  // itemsが空ならレコード削除（その送信自体が空になった）
+  if(finalItems.length === 0){
+    await rtdbPut(path, null);
+    return;
+  }
+
+  await rtdbPut(path, order);
 }
 
 function renderColumn(rootId, list, shop){
@@ -412,7 +541,7 @@ function renderColumn(rootId, list, shop){
           }
         </div>
 
-        <!-- 2行目：メニュー名 / 取消（FBRD削除） -->
+        <!-- 2行目：メニュー名 / 取消（orderFeed + orders から消す） -->
         <div class="line2">
           <div class="nameWrap">
             <div class="oName">${esc(o.name || "(no name)")}</div>
@@ -460,16 +589,23 @@ function renderColumn(rootId, list, shop){
         }
 
         if(act === "cancelOrder"){
-          // ★誤オーダー取消：FBRDから削除（会計にも残らない）
-          if(!confirm("このオーダーを取消します（FBRDから削除）\nよろしいですか？")){
+          // ★誤オーダー取消：orderFeed を消す＋orders 側からも該当1品を削除
+          if(!confirm("このオーダーを取消します（orderFeed + orders から削除）\nよろしいですか？")){
             return;
           }
           try{
+            $("status").textContent = "取消中...";
             cancelScheduledDelete(id);
+
+            // 1) orders 側からも消す（先にやる：失敗したら orderFeed を残したい場合があるため）
+            await cancelFromOrders(shop, o);
+
+            // 2) orderFeed を削除
             await rtdbPut(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, null);
+
             await refresh();
           }catch(e){
-            $("status").innerHTML = `<span class="ng">削除失敗</span> ${esc(e.message||e)}`;
+            $("status").innerHTML = `<span class="ng">取消失敗</span> ${esc(e.message||e)}`;
           }
           return;
         }
@@ -726,6 +862,7 @@ refresh();
 </script>
 </body>
 </html>
+
 
 
 

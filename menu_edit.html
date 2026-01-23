@@ -21,15 +21,10 @@
     .btnBlue{background:#2563eb;color:#fff}
     .btnGreen{background:#16a34a;color:#fff}
 
-    input,select{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
-    input{width:100%;box-sizing:border-box}
-
-    /* ===== 追加：メニュー名入力欄を大きく ===== */
-    #inpName{
-      font-size:18px;
-      padding:12px 12px;
-      height:52px;
-    }
+    /* ★ textarea も同じ見た目にする */
+    input,select,textarea{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
+    input,textarea{width:100%;box-sizing:border-box}
+    textarea{line-height:1.4}
 
     .tabs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
     .tab{padding:10px 14px;border-radius:999px;border:1px solid #d1d5db;background:#fff;font-weight:900}
@@ -51,40 +46,23 @@
     .pillD{background:#dbeafe;border-color:#3b82f6}
     .pillF{background:#dcfce7;border-color:#16a34a}
     .id{font-weight:900}
-
-    /* ついで改善：一覧の名前が切れすぎるので少し広げる */
-    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:420px}
-    @media(max-width:420px){
-      .name{max-width:240px}
-    }
-
+    .name{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
     .price{font-weight:900}
 
     .editBox{display:grid;grid-template-columns:1fr;gap:10px}
     @media(min-width:860px){
-      .editBox{grid-template-columns:260px 240px 1fr 180px 140px}
+      /* ★ 横詰めしつつ、メニュー名だけ1段下で横幅100%にする */
+      .editBox{grid-template-columns:260px 240px 180px 140px 1fr}
     }
+
+    /* ★ メニュー名ブロックは全幅 */
+    .nameWide{grid-column:1 / -1;}
+    /* ★ メニュー名入力を大きく見やすく */
+    #inpName{font-size:18px;padding:12px;min-height:64px}
 
     details{margin-top:10px}
     details summary{cursor:pointer;color:#374151;font-weight:900}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
-
-    /* ===== 追加：タグ説明ボックス ===== */
-    .hintBox{
-      border:1px dashed #d1d5db;
-      border-radius:12px;
-      padding:12px;
-      background:#fafafa;
-      margin-top:10px;
-    }
-    .hintTitle{font-weight:900;margin-bottom:6px}
-    .hintBox .mono{font-weight:900}
-    .hintBox .ex{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      margin-top:6px;
-    }
 
     /* ===== 印刷最適化（Safariで2回目以降も崩れない方式） ===== */
     @media print{
@@ -170,34 +148,32 @@
       </div>
 
       <div>
-        <div class="muted">メニュー名</div>
-        <input id="inpName" placeholder="例：レモンサワー" />
-      </div>
-
-      <div>
         <div class="muted">価格</div>
         <input id="inpPrice" placeholder="例：450" inputmode="numeric" />
       </div>
 
-      <div class="row" style="align-items:end">
+      <div class="row" style="align-items:end;justify-content:flex-end">
         <button id="btnSave" class="btn">保存</button>
         <button id="btnDelete" class="btn2">削除</button>
         <button id="btnClear" class="btn2">クリア</button>
       </div>
+
+      <!-- ★ メニュー名は1段下にして横幅100%（textareaで編集しやすく） -->
+      <div class="nameWide">
+        <div class="muted">メニュー名（カテゴリタグ例：【ビール】コロナ）</div>
+        <textarea id="inpName" placeholder="例：【ビール】コロナ" rows="2"></textarea>
+      </div>
     </div>
 
-    <!-- ★追加：タグ入力説明 -->
-    <div class="hintBox">
-      <div class="hintTitle">カテゴリ（タグ）入力のやり方</div>
+    <!-- ★ タグ説明（ここに常時表示） -->
+    <div class="card" style="background:#fafafa;border-style:dashed;margin-top:12px">
+      <div style="font-weight:900;margin-bottom:6px">カテゴリ（タグ）入力のやり方</div>
       <div class="muted" style="line-height:1.7">
-        メニュー名の先頭に <span class="mono">【カテゴリ名】</span> を付けると、注文画面のカテゴリ絞り込みに出ます。<br>
+        メニュー名の先頭に「【カテゴリ名】」を付けると、注文画面のカテゴリ絞り込みに出ます。<br>
         例：<span class="mono">【一品】唐揚げ</span> / <span class="mono">【デザート】アイス</span> / <span class="mono">【サワー】レモンサワー</span><br>
-        タグなしは自動で <span class="mono">その他</span> 扱いになります。
-      </div>
-      <div class="ex muted">
-        <div>・カテゴリ名は自由（店ごとに好きな名前OK）</div>
-        <div>・カッコは「全角の角カッコ」<span class="mono">【 】</span> を使う</div>
-        <div>・【】の後ろの名前が、注文画面に表示されるメニュー名になります</div>
+        ・カテゴリ名は自由（店ごとに好きな名前でOK）<br>
+        ・カッコは全角の <span class="mono">【 】</span> を使う<br>
+        ・【】の後ろの名前が、注文画面に表示されるメニュー名になります
       </div>
     </div>
 
@@ -482,6 +458,7 @@ loadAll();
 </script>
 </body>
 </html>
+
 
 
 

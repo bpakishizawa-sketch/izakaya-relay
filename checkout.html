@@ -56,7 +56,7 @@
       text-align: center;
     }
 
-    /* print area */
+    /* bill print area */
     #printArea{background:#fff; padding:14px; border-radius:12px; border:1px solid #e5e7eb;}
     .printHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
     .printTitle{font-weight:1000;font-size:18px}
@@ -66,10 +66,42 @@
     .taxRow b{font-weight:1000}
     .right{ text-align:right }
 
+    /* sales print card (screen: hidden) */
+    #salesPrintCard{display:none;}
+    #salesPrintArea{background:#fff; padding:14px; border-radius:12px; border:1px solid #e5e7eb;}
+
+    /* ===== 印刷モード切替 ===== */
     @media print{
-      body{background:#fff}
-      .noPrint{display:none !important}
-      #printArea{border:0; padding:0}
+      body{background:#fff; padding:0; max-width:none; margin:0;}
+      .noPrint{display:none !important;}
+
+      /* デフォルト全部隠す（モードで表示する） */
+      body *{ visibility: hidden; }
+
+      /* 明細（通常会計） */
+      body[data-print="bill"] #printArea,
+      body[data-print="bill"] #printArea *{
+        visibility: visible;
+      }
+      body[data-print="bill"] #printArea{
+        position: absolute; left:0; top:0; width:100%;
+        border:0; padding:0;
+      }
+
+      /* 売上（日別） */
+      body[data-print="sales"] #salesPrintCard,
+      body[data-print="sales"] #salesPrintCard *{
+        visibility: visible;
+      }
+      body[data-print="sales"] #salesPrintCard{
+        display:block !important; /* ★inline display:none を強制上書き */
+        position:absolute; left:0; top:0; width:100%;
+        border:0; padding:0; margin:0;
+        background:#fff;
+      }
+      body[data-print="sales"] #salesPrintArea{
+        border:0; padding:0;
+      }
     }
 
     details summary{cursor:pointer;font-weight:900;color:#374151}
@@ -115,7 +147,6 @@
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <div style="font-weight:900">テーブル状況（着席中のみ）</div>
-        <div class="muted" style="font-size:12px"></div>
       </div>
 
       <div class="hr"></div>
@@ -126,11 +157,6 @@
       </div>
 
       <div id="tableGrid" class="tableGrid"></div>
-
-      <details class="card" style="display:none;">
-        <summary>デバッグ</summary>
-        <pre id="debug" class="mono">-</pre>
-      </details>
     </div>
 
     <!-- right -->
@@ -191,7 +217,7 @@
 
     <div class="hr"></div>
 
-    <div id="salesSummary" class="row" style="justify-content:space-between;">
+    <div class="row" style="justify-content:space-between;">
       <div class="muted">件数</div>
       <div class="mono" style="font-weight:900"><span id="salesCount">0</span> 件</div>
     </div>
@@ -216,8 +242,8 @@
     <div id="salesList" class="lines"></div>
   </div>
 
-  <!-- 売上印刷用（print時だけ見せる） -->
-  <div class="card" id="salesPrintCard" style="display:none;">
+  <!-- 売上印刷用（screenでは隠す／printで強制表示） -->
+  <div class="card" id="salesPrintCard">
     <div id="salesPrintArea">
       <div class="printHead">
         <div>
@@ -233,7 +259,7 @@
       </div>
 
       <div class="taxBox">
-        <div class="taxRow"><div class="muted">税率</div><div class="mono"><b id="salesPrintTaxRate">-</b></div></div>       
+        <div class="taxRow"><div class="muted">税率</div><div class="mono"><b id="salesPrintTaxRate">-</b></div></div>
         <div class="taxRow"><div class="muted">税抜合計</div><div class="mono"><b id="salesPrintEx">-</b></div></div>
         <div class="taxRow"><div class="muted">消費税合計</div><div class="mono"><b id="salesPrintTax">-</b></div></div>
         <div class="taxRow"><div class="muted">税込合計</div><div class="mono"><b id="salesPrintIn">-</b></div></div>
@@ -254,7 +280,6 @@ function $(id){ return document.getElementById(id); }
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
 }
-function now(){ return Date.now(); }
 
 function getShop(){
   return (localStorage.getItem("shopCode") || "").trim();
@@ -287,10 +312,9 @@ async function rtdbPost(path, data){
   });
   const txt = await res.text();
   if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
-  return JSON.parse(txt || "null"); // { name: "-Oxxxx" }
+  return JSON.parse(txt || "null");
 }
 async function rtdbDelete(path){
-  // RTDBは PUT null で削除できる
   return rtdbPut(path, null);
 }
 
@@ -298,13 +322,7 @@ function yen(n){
   const x = Number(n||0);
   return x.toLocaleString("ja-JP") + " 円";
 }
-function fmt(ts){
-  if(!ts) return "-";
-  try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); }
-}
-
 function jstDateKey(ts=Date.now()){
-  // YYYY-MM-DD（JSTで固定）
   const d = new Date(ts);
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,"0");
@@ -313,33 +331,22 @@ function jstDateKey(ts=Date.now()){
 }
 function normalizeTaxRate(v){
   let x = Number(v);
-  if(!Number.isFinite(x) || x <= 0) return 0.1; // default 10%
-  if(x > 1.0) x = x / 100; // 10 -> 0.1
+  if(!Number.isFinite(x) || x <= 0) return 0.1;
+  if(x > 1.0) x = x / 100;
   return x;
 }
 function splitTaxFromInclusive(inclusiveTotal, rate){
   const r = Number(rate||0);
   const inc = Math.max(0, Number(inclusiveTotal||0));
   if(r <= 0) return { ex: inc, tax: 0, in: inc };
-  // インボイス向け：税抜は切り捨て（必要ならここを round に変更）
   const ex = Math.floor(inc / (1 + r));
   const tax = inc - ex;
   return { ex, tax, in: inc };
 }
 
-/* ===== 新規アラーム ===== */
-function showBanner(msg){
-  const el = $("alertBanner");
-  el.textContent = msg || "会計依頼！";
-  el.style.display = "block";
-  clearTimeout(showBanner._t);
-  showBanner._t = setTimeout(()=>{ el.style.display = "none"; }, 3500);
-}
-
-/* iOS対策：ユーザー操作後だけ鳴らせる */
+/* ===== iOS音（省略せず残す） ===== */
 let soundEnabled = false;
 let audioCtx = null;
-
 function ensureAudio(){
   if(audioCtx) return;
   const AC = window.AudioContext || window.webkitAudioContext;
@@ -365,23 +372,18 @@ function beepOnce(){
 function beep3sec(){
   if(!soundEnabled) return;
   const pattern = [0, 350, 700, 1050, 1400, 1750, 2100, 2450, 2800];
-  for(const ms of pattern){
-    setTimeout(()=>beepOnce(), ms);
-  }
-  try{ navigator.vibrate && navigator.vibrate([120,60,120,60,120]); }catch{}
+  for(const ms of pattern){ setTimeout(()=>beepOnce(), ms); }
 }
 
 function lastReqKey(shop){ return `checkout_lastMax_${shop}`; }
 function loadLastMax(shop){ return Number(localStorage.getItem(lastReqKey(shop)) || 0); }
 function saveLastMax(shop, n){ localStorage.setItem(lastReqKey(shop), String(Number(n||0))); }
 
-/* ===== state ===== */
 let timer = null;
 let selectedTable = "";
-let activeSessions = {};     // table -> session
-let checkoutRequests = {};   // table -> req
+let activeSessions = {};
+let checkoutRequests = {};
 
-// shop settings
 let shopName = "";
 let taxRate = 0.1;
 
@@ -437,7 +439,6 @@ function renderTables(){
 function flattenOrdersFromReq(req){
   const lines = [];
   if(!req || !Array.isArray(req.orders)) return lines;
-
   for(const o of req.orders){
     const items = Array.isArray(o.items) ? o.items : [];
     for(const it of items){
@@ -456,14 +457,13 @@ function renderBill(){
   const req = checkoutRequests && t ? checkoutRequests[t] : null;
 
   $("billTable").textContent = t ? `T${t}` : "-";
+
   const incTotal = req ? Number(req.total||0) : 0;
   $("billTotal").textContent = req ? yen(incTotal) : "-";
 
-  // 印刷ヘッダ
   $("printShopName").textContent = shopName ? shopName : "店名未設定";
   $("printMeta").textContent = `shopCode: ${getShop() || "-"} / 印刷: ${new Date().toLocaleString("ja-JP")}`;
 
-  // インボイス計算
   const sp = splitTaxFromInclusive(incTotal, taxRate);
   $("billTaxRate").textContent = `${Math.round(taxRate*1000)/10}%`;
   $("billEx").textContent = yen(sp.ex);
@@ -475,17 +475,14 @@ function renderBill(){
     $("btnConfirm").disabled = true;
     return;
   }
-
   $("btnConfirm").disabled = false;
 
   const lines = flattenOrdersFromReq(req);
-
   if(lines.length === 0){
     $("billLines").innerHTML = `<div class="muted"><small>明細がありません（ordersが空）</small></div>`;
     return;
   }
 
-  // 同名まとめ
   const map = new Map();
   for(const x of lines){
     const k = x.name + "|" + x.price;
@@ -504,7 +501,6 @@ function renderBill(){
   `).join("");
 }
 
-/* ===== refresh ===== */
 function detectNewCheckout(shop){
   let maxRequestedAt = 0;
   for(const t of Object.keys(checkoutRequests||{})){
@@ -519,28 +515,21 @@ function detectNewCheckout(shop){
     return;
   }
   if(maxRequestedAt > last){
-    const newestTable = Object.keys(checkoutRequests||{})
-      .sort((a,b)=>Number(checkoutRequests[b]?.requestedAt||0)-Number(checkoutRequests[a]?.requestedAt||0))[0];
-    showBanner(`会計依頼！ T${newestTable || ""}`.trim());
     beep3sec();
     saveLastMax(shop, maxRequestedAt);
   }
 }
 
 async function loadShopSettings(shop){
-  // shopname / tax を読む
   try{
     const sn = await rtdbGet(`shops/${encodeURIComponent(shop)}/shopname`);
     shopName = (typeof sn === "string") ? sn : (sn?.name ? String(sn.name) : "");
-  }catch{
-    shopName = "";
-  }
+  }catch{ shopName=""; }
+
   try{
     const tx = await rtdbGet(`shops/${encodeURIComponent(shop)}/tax`);
     taxRate = normalizeTaxRate(tx);
-  }catch{
-    taxRate = 0.1;
-  }
+  }catch{ taxRate=0.1; }
 
   $("shopNameText").textContent = shopName ? shopName : "-";
   $("taxText").textContent = `${Math.round(taxRate*1000)/10}%`;
@@ -557,10 +546,8 @@ async function refresh(){
 
   try{
     setStatus(`<span class="mono">loading...</span>`);
-
     await loadShopSettings(shop);
 
-    // 1) 着席テーブル
     const sess = await rtdbGet(`webActiveSessions/${encodeURIComponent(shop)}`);
     activeSessions = (sess && typeof sess==="object") ? sess : {};
 
@@ -573,7 +560,6 @@ async function refresh(){
     }
     activeSessions = filtered;
 
-    // 2) 会計依頼
     const req = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
     checkoutRequests = (req && typeof req==="object") ? req : {};
 
@@ -583,19 +569,6 @@ async function refresh(){
     renderBill();
 
     setStatus(`<span class="ok">OK</span> 着席:${Object.keys(activeSessions).length} / 会計依頼:${Object.keys(checkoutRequests).length} （${new Date().toLocaleTimeString()}）`);
-
-    const dbg = $("debug");
-    if(dbg){
-      dbg.textContent = JSON.stringify({
-        shop,
-        shopName,
-        taxRate,
-        activeTables: Object.keys(activeSessions),
-        checkoutTables: Object.keys(checkoutRequests),
-        selectedTable
-      }, null, 2);
-    }
-
   }catch(e){
     setStatus(`<span class="ng">読込失敗</span> ${esc(e.message||e)}`);
   }
@@ -610,7 +583,7 @@ function setAuto(){
 }
 
 /* ===== 売上（日別） ===== */
-let salesDayData = {}; // pushId -> record
+let salesDayData = {};
 
 function renderSalesDay(dateKey){
   const listWrap = $("salesList");
@@ -626,9 +599,7 @@ function renderSalesDay(dateKey){
     return;
   }
 
-  // 並び：確定時刻 asc
   const rows = entries
-    avoidingNull => entries
     .map(([k,v]) => ({ key:k, v }))
     .sort((a,b)=>Number(a.v?.confirmedAt||0)-Number(b.v?.confirmedAt||0));
 
@@ -650,7 +621,6 @@ function renderSalesDay(dateKey){
     div.innerHTML = `
       <div>
         <b>T${esc(t)}</b> <span class="muted">${esc(time)}</span>
-        <div class="muted" style="font-size:12px">${esc(v.token ? "tokenあり" : "")}</div>
       </div>
       <div class="mono" style="font-weight:900">${esc(yen(inc))}</div>
     `;
@@ -681,7 +651,6 @@ async function loadSalesDay(dateKey){
 }
 
 function showSalesPrint(dateKey){
-  // print用にDOMへ流し込み
   const entries = Object.entries(salesDayData||{})
     .map(([k,v])=>({key:k,v}))
     .sort((a,b)=>Number(a.v?.confirmedAt||0)-Number(b.v?.confirmedAt||0));
@@ -741,80 +710,23 @@ $("btnBeep").onclick = ()=>{
   beep3sec();
 };
 
+/* ★印刷モードをセットしてから print */
+function setPrintMode(mode){
+  document.body.dataset.print = mode; // "bill" or "sales"
+}
+function clearPrintMode(){
+  delete document.body.dataset.print;
+}
+window.addEventListener("afterprint", ()=> clearPrintMode());
+
 $("btnPdf").onclick = ()=>{
-  window.print();
+  setPrintMode("bill");
+  // Safariに状態を認識させる
+  void document.body.offsetHeight;
+  setTimeout(()=>window.print(), 50);
 };
 
-$("btnConfirm").onclick = async ()=>{
-  const shop = getShop();
-  const t = selectedTable;
-  if(!shop || !t){
-    setConfirmMsg(`<span class="ng">テーブル未選択</span>`);
-    return;
-  }
-  const req = checkoutRequests[t];
-  if(!req){
-    setConfirmMsg(`<span class="ng">このテーブルに会計依頼がありません</span>`);
-    return;
-  }
-
-  if(!confirm(`T${t} の会計を確定します。\n(1) 売上履歴に保存\n(2) checkoutRequests / orders / webActiveSessions を削除`)){
-    return;
-  }
-
-  $("btnConfirm").disabled = true;
-  setConfirmMsg(`<span class="mono">処理中...</span>`);
-
-  try{
-    // 0) 売上履歴を保存（先に保存！）
-    const inc = Number(req.total||0);
-    const sp = splitTaxFromInclusive(inc, taxRate);
-
-    const payload = {
-      dateKey: jstDateKey(Date.now()),
-      shop: shop,
-      shopName: shopName || "",
-      taxRate: taxRate,
-      table: String(t),
-      token: String(req.token||""),
-      requestedAt: Number(req.requestedAt||0),
-      confirmedAt: Date.now(),
-
-      inclusiveTotal: sp.in,
-      exclusiveTotal: sp.ex,
-      taxAmount: sp.tax,
-
-      // 明細（印刷用：ordersを保持）
-      orders: Array.isArray(req.orders) ? req.orders : [],
-    };
-
-    await rtdbPost(`shops/${encodeURIComponent(shop)}/salesDaily/${encodeURIComponent(payload.dateKey)}`, payload);
-
-    // 1) checkoutRequests を削除
-    await rtdbDelete(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(t))}`);
-
-    // 2) orders（このテーブル配下）を削除
-    await rtdbDelete(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(t))}`);
-
-    // 3) webActiveSessions（着席情報）を削除
-    await rtdbDelete(`webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(t))}`);
-
-    setConfirmMsg(`<span class="ok">会計確定しました</span>（T${esc(t)} をリセット）`);
-    selectedTable = "";
-    await refresh();
-
-    // 売上パネルも更新
-    const dk = $("salesDate").value || jstDateKey();
-    await loadSalesDay(dk);
-
-  }catch(e){
-    setConfirmMsg(`<span class="ng">失敗</span> ${esc(e.message||e)}`);
-  }finally{
-    $("btnConfirm").disabled = false;
-  }
-};
-
-/* ===== 日別売上ボタン ===== */
+/* ===== 日別売上 ===== */
 $("btnSalesRefresh").onclick = async ()=>{
   const dk = $("salesDate").value || jstDateKey();
   await loadSalesDay(dk);
@@ -824,11 +736,9 @@ $("btnSalesPdf").onclick = ()=>{
   const dk = $("salesDate").value || jstDateKey();
   showSalesPrint(dk);
 
-  // 印刷時だけ売上カード表示、他は隠す
-  $("salesPrintCard").style.display = "block";
-  window.print();
-  // 印刷後に戻す（Safari対策で少し遅延）
-  setTimeout(()=>{ $("salesPrintCard").style.display = "none"; }, 400);
+  setPrintMode("sales");
+  void document.body.offsetHeight;
+  setTimeout(()=>window.print(), 50);
 };
 
 $("btnSalesDelete").onclick = async ()=>{
@@ -851,7 +761,6 @@ $("btnSalesDelete").onclick = async ()=>{
 
 /* boot */
 (function boot(){
-  // 日付初期値：今日
   $("salesDate").value = jstDateKey();
   setAuto();
   refresh();
@@ -860,6 +769,7 @@ $("btnSalesDelete").onclick = async ()=>{
 </script>
 </body>
 </html>
+
 
 
 

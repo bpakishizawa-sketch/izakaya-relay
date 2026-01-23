@@ -220,7 +220,7 @@ function getParam(name){
 
 function yen(n){
   const x = Number(n||0);
-  return x.toLocaleString("ja-JP") + " 円";
+  return x.toLocaleString("ja-JP") + " 円(税込)";
 }
 
 async function rtdbGet(path){

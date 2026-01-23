@@ -568,7 +568,7 @@ function renderHistory(list){
   wrap.innerHTML = "";
 
   if(view.length === 0){
-    wrap.innerHTML = `<div class="muted"><small>このtokenの注文履歴はありません</small></div>`;
+    wrap.innerHTML = `<div class="muted"><small>注文履歴はありません</small></div>`;
     lastHistory = { orders:{}, list:[], sum:0, count:0 };
     return;
   }

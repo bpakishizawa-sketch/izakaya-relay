@@ -140,8 +140,9 @@
 
       <div class="hr"></div>
 
+      <!-- ★変更：メニュー再読み込みを削除 → 注文履歴更新に置換 -->
       <div class="row">
-        <button id="btnReloadMenu" class="btn2">メニュー再読み込み</button>
+        <button id="btnReloadHist" class="btn2">注文履歴を更新</button>
       </div>
     </div>
 
@@ -259,7 +260,7 @@ async function rtdbPost(path, data){
 
 function parseMenuValue(v){
   if(v && typeof v === "object"){
-    return { name: String(v.name ?? ""), price: Number(v.price ?? 0) };
+    return { name: String(v.name?? ""), price: Number(v.price ?? 0) };
   }
   if(typeof v === "string"){
     return { name: v, price: 0 };
@@ -535,7 +536,7 @@ $("btnClearCart").onclick = ()=>{
   setSendMsg(`<span class="muted">カートを空にしました</span>`);
 };
 
-$("btnReloadMenu").onclick = loadMenu;
+/* ★変更：メニュー再読み込みボタンは無いので、この行も無い */
 
 /* ====== orders + history ====== */
 function normalizeOrderObj(key, o){
@@ -615,6 +616,13 @@ async function refreshHistory(){
   const list = Object.entries(obj).map(([key,val])=> normalizeOrderObj(key,val));
   renderHistory(list);
 }
+
+/* ★追加：注文履歴更新ボタン */
+$("btnReloadHist").onclick = async ()=>{
+  setSendMsg(`<span class="mono">履歴更新中...</span>`);
+  await refreshHistory();
+  setSendMsg(`<span class="ok">履歴を更新しました</span>`);
+};
 
 /* ====== send order ====== */
 async function sendOrder(){

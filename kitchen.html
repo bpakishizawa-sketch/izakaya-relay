@@ -324,7 +324,6 @@ function normalizeOrder(pushId, o){
   if((!name || !qty) && Array.isArray(o.items) && o.items.length){
     name = o.items[0].name ?? name;
     qty = Number(o.items[0].qty ?? qty);
-    // price が items にある場合の補完
     if(price === "" && o.items[0].price !== undefined) price = o.items[0].price;
   }
 
@@ -332,9 +331,8 @@ function normalizeOrder(pushId, o){
   const providedAt = Number(o.providedAt ?? 0);
   const deleteAt = Number(o.deleteAt ?? 0);
 
-  // ★order連携用
   const orderKey = String(o.orderKey ?? "");
-  const orderPath = String(o.orderPath ?? ""); // 例: "/shops/{shop}/orders/{table}/{orderKey}"
+  const orderPath = String(o.orderPath ?? "");
   return { pushId, raw:o, table, category, name, qty, price, createdAt, status, providedAt, deleteAt, orderKey, orderPath };
 }
 
@@ -388,37 +386,29 @@ function guessOrderPath(shop, table, orderKey){
   return `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}/${encodeURIComponent(String(orderKey))}`;
 }
 
-// 「ordersレコード」から該当1品を削除して total/itemsCount を更新。itemsが空ならレコード削除。
 async function cancelFromOrders(shop, o){
-  // 1) orderPath があれば優先（先頭/ を除去）
   let path = "";
   if(o.orderPath){
     path = stripSlash(o.orderPath);
-    // URLエンコード済みとは限らないので、ここではそのまま使う（元が /shops/... 形式想定）
   }else{
-    // 2) fallback: orderKey + table から生成
     path = guessOrderPath(shop, o.table, o.orderKey);
   }
   if(!path) return;
 
-  // GET order record
   let order = null;
   try{
     order = await rtdbGet(path);
   }catch(e){
-    // 見つからない/読めないならスキップ（orderFeedだけは消えている）
     return;
   }
   if(!order || typeof order !== "object") return;
 
   const items = Array.isArray(order.items) ? order.items.slice() : [];
   if(items.length === 0){
-    // itemsが無い形式なら、レコードごと削除（安全側）
     await rtdbPut(path, null);
     return;
   }
 
-  // マッチ条件（なるべく強め）
   const tgtName = String(o.name||"");
   const tgtPrice = Number(o.price||0);
   const tgtCat = String(o.category||"");
@@ -436,48 +426,33 @@ async function cancelFromOrders(shop, o){
     const cat = String(it?.category ?? "");
     const qty = Number(it?.qty ?? 0);
 
-    // まず厳密一致（name+price+cat+qty）
     const strict = (name===tgtName && price===tgtPrice && String(cat)===tgtCat && qty===tgtQty);
-    // strictが無理な時もあるので、次に name+price+cat
     const loose  = (name===tgtName && price===tgtPrice && String(cat)===tgtCat);
 
     if(strict || loose){
-      removed = true; // 先頭一致1件だけ削除
+      removed = true;
       continue;
     }
     newItems.push(it);
   }
 
   if(!removed){
-    // それでも見つからない場合：nameだけ一致で1件削除（最後の救済）
+    const base = items;
     const new2 = [];
     removed = false;
-    for(const it of newItems.length ? newItems : items){
+    for(const it of base){
       if(!removed && String(it?.name??"") === tgtName){
         removed = true;
         continue;
       }
       new2.push(it);
     }
-    if(removed){
-      // newItems が空のときは items から削った結果を採用
-      if(newItems.length===0) {
-        // itemsから削ったので new2 が正
-        // eslint的に気になるがOK
-        // newItemsを上書きするためにreturnせず進める
-        order.items = new2;
-      }else{
-        order.items = new2;
-      }
-    }else{
-      // 見つからないなら触らない（事故防止）
-      return;
-    }
+    if(!removed) return;
+    order.items = new2;
   }else{
     order.items = newItems;
   }
 
-  // itemsCount / total 更新
   const finalItems = Array.isArray(order.items) ? order.items : [];
   const itemsCount = finalItems.reduce((s,x)=> s + Number(x?.qty||0), 0);
   const total = finalItems.reduce((s,x)=> s + (Number(x?.price||0) * Number(x?.qty||0)), 0);
@@ -485,7 +460,6 @@ async function cancelFromOrders(shop, o){
   order.itemsCount = itemsCount;
   order.total = total;
 
-  // itemsが空ならレコード削除（その送信自体が空になった）
   if(finalItems.length === 0){
     await rtdbPut(path, null);
     return;
@@ -527,7 +501,6 @@ function renderColumn(rootId, list, shop){
 
     div.innerHTML = `
       <div class="oTop">
-        <!-- 1行目：T / 数量 / 時間 / 済み(または戻す) -->
         <div class="row" style="gap:8px; align-items:center; flex-wrap:wrap;">
           <span class="bigT">T${esc(o.table || "?")}</span>
           <span class="bigQty">数量 ${esc(o.qty)}</span>
@@ -541,7 +514,6 @@ function renderColumn(rootId, list, shop){
           }
         </div>
 
-        <!-- 2行目：メニュー名 / 取消（orderFeed + orders から消す） -->
         <div class="line2">
           <div class="nameWrap">
             <div class="oName">${esc(o.name || "(no name)")}</div>
@@ -589,7 +561,6 @@ function renderColumn(rootId, list, shop){
         }
 
         if(act === "cancelOrder"){
-          // ★誤オーダー取消：orderFeed を消す＋orders 側からも該当1品を削除
           if(!confirm("このオーダーを取消します（orderFeed + orders から削除）\nよろしいですか？")){
             return;
           }
@@ -597,10 +568,7 @@ function renderColumn(rootId, list, shop){
             $("status").textContent = "取消中...";
             cancelScheduledDelete(id);
 
-            // 1) orders 側からも消す（先にやる：失敗したら orderFeed を残したい場合があるため）
             await cancelFromOrders(shop, o);
-
-            // 2) orderFeed を削除
             await rtdbPut(`shops/${encodeURIComponent(shop)}/orderFeed/${encodeURIComponent(id)}`, null);
 
             await refresh();
@@ -626,14 +594,19 @@ function showNewOrderBanner(msg){
   showNewOrderBanner._t = setTimeout(()=>{ el.style.display = "none"; }, 3500);
 }
 
+/* ★ここだけ変更：会計バナーをタップで checkout.html に行く */
 function setCheckoutBanner(visible, msg){
   const el = $("checkoutBanner");
   if(!el) return;
   if(visible){
     el.textContent = msg || "会計依頼あり";
     el.style.display = "block";
+    el.style.cursor = "pointer";
+    el.onclick = ()=> location.href = `checkout.html?v=${Date.now()}`;
   }else{
     el.style.display = "none";
+    el.style.cursor = "default";
+    el.onclick = null;
   }
 }
 
@@ -862,6 +835,7 @@ refresh();
 </script>
 </body>
 </html>
+
 
 
 

@@ -74,6 +74,26 @@
 
     details summary{cursor:pointer;font-weight:900;color:#374151}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
+
+    /* ★ 追加：ナビボタンだけ目立たせる（他ボタンは変更しない） */
+    button.navMenu{
+      background:#2563eb; /* 青 */
+      color:#fff;
+      border:1px solid #1d4ed8;
+      box-shadow: 0 8px 18px rgba(37,99,235,.25);
+      padding:12px 14px;
+      font-size:15px;
+      font-weight:1000;
+    }
+    button.navKitchen{
+      background:#f59e0b; /* オレンジ */
+      color:#111827;
+      border:1px solid #d97706;
+      box-shadow: 0 8px 18px rgba(245,158,11,.22);
+      padding:12px 14px;
+      font-size:15px;
+      font-weight:1000;
+    }
   </style>
 </head>
 <body>
@@ -86,11 +106,16 @@
     <div class="row">
       <span class="pill">shop: <b id="shopText" class="mono">-</b></span>
       <span class="pill">店名: <b id="shopNameText" class="mono">-</b></span>
+      <!-- ★追加：インボイス番号 -->
+      <span class="pill">インボイス: <b id="invoiceText" class="mono">-</b></span>
+
       <span class="pill">税率: <b id="taxText" class="mono">-</b></span>
       <span class="pill">選択テーブル: <b id="selTableText" class="mono">-</b></span>
 
-      <button id="btnBack" class="light">← menuへ</button>
-      <button id="btnKitchen" class="light">← kitchenへ</button>
+      <!-- ★変更：この2つのボタンだけクラス変更 -->
+      <button id="btnBack" class="navMenu">← menuへ</button>
+      <button id="btnKitchen" class="navKitchen">← kitchenへ</button>
+
       <button id="btnRefresh" class="dark">更新</button>
 
       <label class="row">
@@ -381,6 +406,8 @@ let checkoutRequests = {};
 // shop settings
 let shopName = "";
 let taxRate = 0.1;
+/* ★追加：インボイス番号 */
+let invoiceNo = "";
 
 function setStatus(html){ $("status").innerHTML = html || ""; }
 function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
@@ -456,7 +483,9 @@ function renderBill(){
   const incTotal = req ? Number(req.total||0) : 0;
   $("billTotal").textContent = req ? yen(incTotal) : "-";
 
-  $("printShopName").textContent = shopName ? shopName : "店名未設定";
+  /* ★変更：店名と一緒にインボイス番号も印刷ヘッダに出す */
+  const title = shopName ? shopName : "店名未設定";
+  $("printShopName").textContent = invoiceNo ? `${title}（${invoiceNo}）` : title;
   $("printMeta").textContent = `shopCode: ${getShop() || "-"} / 印刷: ${new Date().toLocaleString("ja-JP")}`;
 
   const sp = splitTaxFromInclusive(incTotal, taxRate);
@@ -535,7 +564,19 @@ async function loadShopSettings(shop){
     taxRate = 0.1;
   }
 
+  /* ★追加：インボイス番号（shops/{shop}/invoice） */
+  try{
+    const inv = await rtdbGet(`shops/${encodeURIComponent(shop)}/invoice`);
+    // string想定。もし {no:"T123..."} 形式でも拾う
+    if(typeof inv === "string") invoiceNo = inv;
+    else if(inv && typeof inv === "object") invoiceNo = String(inv.no ?? inv.invoice ?? inv.number ?? "");
+    else invoiceNo = "";
+  }catch{
+    invoiceNo = "";
+  }
+
   $("shopNameText").textContent = shopName ? shopName : "-";
+  $("invoiceText").textContent = invoiceNo ? invoiceNo : "-";
   $("taxText").textContent = `${Math.round(taxRate*1000)/10}%`;
 }
 
@@ -580,6 +621,7 @@ async function refresh(){
       dbg.textContent = JSON.stringify({
         shop,
         shopName,
+        invoiceNo,
         taxRate,
         activeTables: Object.keys(activeSessions),
         checkoutTables: Object.keys(checkoutRequests),
@@ -708,9 +750,7 @@ function showSalesPrint(dateKey){
 /* ===== CSV（1会計=1行） ===== */
 function csvEscape(v){
   const s = String(v ?? "");
-  // " を "" に
   const q = s.replace(/"/g, '""');
-  // カンマ/改行/ダブルクォートが含まれるなら " で囲む
   if(/[",\r\n]/.test(q)) return `"${q}"`;
   return q;
 }
@@ -718,7 +758,6 @@ function toIsoLocal(ts){
   if(!ts) return "";
   try{
     const d = new Date(Number(ts));
-    // 2026-01-23 12:34:56 みたいな見やすい形
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth()+1).padStart(2,"0");
     const dd = String(d.getDate()).padStart(2,"0");
@@ -737,7 +776,6 @@ function buildSalesCsv(dateKey){
     .map(([k,v])=>({ key:k, v }))
     .sort((a,b)=>Number(a.v?.confirmedAt||0)-Number(b.v?.confirmedAt||0));
 
-  // ヘッダ（会計ソフト側で扱いやすいように）
   const header = [
     "date",
     "confirmedAt",
@@ -773,7 +811,6 @@ function buildSalesCsv(dateKey){
     rows.push(row);
   }
 
-  // Excel対策：UTF-8 BOM付ける
   return "\uFEFF" + rows.join("\r\n");
 }
 
@@ -928,6 +965,7 @@ $("btnSalesDelete").onclick = async ()=>{
 </script>
 </body>
 </html>
+
 
 
 

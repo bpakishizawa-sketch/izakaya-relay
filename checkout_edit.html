@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Checkout Edit - 会計編集</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:1200px; margin:0 auto; background:#f6f7f9;}
+    h1{font-size:22px;margin:0 0 8px}
+    .sub{font-size:12px;color:#6b7280;margin-bottom:12px;line-height:1.6}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:10px 0;background:#fff;}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .muted{color:#6b7280}
+    .ok{color:#16a34a;font-weight:900}
+    .ng{color:#dc2626;font-weight:900}
+    select,input{font-size:16px;padding:10px;border:1px solid #d1d5db;border-radius:10px;background:#fff}
+    button{font-size:14px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:900}
+    button.dark{background:#111827;color:#fff}
+    button.light{background:#f3f4f6;color:#111827;border:1px solid #ddd}
+    button.green{background:#16a34a;color:#fff}
+    button.red{background:#dc2626;color:#fff}
+    button.blue{background:#2563eb;color:#fff}
+    button.orange{background:#f59e0b;color:#111827}
+    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px;background:#fff}
+    .grid2{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
+    @media(min-width:860px){ .grid2{grid-template-columns: 1fr 1fr;} }
+
+    .tableGrid{display:grid;grid-template-columns: repeat(6, 1fr); gap:10px; margin-top:10px;}
+    @media(max-width:860px){ .tableGrid{grid-template-columns: repeat(4, 1fr);} }
+    .tbtn{padding:14px 10px;border-radius:12px;border:1px solid #e5e7eb;background:#fff;font-weight:900}
+    .tbtn.active{border-color:#3b82f6;background:#dbeafe}
+    .tbtn.request{border-color:#f59e0b;background:#fff7ed}
+    .tmeta{font-size:11px;color:#6b7280;margin-top:4px}
+
+    .lines{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+    .line{display:flex;justify-content:space-between;gap:10px;border-top:1px dashed #eee;padding-top:8px;align-items:center}
+    .line:first-child{border-top:0;padding-top:0}
+    .sumBig{font-size:22px;font-weight:900}
+    .hr{height:1px;background:#eee;margin:12px 0}
+
+    .qtyBox{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .qtyN{min-width:42px;text-align:center;font-weight:1000}
+    .nameWrap{min-width:0;flex:1}
+    .name{font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .meta{font-size:12px;color:#6b7280;margin-top:2px}
+    .dangerHint{font-size:12px;color:#b91c1c;font-weight:900}
+  </style>
+</head>
+<body>
+
+  <h1>会計（編集）</h1>
+  <div class="sub">
+    確定前に「数量変更 / 明細削除 / テーブル会計依頼のリセット」ができます。<br>
+    ※このページで確定すると、<b>salesDaily保存</b>＋<b>checkoutRequests/orders/webActiveSessions削除</b>まで実行します。
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <span class="pill">shop: <b id="shopText" class="mono">-</b></span>
+      <span class="pill">店名: <b id="shopNameText" class="mono">-</b></span>
+      <span class="pill">インボイス: <b id="invoiceText" class="mono">-</b></span>
+      <span class="pill">税率: <b id="taxText" class="mono">-</b></span>
+      <span class="pill">選択テーブル: <b id="selTableText" class="mono">-</b></span>
+
+      <button id="btnBackMenu" class="blue">← menuへ</button>
+      <button id="btnBackKitchen" class="orange">← kitchenへ</button>
+      <button id="btnRefresh" class="dark">更新</button>
+    </div>
+    <div id="status" class="muted" style="margin-top:8px;">-</div>
+  </div>
+
+  <div class="grid2">
+    <!-- left -->
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <div style="font-weight:900">テーブル状況（着席中のみ）</div>
+        <div class="muted" style="font-size:12px">※会計依頼があるテーブルを選択</div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="row" style="gap:8px">
+        <span class="pill">着席 <b id="activeCount" class="mono">0</b></span>
+        <span class="pill" style="background:#fff7ed;border-color:#f59e0b">会計依頼 <b id="reqCount" class="mono">0</b></span>
+      </div>
+
+      <div id="tableGrid" class="tableGrid"></div>
+    </div>
+
+    <!-- right -->
+    <div class="card">
+      <div class="row" style="justify-content:space-between; align-items:flex-start">
+        <div>
+          <div style="font-weight:900">会計明細（編集）</div>
+          <div class="muted" style="font-size:12px;margin-top:4px">
+            ここで編集した内容は <span class="mono">salesDaily</span> に「編集済み」として保存されます（元の orders は消します）。
+          </div>
+        </div>
+        <div class="row" style="gap:8px">
+          <button id="btnResetReq" class="red">このテーブルの会計依頼を削除</button>
+          <button id="btnConfirm" class="green">編集後に会計確定</button>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="row" style="justify-content:space-between; align-items:flex-end">
+        <div>
+          <div class="muted" style="font-size:12px">テーブル</div>
+          <div style="font-weight:1000;font-size:18px" id="billTable">-</div>
+        </div>
+        <div style="text-align:right">
+          <div class="muted" style="font-size:12px">税込合計</div>
+          <div class="sumBig mono" id="billTotal">-</div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="row" style="justify-content:space-between">
+        <div class="pill">税率 <b id="billTaxRate" class="mono">-</b></div>
+        <div class="pill">税抜 <b id="billEx" class="mono">-</b></div>
+        <div class="pill">消費税 <b id="billTax" class="mono">-</b></div>
+        <div class="pill">税込 <b id="billIn" class="mono">-</b></div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <div class="muted" style="font-size:12px">明細（編集可能）</div>
+        <div class="dangerHint">※削除・数量変更はこの画面だけに反映（確定で確定）</div>
+      </div>
+
+      <div id="billLines" class="lines"></div>
+
+      <div class="muted" id="confirmMsg" style="margin-top:10px;">-</div>
+    </div>
+  </div>
+
+<script>
+/** ===== 設定 ===== */
+const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ============== */
+
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[m]));
+}
+function getShop(){ return (localStorage.getItem("shopCode") || "").trim(); }
+
+async function rtdbGet(path){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url);
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
+async function rtdbPut(path, data){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(data)
+  });
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
+async function rtdbPost(path, data){
+  const url = `${DB_BASE}/${path}.json`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(data)
+  });
+  const txt = await res.text();
+  if(!res.ok) throw new Error(`HTTP ${res.status} ${txt}`);
+  return JSON.parse(txt || "null");
+}
+async function rtdbDelete(path){
+  return rtdbPut(path, null);
+}
+
+function yen(n){
+  const x = Number(n||0);
+  return x.toLocaleString("ja-JP") + " 円";
+}
+function jstDateKey(ts=Date.now()){
+  const d = new Date(ts);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const da = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${da}`;
+}
+function normalizeTaxRate(v){
+  let x = Number(v);
+  if(!Number.isFinite(x) || x <= 0) return 0.1;
+  if(x > 1.0) x = x / 100;
+  return x;
+}
+function splitTaxFromInclusive(inclusiveTotal, rate){
+  const r = Number(rate||0);
+  const inc = Math.max(0, Number(inclusiveTotal||0));
+  if(r <= 0) return { ex: inc, tax: 0, in: inc };
+  const ex = Math.floor(inc / (1 + r));
+  const tax = inc - ex;
+  return { ex, tax, in: inc };
+}
+
+/* ===== state ===== */
+let selectedTable = "";
+let activeSessions = {};
+let checkoutRequests = {};
+
+let shopName = "";
+let invoiceNo = "";
+let taxRate = 0.1;
+
+// 編集用：表示している明細（name/price/qty/sub）
+let editLines = []; // [{name, price, qty, sub}]
+
+function setStatus(html){ $("status").innerHTML = html || ""; }
+function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
+
+function pickTable(t){
+  selectedTable = String(t||"");
+  $("selTableText").textContent = selectedTable ? `T${selectedTable}` : "-";
+  renderBill();
+}
+
+function renderTables(){
+  const grid = $("tableGrid");
+  grid.innerHTML = "";
+
+  const activeTables = Object.keys(activeSessions || {}).sort((a,b)=>Number(a)-Number(b));
+  const reqTables = new Set(Object.keys(checkoutRequests || {}));
+
+  $("activeCount").textContent = String(activeTables.length);
+  $("reqCount").textContent = String(reqTables.size);
+
+  if(activeTables.length === 0){
+    grid.innerHTML = `<div class="muted"><small>着席中のテーブルがありません</small></div>`;
+    return;
+  }
+
+  for(const t of activeTables){
+    const sess = activeSessions[t] || {};
+    const hasReq = reqTables.has(String(t));
+
+    const btn = document.createElement("button");
+    btn.className = "tbtn" + (String(t)===String(selectedTable) ? " active" : "") + (hasReq ? " request" : "");
+    btn.innerHTML = `
+      <div>T${esc(t)}</div>
+      <div class="tmeta mono">${hasReq ? "会計依頼あり" : (sess.token ? "着席中" : "")}</div>
+    `;
+    btn.onclick = ()=> pickTable(t);
+    grid.appendChild(btn);
+  }
+
+  if(!selectedTable){
+    const firstReq = activeTables.find(t => reqTables.has(String(t)));
+    pickTable(firstReq || activeTables[0]);
+  }else{
+    if(!activeSessions[selectedTable]){
+      pickTable(activeTables[0]);
+    }
+  }
+}
+
+function flattenOrdersFromReq(req){
+  const lines = [];
+  if(!req || !Array.isArray(req.orders)) return lines;
+
+  for(const o of req.orders){
+    const items = Array.isArray(o.items) ? o.items : [];
+    for(const it of items){
+      const name = String(it.name||"");
+      const qty = Number(it.qty||0);
+      const price = Number(it.price||0);
+      if(!name) continue;
+      lines.push({ name, qty, price, sub: price*qty });
+    }
+  }
+  return lines;
+}
+
+function mergeSameNamePrice(lines){
+  const map = new Map();
+  for(const x of lines){
+    const k = x.name + "|" + x.price;
+    const cur = map.get(k) || { name:x.name, price:x.price, qty:0, sub:0 };
+    cur.qty += Number(x.qty||0);
+    cur.sub += Number(x.sub||0);
+    map.set(k, cur);
+  }
+  const merged = Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,"ja"));
+  // subを再計算しておく
+  for(const m of merged){
+    m.sub = Number(m.price||0) * Number(m.qty||0);
+  }
+  return merged;
+}
+
+function recalcTotals(){
+  const inc = editLines.reduce((s,x)=> s + (Number(x.price||0) * Number(x.qty||0)), 0);
+  const sp = splitTaxFromInclusive(inc, taxRate);
+  $("billTotal").textContent = yen(inc);
+  $("billTaxRate").textContent = `${Math.round(taxRate*1000)/10}%`;
+  $("billEx").textContent = yen(sp.ex);
+  $("billTax").textContent = yen(sp.tax);
+  $("billIn").textContent = yen(sp.in);
+  return { inc, ...sp };
+}
+
+function renderBill(){
+  const t = selectedTable;
+  const req = checkoutRequests && t ? checkoutRequests[t] : null;
+
+  $("billTable").textContent = t ? `T${t}` : "-";
+
+  if(!req){
+    editLines = [];
+    $("billTotal").textContent = "-";
+    $("billTaxRate").textContent = "-";
+    $("billEx").textContent = "-";
+    $("billTax").textContent = "-";
+    $("billIn").textContent = "-";
+    $("billLines").innerHTML = `<div class="muted"><small>会計依頼はありません（テーブルを選択してください）</small></div>`;
+    $("btnConfirm").disabled = true;
+    $("btnResetReq").disabled = true;
+    return;
+  }
+
+  $("btnConfirm").disabled = false;
+  $("btnResetReq").disabled = false;
+
+  // 元データから編集用ラインを作る（同名+同単価まとめ）
+  const rawLines = flattenOrdersFromReq(req);
+  editLines = mergeSameNamePrice(rawLines);
+
+  if(editLines.length === 0){
+    $("billLines").innerHTML = `<div class="muted"><small>明細がありません（ordersが空）</small></div>`;
+    return;
+  }
+
+  // 合計表示（編集用から計算）
+  recalcTotals();
+
+  $("billLines").innerHTML = editLines.map((x, idx)=>`
+    <div class="line" data-idx="${idx}">
+      <div class="nameWrap">
+        <div class="name">${esc(x.name)} <span class="muted">（単価 ${esc(String(x.price))}）</span></div>
+        <div class="meta muted">小計：<span class="mono">${esc(yen(Number(x.price||0)*Number(x.qty||0)))}</span></div>
+      </div>
+
+      <div class="qtyBox">
+        <button class="light" data-act="minus" data-idx="${idx}">－</button>
+        <span class="qtyN mono">${esc(String(x.qty))}</span>
+        <button class="light" data-act="plus" data-idx="${idx}">＋</button>
+        <button class="red" data-act="del" data-idx="${idx}">削除</button>
+      </div>
+    </div>
+  `).join("");
+
+  // handlers
+  $("billLines").querySelectorAll("button").forEach(btn=>{
+    btn.onclick = ()=>{
+      const act = btn.getAttribute("data-act");
+      const idx = Number(btn.getAttribute("data-idx")||0);
+      const item = editLines[idx];
+      if(!item) return;
+
+      if(act === "minus"){
+        item.qty = Math.max(1, Number(item.qty||1) - 1);
+      }
+      if(act === "plus"){
+        item.qty = Math.max(1, Number(item.qty||1) + 1);
+      }
+      if(act === "del"){
+        if(!confirm(`「${item.name}」を明細から削除します。よろしいですか？`)) return;
+        editLines.splice(idx, 1);
+      }
+
+      // 0件になったら案内
+      if(editLines.length === 0){
+        $("billLines").innerHTML = `<div class="muted"><small>明細が0件になりました。必要なら「会計依頼を削除」してください。</small></div>`;
+        $("billTotal").textContent = yen(0);
+        const sp = splitTaxFromInclusive(0, taxRate);
+        $("billTaxRate").textContent = `${Math.round(taxRate*1000)/10}%`;
+        $("billEx").textContent = yen(sp.ex);
+        $("billTax").textContent = yen(sp.tax);
+        $("billIn").textContent = yen(sp.in);
+      }else{
+        // 再描画
+        // （見た目を崩さず、同じ構造のまま更新するため renderBill() は呼ばない）
+        renderEditLinesOnly();
+      }
+      setConfirmMsg(`<span class="ok">編集OK</span>（まだ確定していません）`);
+    };
+  });
+}
+
+function renderEditLinesOnly(){
+  // 既に editLines が編集後になっている前提で、一覧だけ再描画
+  recalcTotals();
+
+  $("billLines").innerHTML = editLines.map((x, idx)=>`
+    <div class="line" data-idx="${idx}">
+      <div class="nameWrap">
+        <div class="name">${esc(x.name)} <span class="muted">（単価 ${esc(String(x.price))}）</span></div>
+        <div class="meta muted">小計：<span class="mono">${esc(yen(Number(x.price||0)*Number(x.qty||0)))}</span></div>
+      </div>
+
+      <div class="qtyBox">
+        <button class="light" data-act="minus" data-idx="${idx}">－</button>
+        <span class="qtyN mono">${esc(String(x.qty))}</span>
+        <button class="light" data-act="plus" data-idx="${idx}">＋</button>
+        <button class="red" data-act="del" data-idx="${idx}">削除</button>
+      </div>
+    </div>
+  `).join("");
+
+  $("billLines").querySelectorAll("button").forEach(btn=>{
+    btn.onclick = ()=>{
+      const act = btn.getAttribute("data-act");
+      const idx = Number(btn.getAttribute("data-idx")||0);
+      const item = editLines[idx];
+      if(!item) return;
+
+      if(act === "minus"){
+        item.qty = Math.max(1, Number(item.qty||1) - 1);
+      }
+      if(act === "plus"){
+        item.qty = Math.max(1, Number(item.qty||1) + 1);
+      }
+      if(act === "del"){
+        if(!confirm(`「${item.name}」を明細から削除します。よろしいですか？`)) return;
+        editLines.splice(idx, 1);
+      }
+
+      if(editLines.length === 0){
+        $("billLines").innerHTML = `<div class="muted"><small>明細が0件になりました。必要なら「会計依頼を削除」してください。</small></div>`;
+        $("billTotal").textContent = yen(0);
+        const sp = splitTaxFromInclusive(0, taxRate);
+        $("billTaxRate").textContent = `${Math.round(taxRate*1000)/10}%`;
+        $("billEx").textContent = yen(sp.ex);
+        $("billTax").textContent = yen(sp.tax);
+        $("billIn").textContent = yen(sp.in);
+      }else{
+        renderEditLinesOnly();
+      }
+      setConfirmMsg(`<span class="ok">編集OK</span>（まだ確定していません）`);
+    };
+  });
+}
+
+async function loadShopSettings(shop){
+  // shopname
+  try{
+    const sn = await rtdbGet(`shops/${encodeURIComponent(shop)}/shopname`);
+    shopName = (typeof sn === "string") ? sn : (sn?.name ? String(sn.name) : "");
+  }catch{ shopName = ""; }
+
+  // tax
+  try{
+    const tx = await rtdbGet(`shops/${encodeURIComponent(shop)}/tax`);
+    taxRate = normalizeTaxRate(tx);
+  }catch{ taxRate = 0.1; }
+
+  // invoice
+  try{
+    const inv = await rtdbGet(`shops/${encodeURIComponent(shop)}/invoice`);
+    invoiceNo = (inv===null || inv===undefined) ? "" : String(inv);
+  }catch{ invoiceNo = ""; }
+
+  $("shopNameText").textContent = shopName ? shopName : "-";
+  $("taxText").textContent = `${Math.round(taxRate*1000)/10}%`;
+  $("invoiceText").textContent = invoiceNo ? invoiceNo : "-";
+}
+
+async function refresh(){
+  const shop = getShop();
+  if(!shop){
+    setStatus(`<span class="ng">未ログイン</span> menu.html へ戻ります`);
+    setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 400);
+    return;
+  }
+  $("shopText").textContent = shop;
+
+  try{
+    setStatus(`<span class="mono">loading...</span>`);
+
+    await loadShopSettings(shop);
+
+    // active sessions
+    const sess = await rtdbGet(`webActiveSessions/${encodeURIComponent(shop)}`);
+    activeSessions = (sess && typeof sess==="object") ? sess : {};
+    const filtered = {};
+    for(const [t, s] of Object.entries(activeSessions)){
+      if(!s || typeof s!=="object") continue;
+      if(s.active === false) continue;
+      if(!s.token) continue;
+      filtered[String(t)] = s;
+    }
+    activeSessions = filtered;
+
+    // checkoutRequests
+    const req = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
+    checkoutRequests = (req && typeof req==="object") ? req : {};
+
+    renderTables();
+    renderBill();
+
+    setStatus(`<span class="ok">OK</span> 着席:${Object.keys(activeSessions).length} / 会計依頼:${Object.keys(checkoutRequests).length} （${new Date().toLocaleTimeString()}）`);
+  }catch(e){
+    setStatus(`<span class="ng">読込失敗</span> ${esc(e.message||e)}`);
+  }
+}
+
+/* ===== actions ===== */
+$("btnBackMenu").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
+$("btnBackKitchen").onclick = ()=> location.href = `kitchen.html?v=${Date.now()}`;
+$("btnRefresh").onclick = refresh;
+
+$("btnResetReq").onclick = async ()=>{
+  const shop = getShop();
+  const t = selectedTable;
+  if(!shop || !t) return;
+
+  if(!confirm(`T${t} の「会計依頼」を削除します。\n（ordersや着席は消しません）\nよろしいですか？`)) return;
+
+  try{
+    $("btnResetReq").disabled = true;
+    setConfirmMsg(`<span class="mono">削除中...</span>`);
+    await rtdbDelete(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(t))}`);
+    setConfirmMsg(`<span class="ok">削除しました</span>（会計依頼を取り下げ）`);
+    selectedTable = "";
+    await refresh();
+  }catch(e){
+    setConfirmMsg(`<span class="ng">失敗</span> ${esc(e.message||e)}`);
+  }finally{
+    $("btnResetReq").disabled = false;
+  }
+};
+
+$("btnConfirm").onclick = async ()=>{
+  const shop = getShop();
+  const t = selectedTable;
+  if(!shop || !t){
+    setConfirmMsg(`<span class="ng">テーブル未選択</span>`);
+    return;
+  }
+  const req = checkoutRequests[t];
+  if(!req){
+    setConfirmMsg(`<span class="ng">このテーブルに会計依頼がありません</span>`);
+    return;
+  }
+
+  // editLines が空なら警告
+  if(!Array.isArray(editLines) || editLines.length === 0){
+    if(!confirm(`明細が0件です。\nそれでも会計を「0円」で確定しますか？`)) return;
+  }
+
+  const totals = recalcTotals(); // {inc, ex, tax, in}
+  const inc = totals.in;
+
+  if(!confirm(`T${t} の会計を「編集後の内容」で確定します。\n\n税込合計：${yen(inc)}\n\n(1) salesDaily保存（編集済み）\n(2) checkoutRequests / orders / webActiveSessions を削除\nよろしいですか？`)){
+    return;
+  }
+
+  $("btnConfirm").disabled = true;
+  setConfirmMsg(`<span class="mono">処理中...</span>`);
+
+  try{
+    // salesDaily に保存（編集済みとして lines を保存）
+    const payload = {
+      dateKey: jstDateKey(Date.now()),
+      shop: shop,
+      shopName: shopName || "",
+      invoice: invoiceNo || "",
+      taxRate: taxRate,
+      table: String(t),
+      token: String(req.token||""),
+      requestedAt: Number(req.requestedAt||0),
+      confirmedAt: Date.now(),
+
+      inclusiveTotal: Number(totals.in||0),
+      exclusiveTotal: Number(totals.ex||0),
+      taxAmount: Number(totals.tax||0),
+
+      // ★編集情報
+      edited: true,
+      editedLines: editLines.map(x=>({
+        name: String(x.name||""),
+        price: Number(x.price||0),
+        qty: Number(x.qty||0),
+        sub: Number(Number(x.price||0) * Number(x.qty||0))
+      })),
+
+      // 元の orders も一応残す（後で検証できる）
+      originalOrders: Array.isArray(req.orders) ? req.orders : []
+    };
+
+    await rtdbPost(`shops/${encodeURIComponent(shop)}/salesDaily/${encodeURIComponent(payload.dateKey)}`, payload);
+
+    // 既存と同じ削除
+    await rtdbDelete(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(t))}`);
+    await rtdbDelete(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(t))}`);
+    await rtdbDelete(`webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(t))}`);
+
+    setConfirmMsg(`<span class="ok">会計確定しました</span>（編集済みで保存）`);
+    selectedTable = "";
+    await refresh();
+
+    // ここは好み：確定後に checkout.html に戻す
+    setTimeout(()=>{
+      location.href = `checkout.html?v=${Date.now()}`;
+    }, 450);
+
+  }catch(e){
+    setConfirmMsg(`<span class="ng">失敗</span> ${esc(e.message||e)}`);
+  }finally{
+    $("btnConfirm").disabled = false;
+  }
+};
+
+/* boot */
+refresh();
+</script>
+</body>
+</html>
+

@@ -21,6 +21,7 @@
     button.green{background:#16a34a;color:#fff}
     button.red{background:#dc2626;color:#fff}
     button.purple{background:#7c3aed;color:#fff}
+    button.orange{background:#f59e0b;color:#111827}
     .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px}
     .grid2{display:grid;grid-template-columns:1fr; gap:12px; align-items:start;}
     @media(min-width:860px){ .grid2{grid-template-columns: 1fr 1fr;} }
@@ -55,6 +56,7 @@
       max-width: 92vw;
       text-align: center;
     }
+    .alertBanner.clickable{ cursor:pointer; }
 
     /* print area */
     #printArea{background:#fff; padding:14px; border-radius:12px; border:1px solid #e5e7eb;}
@@ -75,29 +77,22 @@
     details summary{cursor:pointer;font-weight:900;color:#374151}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
-    /* ★ 追加：ナビボタンだけ目立たせる（他ボタンは変更しない） */
-    button.navMenu{
-      background:#2563eb; /* 青 */
-      color:#fff;
-      border:1px solid #1d4ed8;
-      box-shadow: 0 8px 18px rgba(37,99,235,.25);
-      padding:12px 14px;
-      font-size:15px;
-      font-weight:1000;
+    /* ▼視認性UP：ナビボタン */
+    .navBtn{
+      padding:12px 14px !important;
+      border-radius:12px !important;
+      border:2px solid #111827 !important;
+      font-size:14px !important;
+      font-weight:1000 !important;
+      box-shadow:0 6px 18px rgba(0,0,0,.12);
     }
-    button.navKitchen{
-      background:#f59e0b; /* オレンジ */
-      color:#111827;
-      border:1px solid #d97706;
-      box-shadow: 0 8px 18px rgba(245,158,11,.22);
-      padding:12px 14px;
-      font-size:15px;
-      font-weight:1000;
-    }
+    .navMenu{ background:#111827 !important; color:#fff !important; }
+    .navKitchen{ background:#2563eb !important; color:#fff !important; border-color:#2563eb !important; }
+    .navEdit{ background:#f59e0b !important; color:#111827 !important; border-color:#f59e0b !important; }
   </style>
 </head>
 <body>
-  <div id="alertBanner" class="alertBanner">会計依頼！</div>
+  <div id="alertBanner" class="alertBanner clickable" title="タップで会計編集へ">会計依頼！</div>
 
   <h1>会計（Checkout）</h1>
   <div class="sub"></div>
@@ -106,15 +101,13 @@
     <div class="row">
       <span class="pill">shop: <b id="shopText" class="mono">-</b></span>
       <span class="pill">店名: <b id="shopNameText" class="mono">-</b></span>
-      <!-- ★追加：インボイス番号 -->
       <span class="pill">インボイス: <b id="invoiceText" class="mono">-</b></span>
-
       <span class="pill">税率: <b id="taxText" class="mono">-</b></span>
       <span class="pill">選択テーブル: <b id="selTableText" class="mono">-</b></span>
 
-      <!-- ★変更：この2つのボタンだけクラス変更 -->
-      <button id="btnBack" class="navMenu">← menuへ</button>
-      <button id="btnKitchen" class="navKitchen">← kitchenへ</button>
+      <!-- ▼視認性UP（機能は同じ：遷移だけ） -->
+      <button id="btnBack" class="navBtn navMenu">← menuへ</button>
+      <button id="btnKitchen" class="navBtn navKitchen">← kitchenへ</button>
 
       <button id="btnRefresh" class="dark">更新</button>
 
@@ -130,6 +123,9 @@
 
       <button id="btnSound" class="light">🔔音OFF</button>
       <button id="btnBeep" class="light">テスト</button>
+
+      <!-- ▼追加：編集ページへ（会計確定前の編集/削除） -->
+      <button id="btnEdit" class="navBtn navEdit">✏️ 会計編集へ</button>
     </div>
 
     <div id="status" class="muted" style="margin-top:8px;">-</div>
@@ -270,7 +266,6 @@
       <div id="salesPrintLines" class="lines"></div>
     </div>
   </div>
-
 <script>
 /** ===== 設定 ===== */
 const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
@@ -322,11 +317,6 @@ function yen(n){
   const x = Number(n||0);
   return x.toLocaleString("ja-JP") + " 円";
 }
-function fmt(ts){
-  if(!ts) return "-";
-  try{ return new Date(Number(ts)).toLocaleString("ja-JP"); }catch{ return String(ts); }
-}
-
 function jstDateKey(ts=Date.now()){
   const d = new Date(ts);
   const y = d.getFullYear();
@@ -348,6 +338,31 @@ function splitTaxFromInclusive(inclusiveTotal, rate){
   const tax = inc - ex;
   return { ex, tax, in: inc };
 }
+
+/* ===== 視認性UP（CSSを追加するだけ：他は触らない） ===== */
+(function injectNavStyle(){
+  const css = `
+    .navBtn{
+      border:0;
+      cursor:pointer;
+      font-weight:1000;
+      padding:12px 14px;
+      border-radius:14px;
+      color:#fff;
+      box-shadow: 0 10px 24px rgba(0,0,0,.12);
+      transform: translateY(0);
+    }
+    .navBtn:active{ transform: translateY(1px); }
+    .navMenu{ background:#2563eb; }      /* 青 */
+    .navKitchen{ background:#f97316; }   /* オレンジ */
+    .navEdit{ background:#111827; }      /* 黒 */
+    .clickable{ cursor:pointer; }
+    .alertBanner.clickable:active{ transform: translateX(-50%) translateY(1px); }
+  `;
+  const st = document.createElement("style");
+  st.textContent = css;
+  document.head.appendChild(st);
+})();
 
 /* ===== 新規アラーム ===== */
 function showBanner(msg){
@@ -406,8 +421,7 @@ let checkoutRequests = {};
 // shop settings
 let shopName = "";
 let taxRate = 0.1;
-/* ★追加：インボイス番号 */
-let invoiceNo = "";
+let invoiceNo = ""; // ★追加
 
 function setStatus(html){ $("status").innerHTML = html || ""; }
 function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
@@ -483,10 +497,10 @@ function renderBill(){
   const incTotal = req ? Number(req.total||0) : 0;
   $("billTotal").textContent = req ? yen(incTotal) : "-";
 
-  /* ★変更：店名と一緒にインボイス番号も印刷ヘッダに出す */
-  const title = shopName ? shopName : "店名未設定";
-  $("printShopName").textContent = invoiceNo ? `${title}（${invoiceNo}）` : title;
-  $("printMeta").textContent = `shopCode: ${getShop() || "-"} / 印刷: ${new Date().toLocaleString("ja-JP")}`;
+  $("printShopName").textContent = shopName ? shopName : "店名未設定";
+  // invoice を印刷ヘッダにも入れる
+  const inv = invoiceNo ? ` / invoice: ${invoiceNo}` : "";
+  $("printMeta").textContent = `shopCode: ${getShop() || "-"}${inv} / 印刷: ${new Date().toLocaleString("ja-JP")}`;
 
   const sp = splitTaxFromInclusive(incTotal, taxRate);
   $("billTaxRate").textContent = `${Math.round(taxRate*1000)/10}%`;
@@ -564,20 +578,17 @@ async function loadShopSettings(shop){
     taxRate = 0.1;
   }
 
-  /* ★追加：インボイス番号（shops/{shop}/invoice） */
+  // ★invoice 追加
   try{
     const inv = await rtdbGet(`shops/${encodeURIComponent(shop)}/invoice`);
-    // string想定。もし {no:"T123..."} 形式でも拾う
-    if(typeof inv === "string") invoiceNo = inv;
-    else if(inv && typeof inv === "object") invoiceNo = String(inv.no ?? inv.invoice ?? inv.number ?? "");
-    else invoiceNo = "";
+    invoiceNo = (typeof inv === "string") ? inv : (inv?.no ? String(inv.no) : "");
   }catch{
     invoiceNo = "";
   }
 
   $("shopNameText").textContent = shopName ? shopName : "-";
-  $("invoiceText").textContent = invoiceNo ? invoiceNo : "-";
   $("taxText").textContent = `${Math.round(taxRate*1000)/10}%`;
+  $("invoiceText").textContent = invoiceNo ? invoiceNo : "-";
 }
 
 async function refresh(){
@@ -681,7 +692,7 @@ function renderSalesDay(dateKey){
     div.innerHTML = `
       <div>
         <b>T${esc(t)}</b> <span class="muted">${esc(time)}</span>
-        <div class="muted" style="font-size:12px">${esc(v.token ? "tokenあり" : "")}</div>
+        <div class="muted" style="font-size:12px"></div>
       </div>
       <div class="mono" style="font-weight:900">${esc(yen(inc))}</div>
     `;
@@ -735,7 +746,8 @@ function showSalesPrint(dateKey){
   }).join("");
 
   $("salesPrintShop").textContent = shopName ? shopName : "店名未設定";
-  $("salesPrintMeta").textContent = `shopCode: ${getShop()||"-"} / 印刷: ${new Date().toLocaleString("ja-JP")}`;
+  const inv = invoiceNo ? ` / invoice: ${invoiceNo}` : "";
+  $("salesPrintMeta").textContent = `shopCode: ${getShop()||"-"}${inv} / 印刷: ${new Date().toLocaleString("ja-JP")}`;
   $("salesPrintDate").textContent = dateKey;
   $("salesPrintTotal").textContent = yen(sumIn);
 
@@ -747,7 +759,7 @@ function showSalesPrint(dateKey){
   $("salesPrintLines").innerHTML = linesHtml || `<div class="muted"><small>明細がありません</small></div>`;
 }
 
-/* ===== CSV（1会計=1行） ===== */
+/* ===== CSV（1会計=1行）※token/pushId無し ===== */
 function csvEscape(v){
   const s = String(v ?? "");
   const q = s.replace(/"/g, '""');
@@ -781,13 +793,12 @@ function buildSalesCsv(dateKey){
     "confirmedAt",
     "shopCode",
     "shopName",
+    "invoiceNo",
     "table",
     "taxRate",
     "exclusiveTotal",
     "taxAmount",
-    "inclusiveTotal",
-    "pushId",
-    "token"
+    "inclusiveTotal"
   ];
 
   const rows = [header.join(",")];
@@ -799,13 +810,12 @@ function buildSalesCsv(dateKey){
       toIsoLocal(v.confirmedAt),
       shop,
       (v.shopName || shopName || ""),
+      (invoiceNo || ""),
       (v.table || ""),
       (v.taxRate ?? taxRate),
       (v.exclusiveTotal ?? 0),
       (v.taxAmount ?? 0),
-      (v.inclusiveTotal ?? 0),
-      r.key,
-      (v.token || "")
+      (v.inclusiveTotal ?? 0)
     ].map(csvEscape).join(",");
 
     rows.push(row);
@@ -826,11 +836,24 @@ function downloadText(filename, text, mime="text/csv"){
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
 }
 
-/* ===== actions ===== */
+/* ===== 遷移（機能はそのまま：目立つボタン） ===== */
 $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
 $("btnKitchen").onclick = ()=> location.href = `kitchen.html?v=${Date.now()}`;
 $("btnRefresh").onclick = refresh;
 $("autoSec").onchange = setAuto;
+
+/* ★追加：編集へ */
+function goEdit(){
+  // table 未選択でも編集画面は開ける（向こうで選択してもいい）
+  const shop = getShop() || "";
+  const t = selectedTable || "";
+  // 受け渡し：?t=1 みたいにしておく（編集側で使える）
+  location.href = `checkout_edit.html?v=${Date.now()}&shop=${encodeURIComponent(shop)}&t=${encodeURIComponent(t)}`;
+}
+$("btnEdit").onclick = goEdit;
+
+/* ★追加：バナーをタップで編集へ */
+$("alertBanner").onclick = goEdit;
 
 $("btnSound").onclick = async ()=>{
   soundEnabled = !soundEnabled;
@@ -883,8 +906,9 @@ $("btnConfirm").onclick = async ()=>{
       shop: shop,
       shopName: shopName || "",
       taxRate: taxRate,
+      invoiceNo: invoiceNo || "", // ★追加：履歴にも保持
       table: String(t),
-      token: String(req.token||""),
+      token: String(req.token||""), // ※DBには残してもOK（CSVには出さない）
       requestedAt: Number(req.requestedAt||0),
       confirmedAt: Date.now(),
 
@@ -965,10 +989,6 @@ $("btnSalesDelete").onclick = async ()=>{
 </script>
 </body>
 </html>
-
-
-
-
 
 
 

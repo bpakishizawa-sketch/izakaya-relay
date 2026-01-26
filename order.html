@@ -281,8 +281,10 @@ function nowJst(ts){
 /* ====== state ====== */
 const shop  = getParam("shop");
 const table = getParam("table");
-const token = getParam("token");
+// ★ここ重要：token は後で webActiveSessions から補正するので let
+let token   = getParam("token");
 
+// ★tokenが変わっても追随できるよう、Keyは「関数」で毎回作る
 const CART_KEY = ()=> `cart_${shop}_${table}_${token}`;
 const CHECKOUT_REQ_KEY = ()=> `checkoutReq_${shop}_${table}_${token}`;
 
@@ -290,11 +292,7 @@ let menu = { drink:{}, food:{}, drinkKeys:[], foodKeys:[] };
 let cart = []; // [{id, name, price, qty, category}]
 let lastHistory = { orders: {}, list: [], sum:0, count:0 };
 
-/* ====== カテゴリ（タグ）抽出 ======
-   メニュー名が「【一品】唐揚げ」なら
-   tag="一品", title="唐揚げ"
-   タグなしは tag="その他"
-*/
+/* ====== カテゴリ（タグ）抽出 ====== */
 const DEFAULT_TAG = "その他";
 function parseTagName(fullName){
   const s = String(fullName || "").trim();
@@ -321,10 +319,38 @@ $("btnBack").onclick = ()=>{
   location.href = `customer.html?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(String(table))}&v=${Date.now()}`;
 };
 
-if(!shop || !table || !token){
-  setStatus(`<span class="ng">NG</span> URL params が不足です（shop/table/token）`);
+if(!shop || !table){
+  setStatus(`<span class="ng">NG</span> URL params が不足です（shop/table）`);
 } else {
   setStatus(`<span class="ok">OK</span> 読み込み中...`);
+}
+
+/* ====== 重要：token補正（別端末で0件になるのを防ぐ） ====== */
+async function ensureSessionToken(){
+  if(!shop || !table) return;
+
+  // webActiveSessions/{shop}/{table} を見に行く
+  const path = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`;
+  const r = await rtdbGet(path);
+
+  // セッションが無い/取得失敗 → そのまま（URL tokenがあればそれを使う）
+  if(!r.ok || !r.json || typeof r.json !== "object") return;
+
+  const sessToken = String(r.json.token || "").trim();
+  if(!sessToken) return;
+
+  // URLのtokenが空 or セッションのtokenと違う → セッション側を正にする
+  if(!token || token !== sessToken){
+    token = sessToken;
+    $("tokenText").textContent = token;
+
+    // tokenが変わったので「会計依頼済み表示」や「カート」をそのtokenで読み直す
+    loadCart();
+    renderCart();
+
+    // ついでに履歴も最新化（token一致で出るように）
+    await refreshHistory();
+  }
 }
 
 /* ====== cart storage ====== */
@@ -426,11 +452,10 @@ function rebuildSubCategorySelect(){
   for(const t of tags){
     const opt = document.createElement("option");
     opt.value = t;
-    opt.textContent = t; // ★カッコなし
+    opt.textContent = t;
     sel.appendChild(opt);
   }
 
-  // なるべく元の選択を維持
   if(tags.includes(cur)) sel.value = cur;
   else sel.value = "__ALL__";
 }
@@ -459,7 +484,6 @@ function rebuildItemSelect(){
 
     const opt = document.createElement("option");
     opt.value = id;
-    // 表示：名前（価格） ※IDは出さない方が分かりやすいので外す（必要なら戻して）
     opt.textContent = `${title}（${v0.price||0}）`;
     sel.appendChild(opt);
   }
@@ -494,7 +518,6 @@ $("catSel").onchange = ()=>{
   rebuildSubCategorySelect();
   rebuildItemSelect();
 };
-
 $("subCatSel").onchange = rebuildItemSelect;
 
 $("btnAdd").onclick = ()=>{
@@ -516,7 +539,6 @@ $("btnAdd").onclick = ()=>{
     return;
   }
 
-  // 同一IDはまとめる
   const found = cart.find(x => x.id=== id && x.category === cat);
   if(found){
     found.qty = Number(found.qty||1) + qty;
@@ -535,8 +557,6 @@ $("btnClearCart").onclick = ()=>{
   renderCart();
   setSendMsg(`<span class="muted">カートを空にしました</span>`);
 };
-
-/* ★変更：メニュー再読み込みボタンは無いので、この行も無い */
 
 /* ====== orders + history ====== */
 function normalizeOrderObj(key, o){
@@ -557,8 +577,10 @@ function orderLineText(it){
 }
 
 function renderHistory(list){
-  // token一致だけ
-  const view = list.filter(x => x.token === token).sort((a,b)=>a.createdAt-b.createdAt);
+  // ★tokenがある時だけ token で絞る（token未確定なら全表示も可）
+  const view = token
+    ? list.filter(x => x.token === token).sort((a,b)=>a.createdAt-b.createdAt)
+    : list.sort((a,b)=>a.createdAt-b.createdAt);
 
   const sum = view.reduce((s,x)=> s + Number(x.total||0), 0);
   $("histCount").textContent = String(view.length);
@@ -617,7 +639,7 @@ async function refreshHistory(){
   renderHistory(list);
 }
 
-/* ★追加：注文履歴更新ボタン */
+/* 注文履歴更新ボタン */
 $("btnReloadHist").onclick = async ()=>{
   setSendMsg(`<span class="mono">履歴更新中...</span>`);
   await refreshHistory();
@@ -626,16 +648,24 @@ $("btnReloadHist").onclick = async ()=>{
 
 /* ====== send order ====== */
 async function sendOrder(){
-  if(!shop || !table || !token){
-    setSendMsg(`<span class="ng">URL params 不足（shop/table/token）</span>`);
+  if(!shop || !table){
+    setSendMsg(`<span class="ng">URL params 不足（shop/table）</span>`);
     return;
   }
+  // ★tokenは ensureSessionToken で確定させる
+  if(!token){
+    await ensureSessionToken();
+  }
+  if(!token){
+    setSendMsg(`<span class="ng">tokenが確定できません（webActiveSessionsにtokenが無い）</span>`);
+    return;
+  }
+
   if(cart.length === 0){
     setSendMsg(`<span class="ng">カートが空です</span>`);
     return;
   }
 
-  // 会計依頼済みなら送信を止める（見た目リセット運用）
   if(localStorage.getItem(CHECKOUT_REQ_KEY()) === "1"){
     setSendMsg(`<span class="ng">会計依頼済みのため注文できません</span>`);
     return;
@@ -646,7 +676,6 @@ async function sendOrder(){
 
   const createdAt = Date.now();
 
-  // orders には「1回の送信 = 1レコード（items[]含む）」で保存（今までの形のまま）
   const items = cart.map(x=>({
     id: x.id,
     name: x.name,
@@ -667,7 +696,6 @@ async function sendOrder(){
     total
   };
 
-  // 1) orders 保存
   const ordersPath = `shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(table))}`;
   const r1 = await rtdbPost(ordersPath, orderPayload);
 
@@ -680,9 +708,6 @@ async function sendOrder(){
   const orderKey = r1.json && r1.json.name ? String(r1.json.name) : "";
   const orderPathAbs = `/shops/${shop}/orders/${table}/${orderKey}`;
 
-  // 2) orderFeed 保存（厨房用）
-  // ★重要：統一先は「/shops/{shop}/orderFeed」
-  // 1品ずつ feed に積む（kitchen 側で category で左右に分ける）
   for(const it of items){
     const feedPayload = {
       shop,
@@ -698,7 +723,6 @@ async function sendOrder(){
       orderKey,
       orderPath: orderPathAbs,
       itemsCount: Number(it.qty||0),
-      // 互換・将来用（rulesで必要になっても困らないように）
       items: [ { name: it.name, qty: Number(it.qty||0), price: Number(it.price||0), category: it.category } ]
     };
 
@@ -712,7 +736,6 @@ async function sendOrder(){
     }
   }
 
-  // 完了：カートを空にして履歴更新
   cart = [];
   saveCart();
   renderCart();
@@ -737,12 +760,18 @@ let holdStart = 0;
 let holding = false;
 
 async function requestCheckout(){
-  if(!shop || !table || !token){
-    setCheckoutMsg(`<span class="ng">URL params 不足（shop/table/token）</span>`);
+  if(!shop || !table){
+    setCheckoutMsg(`<span class="ng">URL params 不足（shop/table）</span>`);
+    return;
+  }
+  if(!token){
+    await ensureSessionToken();
+  }
+  if(!token){
+    setCheckoutMsg(`<span class="ng">tokenが確定できません（webActiveSessionsにtokenが無い）</span>`);
     return;
   }
 
-  // まず履歴を最新化
   await refreshHistory();
 
   const reqAt = Date.now();
@@ -752,10 +781,8 @@ async function requestCheckout(){
     token,
     requestedAt: reqAt,
     requestedAtText: nowJst(reqAt),
-    // token累計
     total: Number(lastHistory.sum||0),
     orderCount: Number(lastHistory.count||0),
-    // 注文一覧（token一致分だけ）
     orders: lastHistory.list.map(o=>({
       key: o.key,
       createdAt: o.createdAt,
@@ -777,13 +804,11 @@ async function requestCheckout(){
     return;
   }
 
-  // 見た目だけリセット風（＝これ以降の注文を止める）
   localStorage.setItem(CHECKOUT_REQ_KEY(), "1");
   $("checkoutBanner").style.display = "block";
   setCheckoutMsg(`<span class="ok">会計依頼しました</span> ${esc(nowJst(reqAt))}`);
   setSendMsg(`<span class="muted">会計依頼済みのため、注文はできません（店側が会計確定後に再入店）</span>`);
 
-  // 履歴を“見た目だけ”消す（実データは残す）
   $("histList").innerHTML = `<div class="muted"><small>会計依頼済み</small></div>`;
   $("histCount").textContent = "0";
   $("histSum").textContent = yen(0);
@@ -827,7 +852,10 @@ $("btnCheckout").addEventListener("pointercancel", ()=> endHold());
 
 /* ====== boot ====== */
 (async function boot(){
-  if(!shop || !table || !token) return;
+  if(!shop || !table) return;
+
+  // ★最初に token を補正（別端末でも履歴が出る）
+  await ensureSessionToken();
 
   loadCart();
   renderCart();
@@ -835,7 +863,6 @@ $("btnCheckout").addEventListener("pointercancel", ()=> endHold());
   await loadMenu();
   await refreshHistory();
 
-  // 既に会計依頼済みなら表示も合わせる
   if(localStorage.getItem(CHECKOUT_REQ_KEY()) === "1"){
     $("checkoutBanner").style.display = "block";
     setSendMsg(`<span class="muted">会計依頼済みのため、注文はできません（店側が会計確定後に再入店）</span>`);

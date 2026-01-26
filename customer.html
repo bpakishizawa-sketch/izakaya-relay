@@ -10,15 +10,13 @@
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
     .ok { color: #16a34a; font-weight: 800; }
     .ng { color: #dc2626; font-weight: 800; }
-    small { color:#666; }
+    .muted{color:#6b7280}
     .spin {
       display:inline-block; width:14px; height:14px; border:2px solid #bbb; border-top-color:#111;
       border-radius:50%; animation: rot .8s linear infinite; vertical-align:-2px; margin-right:8px;
     }
     @keyframes rot { to { transform: rotate(360deg);} }
-    a,button { color:#2563eb; }
     button{cursor:pointer;border:0;border-radius:10px;padding:12px 14px;font-weight:900;background:#111827;color:#fff}
-    .muted{color:#6b7280}
   </style>
 </head>
 <body>
@@ -26,6 +24,7 @@
 
   <div class="card">
     <div id="line1"><span class="spin"></span>処理中...</div>
+
     <div style="margin-top:10px;">
       <div><b>shop:</b> <span id="shopText" class="mono">-</span></div>
       <div><b>table:</b> <span id="tableText" class="mono">-</span></div>
@@ -49,15 +48,9 @@ function esc(s){
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
   }[m]));
 }
-
 function getParam(name) {
   const u = new URL(location.href);
   return (u.searchParams.get(name) || "").trim();
-}
-
-function genToken(shop, table) {
-  const n = Math.floor(100000 + Math.random() * 900000); // 6桁
-  return `${shop}-${table}-${n}`;
 }
 
 async function rtdbGet(path){
@@ -65,20 +58,6 @@ async function rtdbGet(path){
   const res = await fetch(url, { method:"GET", cache:"no-store" });
   const txt = await res.text();
   let json; try{ json = txt ? JSON.parse(txt) : null; }catch{ json = null; }
-  return { ok: res.ok, status: res.status, json, url, raw: txt };
-}
-
-async function rtdbPut(path, data) {
-  const url = `${RTDB_BASE}/${path}.json`;
-  const res = await fetch(url, {
-    method: "PUT",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
-  });
-  const txt = await res.text();
-  let json;
-  try { json = txt ? JSON.parse(txt) : null; } catch { json = { raw: txt }; }
   return { ok: res.ok, status: res.status, json, url, raw: txt };
 }
 
@@ -92,15 +71,15 @@ function jumpToOrder(shop, table, token){
   location.href = jump;
 }
 
-// ---- 初期表示 ----
+function setAction(html){ $("actionBox").innerHTML = html || ""; }
+function setHint(html){ $("hint").innerHTML = html || ""; }
+
+/* ---- params ---- */
 const shop = getParam("shop");
 const table = getParam("table");
 
 $("shopText").textContent = shop || "(missing)";
 $("tableText").textContent = table || "(missing)";
-
-function setAction(html){ $("actionBox").innerHTML = html || ""; }
-function setHint(html){ $("hint").innerHTML = html || ""; }
 
 if (!shop || !table) {
   $("line1").innerHTML = `<span class="ng">NG</span> URL params が不足です（shop/table）`;
@@ -108,62 +87,36 @@ if (!shop || !table) {
   setAction(`<button onclick="location.href='customer.html?v='+Date.now()">戻る</button>`);
 } else {
   (async ()=>{
-    const now = Date.now();
-    const ua = navigator.userAgent;
     const sessPath = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(table))}`;
 
     try {
-      // 1) 既存セッションがあるか確認
+      // ★GETのみ：tokenを作らない / PUTしない
       const g = await rtdbGet(sessPath);
 
       if (g.ok && g.json && g.json.token && g.json.active !== false) {
         const token = String(g.json.token).trim();
         $("tokenText").textContent = token;
-        $("line1").innerHTML = `<span class="ok">OK</span> 既存セッションを再利用（2秒後に注文画面）`;
+
+        $("line1").innerHTML = `<span class="ok">OK</span> 既存セッションを使用（2秒後に注文画面）`;
         setAction(`<button id="goBtn">今すぐ注文画面へ</button> <span class="muted">（2秒後に自動遷移）</span>`);
         setHint(``);
+
         setTimeout(()=> jumpToOrder(shop, table, token), 2000);
         setTimeout(()=> { const b=$("goBtn"); if(b) b.onclick=()=>jumpToOrder(shop,table,token); }, 0);
         return;
       }
 
-      // 2) 無ければ新規発行してPUT
-      const token = genToken(shop, table);
-      $("tokenText").textContent = token;
+      // ★ここが重要：無ければ止める（勝手にtokenを作らない）
+      $("tokenText").textContent = "-";
+      $("line1").innerHTML = `<span class="ng">未入店</span> このテーブルは入店セッションがありません`;
+      setHint(
+        `webActiveSessions/${esc(shop)}/${esc(String(table))} に token が無いので停止しました。<br>` +
+        `※このページは token を新規発行しません（上書き防止）`
+      );
 
-      const payload = {
-        shop: shop,
-        table: String(table),
-        token: token,
-        active: true,
-        createdAt: now,
-        updatedAt: now,
-        ua: ua
-      };
-
-      const p = await rtdbPut(sessPath, payload);
-
-      if (!p.ok) {
-        $("line1").innerHTML = `<span class="ng">NG</span> セッション作成失敗（Permission denied等）`;
-        setAction(`<button onclick="location.reload()">再試行</button>`);
-        setHint(`HTTP ${p.status}`);
-        return;
-      }
-
-      // 3) 直後に読み戻して確認
-      const g2 = await rtdbGet(sessPath);
-      if(!(g2.ok && g2.json && g2.json.token)){
-        $("line1").innerHTML = `<span class="ng">NG</span> 書き込み後の読み戻しで確認できませんでした`;
-        setAction(`<button onclick="location.reload()">再試行</button>`);
-        setHint(`PUTは成功したがGETで確認不可`);
-        return;
-      }
-
-      $("line1").innerHTML = `<span class="ok">OK</span> セッション新規作成（2秒後に注文画面）`;
-      setAction(`<button id="goBtn">今すぐ注文画面へ</button> <span class="muted">（2秒後に自動遷移）</span>`);
-      setHint(``);
-      setTimeout(()=> jumpToOrder(shop, table, token), 2000);
-      setTimeout(()=> { const b=$("goBtn"); if(b) b.onclick=()=>jumpToOrder(shop,table,token); }, 0);
+      setAction(
+        `<button onclick="location.reload()">再読み込み</button>`
+      );
 
     } catch (e) {
       $("line1").innerHTML = `<span class="ng">NG</span> 例外エラー（通信/CORS等）`;

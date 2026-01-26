@@ -45,6 +45,26 @@
     .name{font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .meta{font-size:12px;color:#6b7280;margin-top:2px}
     .dangerHint{font-size:12px;color:#b91c1c;font-weight:900}
+
+    /* ==============================
+       ✅ PDF/印刷用（ここが追加）
+       ============================== */
+    @page { size: A4; margin: 10mm; }
+    @media print{
+      body{ background:#fff !important; padding:0 !important; max-width:none !important; }
+      .card{ border:0 !important; box-shadow:none !important; padding:0 !important; margin:0 0 10mm 0 !important; }
+      .hr{ background:#ddd !important; }
+
+      /* 印刷で消したいUI */
+      .noPrint{ display:none !important; }
+
+      /* ボタンの色背景を印刷で潰さない */
+      *{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+      /* 明細を崩れにくく */
+      .line{ break-inside: avoid; page-break-inside: avoid; }
+      .tableGrid{ display:none !important; } /* 左のテーブル一覧は印刷不要なら隠す */
+    }
   </style>
 </head>
 <body>
@@ -63,16 +83,20 @@
       <span class="pill">税率: <b id="taxText" class="mono">-</b></span>
       <span class="pill">選択テーブル: <b id="selTableText" class="mono">-</b></span>
 
-      <button id="btnBackMenu" class="blue">← menuへ</button>
-      <button id="btnBackKitchen" class="orange">← kitchenへ</button>
-      <button id="btnRefresh" class="dark">更新</button>
+      <!-- ✅ 印刷時は消す -->
+      <button id="btnBackMenu" class="blue noPrint">← menuへ</button>
+      <button id="btnBackKitchen" class="orange noPrint">← kitchenへ</button>
+      <button id="btnRefresh" class="dark noPrint">更新</button>
+
+      <!-- ✅ 追加：PDF（印刷） -->
+      <button id="btnPrint" class="light noPrint">PDF（印刷）</button>
     </div>
-    <div id="status" class="muted" style="margin-top:8px;">-</div>
+    <div id="status" class="muted noPrint" style="margin-top:8px;">-</div>
   </div>
 
   <div class="grid2">
     <!-- left -->
-    <div class="card">
+    <div class="card noPrint">
       <div class="row" style="justify-content:space-between">
         <div style="font-weight:900">テーブル状況（着席中のみ）</div>
         <div class="muted" style="font-size:12px">※会計依頼があるテーブルを選択</div>
@@ -93,11 +117,11 @@
       <div class="row" style="justify-content:space-between; align-items:flex-start">
         <div>
           <div style="font-weight:900">会計明細（編集）</div>
-          <div class="muted" style="font-size:12px;margin-top:4px">
+          <div class="muted noPrint" style="font-size:12px;margin-top:4px">
             ここで編集した内容は <span class="mono">salesDaily</span> に「編集済み」として保存されます（元の orders は消します）。
           </div>
         </div>
-        <div class="row" style="gap:8px">
+        <div class="row noPrint" style="gap:8px">
           <button id="btnResetReq" class="red">このテーブルの会計依頼を削除</button>
           <button id="btnConfirm" class="green">編集後に会計確定</button>
         </div>
@@ -129,12 +153,12 @@
 
       <div class="row" style="justify-content:space-between; align-items:center">
         <div class="muted" style="font-size:12px">明細（編集可能）</div>
-        <div class="dangerHint">※削除・数量変更はこの画面だけに反映（確定で確定）</div>
+        <div class="dangerHint noPrint">※削除・数量変更はこの画面だけに反映（確定で確定）</div>
       </div>
 
       <div id="billLines" class="lines"></div>
 
-      <div class="muted" id="confirmMsg" style="margin-top:10px;">-</div>
+      <div class="muted noPrint" id="confirmMsg" style="margin-top:10px;">-</div>
     </div>
   </div>
 
@@ -217,7 +241,6 @@ let shopName = "";
 let invoiceNo = "";
 let taxRate = 0.1;
 
-// 編集用：表示している明細（name/price/qty/sub）
 let editLines = []; // [{name, price, qty, sub}]
 
 function setStatus(html){ $("status").innerHTML = html || ""; }
@@ -295,7 +318,6 @@ function mergeSameNamePrice(lines){
     map.set(k, cur);
   }
   const merged = Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,"ja"));
-  // subを再計算しておく
   for(const m of merged){
     m.sub = Number(m.price||0) * Number(m.qty||0);
   }
@@ -335,74 +357,20 @@ function renderBill(){
   $("btnConfirm").disabled = false;
   $("btnResetReq").disabled = false;
 
-  // 元データから編集用ラインを作る（同名+同単価まとめ）
   const rawLines = flattenOrdersFromReq(req);
   editLines = mergeSameNamePrice(rawLines);
 
   if(editLines.length === 0){
     $("billLines").innerHTML = `<div class="muted"><small>明細がありません（ordersが空）</small></div>`;
+    recalcTotals();
     return;
   }
 
-  // 合計表示（編集用から計算）
   recalcTotals();
-
-  $("billLines").innerHTML = editLines.map((x, idx)=>`
-    <div class="line" data-idx="${idx}">
-      <div class="nameWrap">
-        <div class="name">${esc(x.name)} <span class="muted">（単価 ${esc(String(x.price))}）</span></div>
-        <div class="meta muted">小計：<span class="mono">${esc(yen(Number(x.price||0)*Number(x.qty||0)))}</span></div>
-      </div>
-
-      <div class="qtyBox">
-        <button class="light" data-act="minus" data-idx="${idx}">－</button>
-        <span class="qtyN mono">${esc(String(x.qty))}</span>
-        <button class="light" data-act="plus" data-idx="${idx}">＋</button>
-        <button class="red" data-act="del" data-idx="${idx}">削除</button>
-      </div>
-    </div>
-  `).join("");
-
-  // handlers
-  $("billLines").querySelectorAll("button").forEach(btn=>{
-    btn.onclick = ()=>{
-      const act = btn.getAttribute("data-act");
-      const idx = Number(btn.getAttribute("data-idx")||0);
-      const item = editLines[idx];
-      if(!item) return;
-
-      if(act === "minus"){
-        item.qty = Math.max(1, Number(item.qty||1) - 1);
-      }
-      if(act === "plus"){
-        item.qty = Math.max(1, Number(item.qty||1) + 1);
-      }
-      if(act === "del"){
-        if(!confirm(`「${item.name}」を明細から削除します。よろしいですか？`)) return;
-        editLines.splice(idx, 1);
-      }
-
-      // 0件になったら案内
-      if(editLines.length === 0){
-        $("billLines").innerHTML = `<div class="muted"><small>明細が0件になりました。必要なら「会計依頼を削除」してください。</small></div>`;
-        $("billTotal").textContent = yen(0);
-        const sp = splitTaxFromInclusive(0, taxRate);
-        $("billTaxRate").textContent = `${Math.round(taxRate*1000)/10}%`;
-        $("billEx").textContent = yen(sp.ex);
-        $("billTax").textContent = yen(sp.tax);
-        $("billIn").textContent = yen(sp.in);
-      }else{
-        // 再描画
-        // （見た目を崩さず、同じ構造のまま更新するため renderBill() は呼ばない）
-        renderEditLinesOnly();
-      }
-      setConfirmMsg(`<span class="ok">編集OK</span>（まだ確定していません）`);
-    };
-  });
+  renderEditLinesOnly();
 }
 
 function renderEditLinesOnly(){
-  // 既に editLines が編集後になっている前提で、一覧だけ再描画
   recalcTotals();
 
   $("billLines").innerHTML = editLines.map((x, idx)=>`
@@ -412,7 +380,7 @@ function renderEditLinesOnly(){
         <div class="meta muted">小計：<span class="mono">${esc(yen(Number(x.price||0)*Number(x.qty||0)))}</span></div>
       </div>
 
-      <div class="qtyBox">
+      <div class="qtyBox noPrint">
         <button class="light" data-act="minus" data-idx="${idx}">－</button>
         <span class="qtyN mono">${esc(String(x.qty))}</span>
         <button class="light" data-act="plus" data-idx="${idx}">＋</button>
@@ -428,12 +396,8 @@ function renderEditLinesOnly(){
       const item = editLines[idx];
       if(!item) return;
 
-      if(act === "minus"){
-        item.qty = Math.max(1, Number(item.qty||1) - 1);
-      }
-      if(act === "plus"){
-        item.qty = Math.max(1, Number(item.qty||1) + 1);
-      }
+      if(act === "minus") item.qty = Math.max(1, Number(item.qty||1) - 1);
+      if(act === "plus")  item.qty = Math.max(1, Number(item.qty||1) + 1);
       if(act === "del"){
         if(!confirm(`「${item.name}」を明細から削除します。よろしいですか？`)) return;
         editLines.splice(idx, 1);
@@ -441,12 +405,8 @@ function renderEditLinesOnly(){
 
       if(editLines.length === 0){
         $("billLines").innerHTML = `<div class="muted"><small>明細が0件になりました。必要なら「会計依頼を削除」してください。</small></div>`;
-        $("billTotal").textContent = yen(0);
-        const sp = splitTaxFromInclusive(0, taxRate);
-        $("billTaxRate").textContent = `${Math.round(taxRate*1000)/10}%`;
-        $("billEx").textContent = yen(sp.ex);
-        $("billTax").textContent = yen(sp.tax);
-        $("billIn").textContent = yen(sp.in);
+        editLines = [];
+        recalcTotals();
       }else{
         renderEditLinesOnly();
       }
@@ -456,19 +416,16 @@ function renderEditLinesOnly(){
 }
 
 async function loadShopSettings(shop){
-  // shopname
   try{
     const sn = await rtdbGet(`shops/${encodeURIComponent(shop)}/shopname`);
     shopName = (typeof sn === "string") ? sn : (sn?.name ? String(sn.name) : "");
   }catch{ shopName = ""; }
 
-  // tax
   try{
     const tx = await rtdbGet(`shops/${encodeURIComponent(shop)}/tax`);
     taxRate = normalizeTaxRate(tx);
   }catch{ taxRate = 0.1; }
 
-  // invoice
   try{
     const inv = await rtdbGet(`shops/${encodeURIComponent(shop)}/invoice`);
     invoiceNo = (inv===null || inv===undefined) ? "" : String(inv);
@@ -490,10 +447,8 @@ async function refresh(){
 
   try{
     setStatus(`<span class="mono">loading...</span>`);
-
     await loadShopSettings(shop);
 
-    // active sessions
     const sess = await rtdbGet(`webActiveSessions/${encodeURIComponent(shop)}`);
     activeSessions = (sess && typeof sess==="object") ? sess : {};
     const filtered = {};
@@ -505,7 +460,6 @@ async function refresh(){
     }
     activeSessions = filtered;
 
-    // checkoutRequests
     const req = await rtdbGet(`shops/${encodeURIComponent(shop)}/checkoutRequests`);
     checkoutRequests = (req && typeof req==="object") ? req : {};
 
@@ -522,6 +476,13 @@ async function refresh(){
 $("btnBackMenu").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
 $("btnBackKitchen").onclick = ()=> location.href = `kitchen.html?v=${Date.now()}`;
 $("btnRefresh").onclick = refresh;
+
+/* ✅ 追加：PDF（印刷） */
+$("btnPrint").onclick = ()=>{
+  // 印刷前に合計などを最新にする（念のため）
+  try{ recalcTotals(); }catch(e){}
+  window.print();
+};
 
 $("btnResetReq").onclick = async ()=>{
   const shop = getShop();
@@ -557,12 +518,11 @@ $("btnConfirm").onclick = async ()=>{
     return;
   }
 
-  // editLines が空なら警告
   if(!Array.isArray(editLines) || editLines.length === 0){
     if(!confirm(`明細が0件です。\nそれでも会計を「0円」で確定しますか？`)) return;
   }
 
-  const totals = recalcTotals(); // {inc, ex, tax, in}
+  const totals = recalcTotals();
   const inc = totals.in;
 
   if(!confirm(`T${t} の会計を「編集後の内容」で確定します。\n\n税込合計：${yen(inc)}\n\n(1) salesDaily保存（編集済み）\n(2) checkoutRequests / orders / webActiveSessions を削除\nよろしいですか？`)){
@@ -573,7 +533,6 @@ $("btnConfirm").onclick = async ()=>{
   setConfirmMsg(`<span class="mono">処理中...</span>`);
 
   try{
-    // salesDaily に保存（編集済みとして lines を保存）
     const payload = {
       dateKey: jstDateKey(Date.now()),
       shop: shop,
@@ -589,7 +548,6 @@ $("btnConfirm").onclick = async ()=>{
       exclusiveTotal: Number(totals.ex||0),
       taxAmount: Number(totals.tax||0),
 
-      // ★編集情報
       edited: true,
       editedLines: editLines.map(x=>({
         name: String(x.name||""),
@@ -598,13 +556,11 @@ $("btnConfirm").onclick = async ()=>{
         sub: Number(Number(x.price||0) * Number(x.qty||0))
       })),
 
-      // 元の orders も一応残す（後で検証できる）
       originalOrders: Array.isArray(req.orders) ? req.orders : []
     };
 
     await rtdbPost(`shops/${encodeURIComponent(shop)}/salesDaily/${encodeURIComponent(payload.dateKey)}`, payload);
 
-    // 既存と同じ削除
     await rtdbDelete(`shops/${encodeURIComponent(shop)}/checkoutRequests/${encodeURIComponent(String(t))}`);
     await rtdbDelete(`shops/${encodeURIComponent(shop)}/orders/${encodeURIComponent(String(t))}`);
     await rtdbDelete(`webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(String(t))}`);
@@ -613,7 +569,6 @@ $("btnConfirm").onclick = async ()=>{
     selectedTable = "";
     await refresh();
 
-    // ここは好み：確定後に checkout.html に戻す
     setTimeout(()=>{
       location.href = `checkout.html?v=${Date.now()}`;
     }, 450);

@@ -75,6 +75,7 @@
     }
 
     details summary{cursor:pointer;font-weight:900;color:#374151}
+    details[open] summary{margin-bottom:8px;}
     pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
 
     /* ▼視認性UP：ナビボタン */
@@ -105,7 +106,6 @@
       <span class="pill">税率: <b id="taxText" class="mono">-</b></span>
       <span class="pill">選択テーブル: <b id="selTableText" class="mono">-</b></span>
 
-      <!-- ▼視認性UP（機能は同じ：遷移だけ） -->
       <button id="btnBack" class="navBtn navMenu">← menuへ</button>
       <button id="btnKitchen" class="navBtn navKitchen">← kitchenへ</button>
 
@@ -124,7 +124,6 @@
       <button id="btnSound" class="light">🔔音OFF</button>
       <button id="btnBeep" class="light">テスト</button>
 
-      <!-- ▼追加：編集ページへ（会計確定前の編集/削除） -->
       <button id="btnEdit" class="navBtn navEdit">✏️ 会計編集へ</button>
     </div>
 
@@ -266,6 +265,7 @@
       <div id="salesPrintLines" class="lines"></div>
     </div>
   </div>
+
 <script>
 /** ===== 設定 ===== */
 const DB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
@@ -339,31 +339,6 @@ function splitTaxFromInclusive(inclusiveTotal, rate){
   return { ex, tax, in: inc };
 }
 
-/* ===== 視認性UP（CSSを追加するだけ：他は触らない） ===== */
-(function injectNavStyle(){
-  const css = `
-    .navBtn{
-      border:0;
-      cursor:pointer;
-      font-weight:1000;
-      padding:12px 14px;
-      border-radius:14px;
-      color:#fff;
-      box-shadow: 0 10px 24px rgba(0,0,0,.12);
-      transform: translateY(0);
-    }
-    .navBtn:active{ transform: translateY(1px); }
-    .navMenu{ background:#2563eb; }      /* 青 */
-    .navKitchen{ background:#f97316; }   /* オレンジ */
-    .navEdit{ background:#111827; }      /* 黒 */
-    .clickable{ cursor:pointer; }
-    .alertBanner.clickable:active{ transform: translateX(-50%) translateY(1px); }
-  `;
-  const st = document.createElement("style");
-  st.textContent = css;
-  document.head.appendChild(st);
-})();
-
 /* ===== 新規アラーム ===== */
 function showBanner(msg){
   const el = $("alertBanner");
@@ -421,12 +396,11 @@ let checkoutRequests = {};
 // shop settings
 let shopName = "";
 let taxRate = 0.1;
-let invoiceNo = ""; // ★追加
+let invoiceNo = ""; // invoice
 
 function setStatus(html){ $("status").innerHTML = html || ""; }
 function setConfirmMsg(html){ $("confirmMsg").innerHTML = html || ""; }
 function setSalesStatus(html){ $("salesStatus").innerHTML = html || ""; }
-
 function pickTable(t){
   selectedTable = String(t||"");
   $("selTableText").textContent = selectedTable ? `T${selectedTable}` : "-";
@@ -498,7 +472,6 @@ function renderBill(){
   $("billTotal").textContent = req ? yen(incTotal) : "-";
 
   $("printShopName").textContent = shopName ? shopName : "店名未設定";
-  // invoice を印刷ヘッダにも入れる
   const inv = invoiceNo ? ` / invoice: ${invoiceNo}` : "";
   $("printMeta").textContent = `shopCode: ${getShop() || "-"}${inv} / 印刷: ${new Date().toLocaleString("ja-JP")}`;
 
@@ -578,7 +551,6 @@ async function loadShopSettings(shop){
     taxRate = 0.1;
   }
 
-  // ★invoice 追加
   try{
     const inv = await rtdbGet(`shops/${encodeURIComponent(shop)}/invoice`);
     invoiceNo = (typeof inv === "string") ? inv : (inv?.no ? String(inv.no) : "");
@@ -836,23 +808,19 @@ function downloadText(filename, text, mime="text/csv"){
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
 }
 
-/* ===== 遷移（機能はそのまま：目立つボタン） ===== */
+/* ===== 遷移 ===== */
 $("btnBack").onclick = ()=> location.href = `menu.html?v=${Date.now()}`;
 $("btnKitchen").onclick = ()=> location.href = `kitchen.html?v=${Date.now()}`;
 $("btnRefresh").onclick = refresh;
 $("autoSec").onchange = setAuto;
 
-/* ★追加：編集へ */
+/* 編集へ */
 function goEdit(){
-  // table 未選択でも編集画面は開ける（向こうで選択してもいい）
   const shop = getShop() || "";
   const t = selectedTable || "";
-  // 受け渡し：?t=1 みたいにしておく（編集側で使える）
   location.href = `checkout_edit.html?v=${Date.now()}&shop=${encodeURIComponent(shop)}&t=${encodeURIComponent(t)}`;
 }
 $("btnEdit").onclick = goEdit;
-
-/* ★追加：バナーをタップで編集へ */
 $("alertBanner").onclick = goEdit;
 
 $("btnSound").onclick = async ()=>{
@@ -906,9 +874,9 @@ $("btnConfirm").onclick = async ()=>{
       shop: shop,
       shopName: shopName || "",
       taxRate: taxRate,
-      invoiceNo: invoiceNo || "", // ★追加：履歴にも保持
+      invoiceNo: invoiceNo || "",
       table: String(t),
-      token: String(req.token||""), // ※DBには残してもOK（CSVには出さない）
+      token: String(req.token||""), // DBには保持OK（CSVには出さない）
       requestedAt: Number(req.requestedAt||0),
       confirmedAt: Date.now(),
 
@@ -978,6 +946,63 @@ $("btnSalesDelete").onclick = async ()=>{
     setSalesStatus(`<span class="ng">削除失敗</span> ${esc(e.message||e)}`);
   }
 };
+
+/* ===== CSVの取り扱い説明（普段は閉じておく） ===== */
+(function injectCsvHelp(){
+  const card = document.createElement("div");
+  card.className = "card noPrint";
+  card.style.marginTop = "14px";
+  card.innerHTML = `
+    <details>
+      <summary>CSVの保存・印刷のしかた（Windows / Mac / iPhone・iPad）</summary>
+      <div style="margin-top:10px; line-height:1.75">
+        <div style="font-weight:1000">保存期間について（重要）</div>
+        <ul>
+          <li>このシステムは、サーバー側の履歴は <b>保存期間60日</b> を基本として運用します（古い履歴は自動で整理されます）。</li>
+          <li>必要な月のデータは、<b>月初などにCSV（またはPDF）で端末へ保存</b>してください。</li>
+          <li>保存したファイルの管理（保管先・バックアップ）はオーナー側で行います。</li>
+        </ul>
+
+        <div style="font-weight:1000; margin-top:12px;">このページのCSVについて</div>
+        <ul>
+          <li>「売上CSV」は <b>端末にファイルとして保存</b>されます（Web側にCSVを保存するわけではありません）。</li>
+          <li>CSVは <b>Excel / Numbers / Googleスプレッドシート</b> で開けます。</li>
+          <li>印刷したい場合：CSVを開いて印刷 → 必要なら「PDFとして保存」もできます。</li>
+        </ul>
+
+        <div style="font-weight:1000; margin-top:12px;">Windows（Chrome / Edge）</div>
+        <ol>
+          <li>「売上CSV」を押す</li>
+          <li>通常は「ダウンロード」フォルダに <span class="mono">sales_ショップ_日付.csv</span> が入ります</li>
+          <li>Excelで開く → 文字化けする場合は Excel の「データ」→「テキスト/CSVから」でUTF-8読み込み</li>
+          <li>印刷：Excelの印刷（必要なら「PDFとして保存」）</li>
+        </ol>
+
+        <div style="font-weight:1000; margin-top:12px;">Mac（Chrome / Safari）</div>
+        <ol>
+          <li>「売上CSV」を押す → 「ダウンロード」フォルダに保存されます</li>
+          <li>Numbers または Excel で開けます</li>
+          <li>印刷：アプリの印刷 → 「PDFとして保存」も可能</li>
+        </ol>
+
+        <div style="font-weight:1000; margin-top:12px;">iPhone / iPad（Safari）</div>
+        <ol>
+          <li>「売上CSV」を押す</li>
+          <li>Safari右上の <b>↓（ダウンロード）</b> からファイルを開く</li>
+          <li>「共有」→「“ファイル”に保存」で iCloud Drive か “このiPhone内” に保存</li>
+          <li>Numbersで開く／印刷：共有→プリント（またはPDF保存）</li>
+        </ol>
+
+        <div style="font-weight:1000; margin-top:12px;">iOSで保存できない時</div>
+        <ul>
+          <li>アプリ内ブラウザだと制限される場合があります。<b>Safariで開く</b>のが確実です。</li>
+          <li>ポップアップブロックや拡張機能の影響で落ちることがあります。</li>
+        </ul>
+      </div>
+    </details>
+  `;
+  document.body.appendChild(card);
+})();
 
 /* boot */
 (function boot(){

@@ -50,12 +50,12 @@
     <div id="status" style="margin-top:10px;"></div>
   </div>
 
-  <!-- ✅ 追加：店員ハンディ（テーブル選択→order.html直通） -->
+  <!-- ✅ 店員ハンディ（テーブル選択→order.html直通） -->
   <div class="card">
     <div style="font-weight:900;margin-bottom:8px;">店員ハンディ（注文入力）</div>
     <div class="small" style="margin-bottom:10px;">
       テーブルを選んで「注文を取る」を押すと、<b>order.html</b> をそのテーブルの token 付きで開きます。<br>
-      既に着席中（webActiveSessionsにtokenあり）ならその token を使い、無ければ新規 token を作って着席扱いにします。
+      ※このページは <b>token を新規発行しません</b>（webActiveSessions が無い＝未入店なら止めます）
     </div>
 
     <div class="row">
@@ -98,44 +98,22 @@
     }
     function E(s){ return (typeof esc === "function") ? esc(s) : esc2(s); }
 
-    // shop_common.js 側の rtdbPut が無い場合はここで用意（壊さないための保険）
+    // shop_common.js 側の rtdbGet が無い場合はここで用意（読取専用）
     const DB_BASE_FALLBACK = "https://izakayaorder-default-rtdb.firebaseio.com";
     async function rtdbGetLocal(path){
       const base = (typeof RTDB_BASE !== "undefined" && RTDB_BASE) ? RTDB_BASE : DB_BASE_FALLBACK;
       const url = `${base}/${path}.json`;
-      const res = await fetch(url);
-      const txt = await res.text();
-      return { ok: res.ok, status: res.status, json: (()=>{ try{return JSON.parse(txt||"null");}catch{return null;} })(), raw: txt, url };
-    }
-    async function rtdbPutLocal(path, data){
-      const base = (typeof RTDB_BASE !== "undefined" && RTDB_BASE) ? RTDB_BASE : DB_BASE_FALLBACK;
-      const url = `${base}/${path}.json`;
-      const res = await fetch(url, { method:"PUT", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(data) });
+      const res = await fetch(url, { cache:"no-store" });
       const txt = await res.text();
       return { ok: res.ok, status: res.status, json: (()=>{ try{return JSON.parse(txt||"null");}catch{return null;} })(), raw: txt, url };
     }
 
-    // shop_common.js があれば優先して使う
+    // shop_common.js があれば優先して使う（GET）
     async function RTDB_GET(path){
       if(typeof rtdbGet === "function") return await rtdbGet(path);
       const r = await rtdbGetLocal(path);
       if(!r.ok) throw new Error(`HTTP ${r.status} ${r.raw}`);
       return r.json;
-    }
-    async function RTDB_PUT(path, data){
-      if(typeof rtdbPut === "function") return await rtdbPut(path, data);
-      const r = await rtdbPutLocal(path, data);
-      if(!r.ok) throw new Error(`HTTP ${r.status} ${r.raw}`);
-      return r.json;
-    }
-
-    function genTokenLocal(){
-      // shop_common.js の genToken があればそれを使う
-      if(typeof genToken === "function"){
-        try{ return String(genToken()); }catch{}
-      }
-      // fallback
-      return "t_" + Math.random().toString(36).slice(2,10) + "_" + Date.now().toString(36);
     }
 
     function setStatus(html){
@@ -244,32 +222,34 @@
       }
 
       try{
-        setHandyStatus(`<span class="mono">準備中...</span>`);
+        setHandyStatus(`<span class="mono">確認中...</span>`);
 
-        // 1) webActiveSessions/{shop}/{table} を確認（tokenがあれば流用）
+        // ★重要：GETのみ。tokenを新規発行しない。PUTしない。
         const sessPath = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(t)}`;
         const sess = await RTDB_GET(sessPath);
 
-        let token = "";
-        if(sess && typeof sess === "object" && sess.token){
-          token = String(sess.token);
-        }else{
-          // 2) 無ければ token 新規発行して着席扱いにする
-          token = genTokenLocal();
-          const payload = {
-            token,
-            active: true,
-            createdAt: Date.now(),
-            createdAtText: new Date().toLocaleString("ja-JP"),
-            source: "handy"
-          };
-          await RTDB_PUT(sessPath, payload);
+        if(!sess || typeof sess !== "object" || !sess.token){
+          setHandyStatus(
+            `<span class="ng">未着席</span> T${E(t)} は入店（webActiveSessions）なし。<br>` +
+            `客がQRから入店して token を作ってから開いてください。`
+          );
+          return;
         }
 
-        // 3) order.html へ（shop/table/token を付けて直通）
-        const url = `order.html?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(t)}&token=${encodeURIComponent(token)}&v=${Date.now()}`;
+        const token = String(sess.token||"").trim();
+        if(!token){
+          setHandyStatus(`<span class="ng">NG</span> token が空です（webActiveSessionsのデータ不正）`);
+          return;
+        }
 
-        setHandyStatus(`<span class="ok">OK</span> T${E(t)} を開きます`);
+        // order.html へ（shop/table/token を付けて直通）
+        const url =
+          `order.html?shop=${encodeURIComponent(shop)}` +
+          `&table=${encodeURIComponent(t)}` +
+          `&token=${encodeURIComponent(token)}` +
+          `&v=${Date.now()}`;
+
+        setHandyStatus(`<span class="ok">OK</span> T${E(t)} を開きます（token固定）`);
         location.href = url;
 
       }catch(e){
@@ -287,6 +267,7 @@
   </script>
 </body>
 </html>
+
 
 
 

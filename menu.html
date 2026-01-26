@@ -15,7 +15,6 @@
       border:1px solid #ddd; text-decoration:none; color:#111827; font-weight:800;
       min-width: 180px; text-align:center;
     }
-    a.btn.primary{background:#111827;color:#fff;border-color:#111827}
     a.btn.warn{background:#fef3c7;border-color:#f59e0b}
     a.btn.kitchen{background:#dbeafe;border-color:#3b82f6}
     .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
@@ -50,12 +49,12 @@
     <div id="status" style="margin-top:10px;"></div>
   </div>
 
-  <!-- ✅ 店員ハンディ（テーブル選択→order.html直通） -->
+  <!-- 店員ハンディ（ここが唯一 webActiveSessions を作る） -->
   <div class="card">
     <div style="font-weight:900;margin-bottom:8px;">店員ハンディ（注文入力）</div>
     <div class="small" style="margin-bottom:10px;">
       テーブルを選んで「注文を取る」を押すと、<b>order.html</b> をそのテーブルの token 付きで開きます。<br>
-      ※このページは <b>token を新規発行しません</b>（webActiveSessions が無い＝未入店なら止めます）
+      既に着席中（webActiveSessionsにtokenあり）ならその token を使い、無ければ新規 token を作って着席扱いにします。
     </div>
 
     <div class="row">
@@ -89,8 +88,6 @@
       if(!pin) return "-";
       return "*".repeat(Math.min(String(pin).length, 8));
     }
-
-    // shop_common.js 側の esc が無い場合の保険
     function esc2(s){
       return String(s ?? "").replace(/[&<>"']/g, m => ({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
@@ -98,7 +95,7 @@
     }
     function E(s){ return (typeof esc === "function") ? esc(s) : esc2(s); }
 
-    // shop_common.js 側の rtdbGet が無い場合はここで用意（読取専用）
+    // RTDB（shop_common.js の関数があれば優先）
     const DB_BASE_FALLBACK = "https://izakayaorder-default-rtdb.firebaseio.com";
     async function rtdbGetLocal(path){
       const base = (typeof RTDB_BASE !== "undefined" && RTDB_BASE) ? RTDB_BASE : DB_BASE_FALLBACK;
@@ -107,23 +104,37 @@
       const txt = await res.text();
       return { ok: res.ok, status: res.status, json: (()=>{ try{return JSON.parse(txt||"null");}catch{return null;} })(), raw: txt, url };
     }
+    async function rtdbPutLocal(path, data){
+      const base = (typeof RTDB_BASE !== "undefined" && RTDB_BASE) ? RTDB_BASE : DB_BASE_FALLBACK;
+      const url = `${base}/${path}.json`;
+      const res = await fetch(url, { method:"PUT", cache:"no-store", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(data) });
+      const txt = await res.text();
+      return { ok: res.ok, status: res.status, json: (()=>{ try{return JSON.parse(txt||"null");}catch{return null;} })(), raw: txt, url };
+    }
 
-    // shop_common.js があれば優先して使う（GET）
     async function RTDB_GET(path){
       if(typeof rtdbGet === "function") return await rtdbGet(path);
       const r = await rtdbGetLocal(path);
       if(!r.ok) throw new Error(`HTTP ${r.status} ${r.raw}`);
       return r.json;
     }
-
-    function setStatus(html){
-      $("status").innerHTML = html || "";
+    async function RTDB_PUT(path, data){
+      if(typeof rtdbPut === "function") return await rtdbPut(path, data);
+      const r = await rtdbPutLocal(path, data);
+      if(!r.ok) throw new Error(`HTTP ${r.status} ${r.raw}`);
+      return r.json;
     }
-    function setHandyStatus(html){
-      $("handyStatus").innerHTML = html || "";
+
+    function genTokenLocal(shop, table){
+      // tokenは「テーブルのセッションID」なので、ここだけで発行する
+      const n = Math.floor(100000 + Math.random() * 900000); // 6桁
+      return `${shop}-${table}-${n}`;
     }
 
-    // ログイン必須（ここは shop_common.js の実装に任せる）
+    function setStatus(html){ $("status").innerHTML = html || ""; }
+    function setHandyStatus(html){ $("handyStatus").innerHTML = html || ""; }
+
+    // ログイン必須（shop_common.js に任せる）
     if(typeof requireLogin === "function"){
       if(!requireLogin()) { /* redirect */ }
     }
@@ -140,12 +151,10 @@
       setStatus(`<span class="ng">NG</span> 未ログイン`);
     }
 
-    // ✅ログアウト（確実に落とす：想定キーを全部消す）
+    // ログアウト
     $("btnLogout").onclick = ()=>{
       try{
-        if(typeof lsClearShopLogin === "function"){
-          lsClearShopLogin();
-        }
+        if(typeof lsClearShopLogin === "function"){ lsClearShopLogin(); }
         localStorage.removeItem("shopCode");
         localStorage.removeItem("shopPin");
         localStorage.removeItem("shop");
@@ -158,7 +167,7 @@
       location.href = "login.html?v=" + Date.now();
     };
 
-    // 接続チェック（画面表示だけ）
+    // 接続チェック
     $("btnCheck").onclick = async ()=>{
       try{
         const r = await (typeof rtdbGet === "function"
@@ -173,13 +182,11 @@
 
     /* ===== ハンディ：テーブルセレクタ ===== */
     const MAX_KEY = "handyMaxTables";
-
     function getMaxTables(){
       const v = Number(localStorage.getItem(MAX_KEY) || $("inpMaxTables").value || 30);
       if(!Number.isFinite(v) || v < 1) return 30;
       return Math.min(200, Math.floor(v));
     }
-
     function buildTableOptions(){
       const max = getMaxTables();
       $("inpMaxTables").value = String(max);
@@ -194,16 +201,9 @@
         opt.textContent = "T" + i;
         sel.appendChild(opt);
       }
-
-      if(Number(prev) >= 1 && Number(prev) <= max){
-        sel.value = prev;
-      }else{
-        sel.value = "1";
-      }
-
+      sel.value = (Number(prev) >= 1 && Number(prev) <= max) ? prev : "1";
       setHandyStatus(`テーブル上限: ${max}（変更可）`);
     }
-
     $("btnRebuildTables").onclick = ()=>{
       const v = Number($("inpMaxTables").value || 30);
       localStorage.setItem(MAX_KEY, String(v));
@@ -222,34 +222,33 @@
       }
 
       try{
-        setHandyStatus(`<span class="mono">確認中...</span>`);
+        setHandyStatus(`<span class="mono">準備中...</span>`);
 
-        // ★重要：GETのみ。tokenを新規発行しない。PUTしない。
+        // 1) webActiveSessions/{shop}/{table} を確認（tokenがあれば流用）
         const sessPath = `webActiveSessions/${encodeURIComponent(shop)}/${encodeURIComponent(t)}`;
         const sess = await RTDB_GET(sessPath);
 
-        if(!sess || typeof sess !== "object" || !sess.token){
-          setHandyStatus(
-            `<span class="ng">未着席</span> T${E(t)} は入店（webActiveSessions）なし。<br>` +
-            `客がQRから入店して token を作ってから開いてください。`
-          );
-          return;
+        let token = "";
+        if(sess && typeof sess === "object" && sess.token && sess.active !== false){
+          token = String(sess.token).trim();
+        }else{
+          // 2) 無ければ token 新規発行して着席扱いにする（★ここだけがPUTする）
+          token = genTokenLocal(shop, t);
+          const payload = {
+            shop,
+            table: String(t),
+            token,
+            active: true,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            source: "handy"
+          };
+          await RTDB_PUT(sessPath, payload);
         }
 
-        const token = String(sess.token||"").trim();
-        if(!token){
-          setHandyStatus(`<span class="ng">NG</span> token が空です（webActiveSessionsのデータ不正）`);
-          return;
-        }
-
-        // order.html へ（shop/table/token を付けて直通）
-        const url =
-          `order.html?shop=${encodeURIComponent(shop)}` +
-          `&table=${encodeURIComponent(t)}` +
-          `&token=${encodeURIComponent(token)}` +
-          `&v=${Date.now()}`;
-
-        setHandyStatus(`<span class="ok">OK</span> T${E(t)} を開きます（token固定）`);
+        // 3) order.html へ直通
+        const url = `order.html?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(t)}&token=${encodeURIComponent(token)}&v=${Date.now()}`;
+        setHandyStatus(`<span class="ok">OK</span> T${E(t)} を開きます（token固定運用）`);
         location.href = url;
 
       }catch(e){
@@ -267,6 +266,7 @@
   </script>
 </body>
 </html>
+
 
 
 

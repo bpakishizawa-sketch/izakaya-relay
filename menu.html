@@ -15,79 +15,12 @@
       border:1px solid #ddd; text-decoration:none; color:#111827; font-weight:800;
       min-width: 180px; text-align:center;
     }
-    a.btn.warn{background:#fef3c7;border-color:#f59e0b}
-    a.btn.kitchen{background:#dbeafe;border-color:#3b82f6}
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    .ok{color:#16a34a;font-weight:800}
-    .ng{color:#dc2626;font-weight:800}
-    button{font-size:16px;padding:10px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:800}
-    button.dark{background:#111827;color:#fff}
-    button.blue{background:#2563eb;color:#fff}
-    select,input{font-size:16px;padding:10px;border-radius:10px;border:1px solid #d1d5db;background:#fff}
-    .small{font-size:12px;color:#6b7280}
-    .pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid #ddd;font-weight:900;font-size:12px;background:#f9fafb}
-  </style>
-</head>
-<body>
-  <h1>店側メニュー</h1>
-  <div class="sub">
-    この端末は shopコード＋PIN でログイン済み。ここから各機能ページへ移動します。<br>
-  </div>
-
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <div>
-        <div>shop: <b id="shopText" class="mono">-</b></div>
-        <div>PIN: <b id="pinText" class="mono">-</b> <span class="small">（表示はマスク）</span></div>
-      </div>
-      <div class="row">
-        <button type="button" id="btnLogout" class="dark">ログアウト</button>
-        <button type="button" id="btnCheck" class="dark">接続チェック</button>
-      </div>
-    </div>
-
-    <div id="status" style="margin-top:10px;"></div>
-  </div>
-
   <!-- 店員ハンディ（ここが唯一 webActiveSessions を作る） -->
   <div class="card">
     <div style="font-weight:900;margin-bottom:8px;">店員ハンディ（注文入力）</div>
     <div class="small" style="margin-bottom:10px;">
       テーブルを選んで「注文を取る」を押すと、<b>order.html</b> をそのテーブルの token 付きで開きます。<br>
       既に着席中（webActiveSessionsにtokenあり）ならその token を使い、無ければ新規 token を作って着席扱いにします。
-    </div>
-
-    <div class="row">
-      <span class="pill">TABLE</span>
-      <select id="selTable" style="min-width:140px"></select>
-
-      <span class="pill">上限</span>
-      <input id="inpMaxTables" type="number" min="1" max="200" value="30" style="width:120px" inputmode="numeric" />
-
-      <button type="button" id="btnRebuildTables" class="dark">更新</button>
-      <button type="button" id="btnGoOrder" class="blue">このテーブルで注文を取る</button>
-    </div>
-
-    <div id="handyStatus" class="small" style="margin-top:10px;color:#6b7280;">-</div>
-  </div>
-
-  <div class="card">
-    <div class="row">
-      <a class="btn kitchen" href="./kitchen.html?v=1">厨房：オーダーリスト</a>
-      <a class="btn warn" href="./checkout.html?v=1">会計：テーブル別お会計</a>
-      <a class="btn" href="./qr.html?v=1">QR：印刷用</a>
-      <a class="btn" href="./menu_edit.html?v=1">メニュー編集</a>
-    </div>
-  </div>
-
-  <script src="shop_common.js"></script>
-  <script>
-    const $ = (id)=>document.getElementById(id);
-
-    function maskPin(pin){
-      if(!pin) return "-";
-      return "*".repeat(Math.min(String(pin).length, 8));
-    }
     function esc2(s){
       return String(s ?? "").replace(/[&<>"']/g, m => ({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
@@ -168,39 +101,6 @@
     };
 
     // 接続チェック
-    $("btnCheck").onclick = async ()=>{
-      try{
-        const r = await (typeof rtdbGet === "function"
-          ? rtdbGet(`shops/${encodeURIComponent(shop)}/staffPin`)
-          : rtdbGetLocal(`shops/${encodeURIComponent(shop)}/staffPin`));
-        if(r && r.ok === false) throw new Error(`HTTP ${r.status}`);
-        setStatus(`<span class="ok">OK</span> FBRD 接続OK`);
-      }catch(e){
-        setStatus(`<span class="ng">NG</span> ${E(e.message||e)}`);
-      }
-    };
-
-    /* ===== ハンディ：テーブルセレクタ ===== */
-    const MAX_KEY = "handyMaxTables";
-    function getMaxTables(){
-      const v = Number(localStorage.getItem(MAX_KEY) || $("inpMaxTables").value || 30);
-      if(!Number.isFinite(v) || v < 1) return 30;
-      return Math.min(200, Math.floor(v));
-    }
-    function buildTableOptions(){
-      const max = getMaxTables();
-      $("inpMaxTables").value = String(max);
-
-      const sel = $("selTable");
-      const prev = sel.value || "1";
-      sel.innerHTML = "";
-
-      for(let i=1;i<=max;i++){
-        const opt = document.createElement("option");
-        opt.value = String(i);
-        opt.textContent = "T" + i;
-        sel.appendChild(opt);
-      }
       sel.value = (Number(prev) >= 1 && Number(prev) <= max) ? prev : "1";
       setHandyStatus(`テーブル上限: ${max}（変更可）`);
     }
@@ -249,6 +149,7 @@
         // 3) order.html へ直通
         const url = `order.html?shop=${encodeURIComponent(shop)}&table=${encodeURIComponent(t)}&token=${encodeURIComponent(token)}&v=${Date.now()}`;
         setHandyStatus(`<span class="ok">OK</span> T${E(t)} を開きます（token固定運用）`);
+
         location.href = url;
 
       }catch(e){
@@ -266,6 +167,7 @@
   </script>
 </body>
 </html>
+
 
 
 

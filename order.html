@@ -120,10 +120,14 @@
         <div style="font-weight:900;margin-bottom:8px;">メニュー番号で注文</div>
         <div class="row">
           <input id="orderNoInp" type="number" min="1" inputmode="numeric" placeholder="例：23" style="flex:1;min-width:140px" />
-          <input id="orderNoQtyInp" type="number" min="1" value="1" inputmode="numeric" style="width:100px" />
+          <div style="display:flex;align-items:center;gap:6px;min-width:140px">
+            <span style="font-weight:900;">数量</span>
+            <input id="orderNoQtyInp" type="number" min="1" value="1" inputmode="numeric" style="width:80px" />
+            <span style="font-weight:900;">個</span>
+          </div>
           <button id="btnAddByNo" class="btn" style="width:auto;min-width:150px">番号で追加</button>
         </div>
-        <div id="orderNoPreview" class="muted" style="margin-top:8px;">番号を入力してください</div>
+        <div id="orderNoPreview" style="margin-top:10px;font-size:18px;line-height:1.6;font-weight:900;">番号を入力してください</div>
       </div>
 
       <div class="row">
@@ -141,7 +145,11 @@
           <option value="">（読み込み中…）</option>
         </select>
 
-        <input id="qtyInp" type="number" min="1" value="1" style="width:120px" inputmode="numeric" />
+        <div style="display:flex;align-items:center;gap:6px;min-width:150px">
+          <span style="font-weight:900;">数量</span>
+          <input id="qtyInp" type="number" min="1" value="1" style="width:80px" inputmode="numeric" />
+          <span style="font-weight:900;">個</span>
+        </div>
       </div>
 
       <div class="row">
@@ -567,8 +575,16 @@ function updateOrderNoPreview(){
   }
 
   const cat = item.category === "drink" ? "ドリンク" : "フード";
-  $("orderNoPreview").innerHTML =
-    `<span class="ok">No.${esc(String(item.orderNo))}</span> ${esc(item.name)} / ${esc(yen(item.price))} <span class="muted">(${cat})</span>`;
+  $("orderNoPreview").innerHTML = `
+    <div>
+      <span class="ok">No.${esc(String(item.orderNo))}</span>
+      <span style="font-size:24px;font-weight:1000;margin-left:8px;">${esc(item.name)}</span>
+    </div>
+    <div style="font-size:18px;margin-top:2px;">
+      ${esc(yen(item.price))}
+      <span class="muted" style="font-size:14px;margin-left:8px;">${cat}</span>
+    </div>
+  `;
 }
 
 function addItemToCart(item, qty){
@@ -982,6 +998,9 @@ $("btnCheckout").addEventListener("pointercancel", ()=> endHold());
 </script>
 </body>
 </html>
+
+
+
 
 
 

@@ -18,8 +18,6 @@
     .ok{color:#16a34a;font-weight:900}
     .ng{color:#dc2626;font-weight:900}
     .small{font-size:12px;color:#6b7280}
-    details summary{cursor:pointer;font-weight:900;color:#374151}
-    pre{white-space:pre-wrap;word-break:break-word;background:#f7f7f7;padding:10px;border-radius:10px;overflow:auto}
   </style>
 </head>
 <body>
@@ -37,11 +35,6 @@
 
     <div id="msg" style="margin-top:10px;" class="small">-</div>
   </div>
-
-  <details class="card">
-    <summary>デバッグ（開いて確認）</summary>
-    <pre id="debug" class="mono">-</pre>
-  </details>
 
 <script>
 /** ===== 設定（ここだけ） ===== */
@@ -102,20 +95,6 @@ async function doLogin(){
     const staffPinPath = `shops/${encodeURIComponent(shop)}/staffPin`;
     const r = await rtdbGet(staffPinPath);
 
-    const dbg = {
-      requestShop: shop,
-      inputPin: pin,
-      staffPinPath,
-      fetchStatus: r.status,
-      ok: r.ok,
-      url: r.url,
-      gotJson: r.json,
-      gotType: typeof r.json,
-      storedShop_before: getShop(),
-      storedPin_before: getPin()
-    };
-    $("debug").textContent = JSON.stringify(dbg, null, 2);
-
     if(!r.ok){
       setMsg(`<span class="ng">NG</span> staffPin取得失敗（HTTP ${r.status}）`);
       $("btnLogin").disabled = false;
@@ -153,8 +132,6 @@ $("pinInp").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); })
 </script>
 </body>
 </html>
-
-
 
 
 

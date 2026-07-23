@@ -1,9 +1,9 @@
-<!doctype html>
+!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>メニュー編集（店側） BUILD:20260118_4</title>
+  <title>メニュー編集（店側） BUILD:20260723_ORDERNO</title>
   <style>
     body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;padding:16px;max-width:980px;margin:0 auto;background:#f6f7f9}
     h1{font-size:22px;margin:0 0 6px}
@@ -106,7 +106,7 @@
 </head>
 <body>
   <h1>メニュー編集（店側）</h1>
-  <div class="build">BUILD: <span class="mono">20260118_4</span></div>
+  <div class="build">BUILD: <span class="mono">20260723_ORDERNO</span></div>
 
   <div class="card noPrint">
     <div class="row">
@@ -152,6 +152,11 @@
         <input id="inpPrice" placeholder="例：450" inputmode="numeric" />
       </div>
 
+      <div>
+        <div class="muted">注文番号（全商品共通の通し番号）</div>
+        <input id="inpOrderNo" placeholder="例：23" inputmode="numeric" />
+      </div>
+
       <div class="row" style="align-items:end;justify-content:flex-end">
         <button id="btnSave" class="btn">保存</button>
         <button id="btnDelete" class="btn2">削除</button>
@@ -173,7 +178,9 @@
         例：<span class="mono">【一品】唐揚げ</span> / <span class="mono">【デザート】アイス</span> / <span class="mono">【サワー】レモンサワー</span><br>
         ・カテゴリ名は自由（店ごとに好きな名前でOK）<br>
         ・カッコは全角の <span class="mono">【 】</span> を使う<br>
-        ・【】の後ろの名前が、注文画面に表示されるメニュー名になります
+        ・【】の後ろの名前が、注文画面に表示されるメニュー名になります<br><br>
+        <b>注文番号：</b>ドリンク・フードをまたいで重複しない通し番号を設定してください。<br>
+        例：生ビール=1、ハイボール=2、枝豆=21、唐揚げ=22
       </div>
     </div>
 
@@ -227,12 +234,18 @@ async function rtdbPut(path, data){
 
 function parseMenuValue(v){
   if(v && typeof v === "object"){
-    return { name: String(v.name?? ""), price: Number(v.price ?? 0) };
+    return {
+      name: String(v.name ?? ""),
+      price: Number(v.price ?? 0),
+      orderNo: (v.orderNo === null || v.orderNo === undefined || v.orderNo === "")
+        ? null
+        : Number(v.orderNo)
+    };
   }
   if(typeof v === "string"){
-    return { name: v, price: 0 };
+    return { name: v, price: 0, orderNo: null };
   }
-  return { name:"", price:0 };
+  return { name:"", price:0, orderNo:null };
 }
 function idNum(id){
   const m = String(id||"").match(/\d+/);
@@ -261,7 +274,8 @@ function rebuildSelect(){
     opt.value = id;
     const n = (v.name || "").trim();
     const p = Number(v.price || 0);
-    opt.textContent = `${id} ｜ ${n || "-"} ｜ ${p}`;
+    const no = Number.isInteger(v.orderNo) && v.orderNo > 0 ? `No.${v.orderNo} ｜ ` : "";
+    opt.textContent = `${no}${id} ｜ ${n || "-"} ｜ ${p}`;
     sel.appendChild(opt);
   }
 }
@@ -274,12 +288,14 @@ function fillEditor(id){
   $("inpId").value = id;
   $("inpName").value = v.name || "";
   $("inpPrice").value = String(v.price ?? 0);
+  $("inpOrderNo").value = Number.isInteger(v.orderNo) && v.orderNo > 0 ? String(v.orderNo) : "";
 }
 function clearEditor(){
   $("selTarget").value = "";
   $("inpId").value = "";
   $("inpName").value = "";
   $("inpPrice").value = "";
+  $("inpOrderNo").value = "";
 }
 
 function renderList(){
@@ -294,7 +310,7 @@ function renderList(){
       <div class="left">
         <span class="pill pillD">D</span>
         <div style="min-width:0">
-          <div class="id mono">${esc(id)}</div>
+          <div class="id mono">${Number.isInteger(v.orderNo) && v.orderNo > 0 ? `No.${esc(String(v.orderNo))} ｜ ` : ""}${esc(id)}</div>
           <div class="name">${esc(v.name || "-")}</div>
         </div>
       </div>
@@ -316,7 +332,7 @@ function renderList(){
       <div class="left">
         <span class="pill pillF">F</span>
         <div style="min-width:0">
-          <div class="id mono">${esc(id)}</div>
+          <div class="id mono">${Number.isInteger(v.orderNo) && v.orderNo > 0 ? `No.${esc(String(v.orderNo))} ｜ ` : ""}${esc(id)}</div>
           <div class="name">${esc(v.name || "-")}</div>
         </div>
       </div>
@@ -366,18 +382,50 @@ function normalizeId(idRaw){
   return low;
 }
 
+function findDuplicateOrderNo(orderNo, exceptId=""){
+  if(!Number.isInteger(orderNo) || orderNo <= 0) return null;
+
+  for(const id of state.drinkKeys){
+    if(id === exceptId) continue;
+    const v = parseMenuValue(state.drink[id]);
+    if(v.orderNo === orderNo) return { id, cat:"drink", name:v.name };
+  }
+  for(const id of state.foodKeys){
+    if(id === exceptId) continue;
+    const v = parseMenuValue(state.food[id]);
+    if(v.orderNo === orderNo) return { id, cat:"food", name:v.name };
+  }
+  return null;
+}
+
 async function saveCurrent(){
   const id = normalizeId($("inpId").value);
   if(!id){ setStatus(`<span class="ng">IDが不正です（d12 / f101 の形式）</span>`); return; }
   const name = ($("inpName").value || "").trim();
   const price = Number(($("inpPrice").value || "0").trim());
+  const orderNoRaw = ($("inpOrderNo").value || "").trim();
+  const orderNo = orderNoRaw === "" ? null : Number(orderNoRaw);
+
   if(!name){ setStatus(`<span class="ng">メニュー名が空です</span>`); return; }
   if(!Number.isFinite(price) || price < 0){ setStatus(`<span class="ng">価格が不正です</span>`); return; }
+  if(orderNo !== null && (!Number.isInteger(orderNo) || orderNo <= 0)){
+    setStatus(`<span class="ng">注文番号は1以上の整数で入力してください</span>`);
+    return;
+  }
+
+  if(orderNo !== null){
+    const dup = findDuplicateOrderNo(orderNo, id);
+    if(dup){
+      setStatus(`<span class="ng">注文番号 ${esc(String(orderNo))} は既に使われています</span> <span class="muted">(${esc(dup.id)} ${esc(dup.name)})</span>`);
+      return;
+    }
+  }
 
   const cat = id.startsWith("d") ? "drink" : "food";
   setStatus(`<span class="mono">saving...</span>`);
   const path = `shops/${encodeURIComponent(state.shop)}/menu/${cat}/${encodeURIComponent(id)}`;
-  const res = await rtdbPut(path, { name, price });
+  const payload = orderNo === null ? { name, price } : { name, price, orderNo };
+  const res = await rtdbPut(path, payload);
   if(!res.ok){ setStatus(`<span class="ng">保存失敗</span> <span class="muted">(${res.status})</span>`); return; }
 
   await loadAll(); setTab(cat); fillEditor(id);

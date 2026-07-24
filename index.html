@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>店側ログイン</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px; max-width:720px; margin:0 auto; background:#f6f7f9;}
+    h1{font-size:22px;margin:0 0 10px}
+    .sub{font-size:12px;color:#6b7280;margin-bottom:14px;line-height:1.6}
+    .card{border:1px solid #ddd;border-radius:12px;padding:14px;margin:12px 0;background:#fff;}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,button{font-size:16px;padding:12px;border-radius:12px}
+    input{border:1px solid #d1d5db; background:#fff; width:100%; box-sizing:border-box}
+    button{cursor:pointer;border:0;font-weight:900}
+    .btn{background:#111827;color:#fff; min-width:140px}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .ok{color:#16a34a;font-weight:900}
+    .ng{color:#dc2626;font-weight:900}
+    .small{font-size:12px;color:#6b7280}
+  </style>
+</head>
+<body>
+  <h1>店側ログイン</h1>
+  <div class="sub">
+    shopコード と staffPin を入力してログインします。<br>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <input id="shopInp" placeholder="shopコード（例：daboya）" autocomplete="username" />
+      <input id="pinInp" placeholder="PIN（例：1111）" inputmode="numeric" autocomplete="current-password" style="max-width:180px" />
+      <button id="btnLogin" class="btn">ログイン</button>
+    </div>
+
+    <div id="msg" style="margin-top:10px;" class="small">-</div>
+  </div>
+
+<script>
+/** ===== 設定（ここだけ） ===== */
+const RTDB_BASE = "https://izakayaorder-default-rtdb.firebaseio.com";
+/** ============================ */
+
+const $ = (id)=>document.getElementById(id);
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, m => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
+function setMsg(html){ $("msg").innerHTML = html; }
+
+function normalizePin(x){
+  if(x === null || x === undefined) return "";
+  return String(x).trim();
+}
+
+/* ===== localStorage login ===== */
+function lsSetShopLogin(shop, pin){
+  localStorage.setItem("shopCode", String(shop||"").trim());
+  localStorage.setItem("shopPin",  String(pin||"").trim());
+}
+function lsClearShopLogin(){
+  localStorage.removeItem("shopCode");
+  localStorage.removeItem("shopPin");
+}
+function getShop(){ return (localStorage.getItem("shopCode")||"").trim(); }
+function getPin(){  return (localStorage.getItem("shopPin")||"").trim(); }
+
+/* ===== RTDB REST ===== */
+async function rtdbGet(path){
+  const url = `${RTDB_BASE}/${path}.json`;
+  const res = await fetch(url, { method:"GET" });
+  const txt = await res.text();
+  let json = null;
+  try{ json = txt ? JSON.parse(txt) : null; }catch{ json = null; }
+  return { ok: res.ok, status: res.status, json, url, raw: txt };
+}
+
+/* ===== login ===== */
+async function doLogin(){
+  const shop = ($("shopInp").value || "").trim();
+  const pin  = ($("pinInp").value  || "").trim();
+
+  if(!shop || !pin){
+    setMsg(`<span class="ng">NG</span> shop と PIN を入力してください`);
+    return;
+  }
+
+  $("btnLogin").disabled = true;
+  setMsg(`<span class="mono">確認中...</span>`);
+
+  try{
+    const staffPinPath = `shops/${encodeURIComponent(shop)}/staffPin`;
+    const r = await rtdbGet(staffPinPath);
+
+    if(!r.ok){
+      setMsg(`<span class="ng">NG</span> staffPin取得失敗（HTTP ${r.status}）`);
+      $("btnLogin").disabled = false;
+      return;
+    }
+
+    const serverPin = normalizePin(r.json);
+    const inputPin  = normalizePin(pin);
+
+    if(!serverPin){
+      setMsg(`<span class="ng">NG</span> staffPin が未設定です（/shops/${esc(shop)}/staffPin）`);
+      $("btnLogin").disabled = false;
+      return;
+    }
+
+    if(serverPin !== inputPin){
+      setMsg(`<span class="ng">NG</span> PINが違います`);
+      $("btnLogin").disabled = false;
+      return;
+    }
+
+    lsSetShopLogin(shop, inputPin);
+
+    setMsg(`<span class="ok">OK</span> ログインしました → menuへ移動します`);
+    setTimeout(()=> location.href = `menu.html?v=${Date.now()}`, 150);
+
+  }catch(e){
+    setMsg(`<span class="ng">例外エラー</span> ${esc(e.message || e)}`);
+    $("btnLogin").disabled = false;
+  }
+}
+
+$("btnLogin").onclick = doLogin;
+$("pinInp").addEventListener("keydown", (e)=>{ if(e.key==="Enter") doLogin(); });
+</script>
+</body>
+</html>
+
+
+
